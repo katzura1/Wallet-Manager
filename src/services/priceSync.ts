@@ -22,7 +22,8 @@ export interface SyncResult {
 
 export const STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-// ─── Alpha Vantage API key (stored in localStorage) ──────────────────────────
+// ─── Alpha Vantage API keys (stored in localStorage, up to 2 keys) ─────────────
+// Two keys = 50 free requests/day. Keys are used round-robin per stock.
 
 export function getAlphaVantageKey(): string {
   return localStorage.getItem("alphavantageKey") ?? "";
@@ -31,6 +32,23 @@ export function getAlphaVantageKey(): string {
 export function setAlphaVantageKey(key: string): void {
   localStorage.setItem("alphavantageKey", key.trim());
 }
+
+export function getAlphaVantageKey2(): string {
+  return localStorage.getItem("alphavantageKey2") ?? "";
+}
+
+export function setAlphaVantageKey2(key: string): void {
+  localStorage.setItem("alphavantageKey2", key.trim());
+}
+
+/** Returns all configured (non-empty) Alpha Vantage keys. */
+function getAvKeys(): string[] {
+  return [getAlphaVantageKey(), getAlphaVantageKey2()].filter(Boolean);
+}
+
+/** Wait ms milliseconds — used to respect Alpha Vantage rate limits. */
+const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const AV_DELAY_MS = 2000; // 2-second gap between stock requests
 
 // ─── CoinGecko coin search ────────────────────────────────────────────────────
 
@@ -164,21 +182,23 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
     for (const a of assets.filter((x) => x.type === "crypto")) failed.push(a.symbol);
   }
 
-  // Stocks via Alpha Vantage
+  // Stocks via Alpha Vantage (round-robin across up to 2 keys, 2s delay each)
   const stocks = assets.filter((a) => a.type === "stock");
   if (stocks.length > 0) {
-    const apiKey = getAlphaVantageKey();
-    if (!apiKey) {
+    const keys = getAvKeys();
+    if (keys.length === 0) {
       // No key — skip stocks, caller will show a prompt
       return { synced, failed, noKey: true };
     }
-    for (const asset of stocks) {
+    for (let i = 0; i < stocks.length; i++) {
+      if (i > 0) await delay(AV_DELAY_MS); // respect rate limit
+      const apiKey = keys[i % keys.length]; // round-robin
       try {
-        const ok = await syncStock(asset, apiKey);
-        if (ok) synced.push(asset.symbol);
-        else failed.push(asset.symbol);
+        const ok = await syncStock(stocks[i], apiKey);
+        if (ok) synced.push(stocks[i].symbol);
+        else failed.push(stocks[i].symbol);
       } catch {
-        failed.push(asset.symbol);
+        failed.push(stocks[i].symbol);
       }
     }
   }

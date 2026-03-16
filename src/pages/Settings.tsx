@@ -7,7 +7,7 @@ import { db, seedMissingDefaultCategories } from "@/db/db";
 import { deleteCategory } from "@/db/categories";
 import { CategoryForm } from "@/components/forms/CategoryForm";
 import { Sun, Moon, Download, Upload, Trash2, Pencil, Plus, RefreshCw } from "lucide-react";
-import { getAlphaVantageKey, setAlphaVantageKey } from "@/services/priceSync";
+import { getAlphaVantageKey, setAlphaVantageKey, getAlphaVantageKey2, setAlphaVantageKey2 } from "@/services/priceSync";
 import type { Category } from "@/types";
 
 export default function Settings() {
@@ -24,11 +24,19 @@ export default function Settings() {
   const [restoreMsg, setRestoreMsg] = useState("");
   const [avKey, setAvKey] = useState(getAlphaVantageKey());
   const [avSaved, setAvSaved] = useState(false);
+  const [avKey2, setAvKey2] = useState(getAlphaVantageKey2());
+  const [avSaved2, setAvSaved2] = useState(false);
 
   function handleSaveAvKey() {
     setAlphaVantageKey(avKey);
     setAvSaved(true);
     setTimeout(() => setAvSaved(false), 2000);
+  }
+
+  function handleSaveAvKey2() {
+    setAlphaVantageKey2(avKey2);
+    setAvSaved2(true);
+    setTimeout(() => setAvSaved2(false), 2000);
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -247,16 +255,17 @@ export default function Settings() {
             <a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">
               alphavantage.co
             </a>{" "}
-            lalu paste key di bawah. Free tier: 25 req/hari.
+            lalu paste key di bawah. Free tier: <strong>25 req/hari per key</strong> — isi 2 key untuk 50 req/hari.
           </p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
             🇮🇩 Saham IDX: gunakan suffix <code className="bg-[hsl(var(--muted))] px-1 rounded">.JKT</code> (mis. <code className="bg-[hsl(var(--muted))] px-1 rounded">BBCA.JKT</code>).
             🇺🇸 Saham AS: simbol biasa (mis. <code className="bg-[hsl(var(--muted))] px-1 rounded">AAPL</code>, <code className="bg-[hsl(var(--muted))] px-1 rounded">TSM</code>).
           </p>
+          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">API Key 1</p>
           <div className="flex gap-2">
             <input
               type="password"
-              placeholder="Masukkan Alpha Vantage API key"
+              placeholder="Masukkan Alpha Vantage API key 1"
               value={avKey}
               onChange={(e) => { setAvKey(e.target.value); setAvSaved(false); }}
               className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
@@ -265,8 +274,23 @@ export default function Settings() {
               {avSaved ? "✅ Tersimpan" : "Simpan"}
             </Button>
           </div>
-          {avKey && !avSaved && (
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Key terpasang. Buka halaman Portofolio dan tap “Sync Harga”.</p>
+          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">API Key 2 <span className="font-normal">(opsional — untuk 50 req/hari)</span></p>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              placeholder="Masukkan Alpha Vantage API key 2 (opsional)"
+              value={avKey2}
+              onChange={(e) => { setAvKey2(e.target.value); setAvSaved2(false); }}
+              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <Button size="sm" onClick={handleSaveAvKey2} disabled={avSaved2}>
+              {avSaved2 ? "✅ Tersimpan" : "Simpan"}
+            </Button>
+          </div>
+          {(avKey || avKey2) && (
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              {avKey && avKey2 ? "2 key terpasang (50 req/hari)" : "1 key terpasang (25 req/hari)"}. Buka Portofolio → tap “Sync Harga”.
+            </p>
           )}
         </CardContent>
       </Card>
