@@ -190,7 +190,7 @@ async function syncStockIdxYahoo(asset: Asset): Promise<boolean> {
   const sym = asset.symbol.toUpperCase().replace(/\.(JK|JKT|IDX)$/, "");
   const yhSym = encodeURIComponent(`${sym}.JK`);
   const target = `https://query2.finance.yahoo.com/v8/finance/chart/${yhSym}?interval=1d&range=1d`;
-  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
+  const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(target)}`;
   let resp: Response;
   try {
     resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
