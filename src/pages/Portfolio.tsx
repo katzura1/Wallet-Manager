@@ -10,12 +10,6 @@ import type { Asset, AssetPrice, AssetType } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PIE_COLORS = [
-  "#6366f1", "#8b5cf6", "#ec4899", "#ef4444",
-  "#f97316", "#f59e0b", "#22c55e", "#14b8a6",
-  "#3b82f6", "#06b6d4", "#84cc16", "#6b7280",
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtPct(n: number): string {
@@ -487,13 +481,26 @@ export default function Portfolio() {
   const totalGain = totalValue - totalCost;
   const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
 
-  // Pie chart data
-  const pieData = assets
-    .map((a, i) => {
-      const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? 0;
-      return { name: a.symbol, value: a.quantity * p, color: PIE_COLORS[i % PIE_COLORS.length] };
-    })
-    .filter((d) => d.value > 0);
+  // Pie chart data — grouped by category
+  const CATEGORY_META: Record<string, { label: string; color: string }> = {
+    crypto:    { label: "Kripto",     color: "#6366f1" },
+    stock_us:  { label: "Saham US",   color: "#22c55e" },
+    stock_idx: { label: "Saham IDX",  color: "#f97316" },
+    stock:     { label: "Saham US",   color: "#22c55e" },
+  };
+  const categoryTotals: Record<string, number> = {};
+  for (const a of assets) {
+    const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? 0;
+    const val = a.quantity * p;
+    const key = a.type ?? "crypto";
+    categoryTotals[key] = (categoryTotals[key] ?? 0) + val;
+  }
+  const pieData = Object.entries(categoryTotals)
+    .filter(([, v]) => v > 0)
+    .map(([key, value]) => {
+      const meta = CATEGORY_META[key] ?? { label: key, color: "#6b7280" };
+      return { name: meta.label, value, color: meta.color };
+    });
 
   return (
     <div className="p-4 pb-24 space-y-5 max-w-lg mx-auto">
