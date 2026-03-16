@@ -1,0 +1,270 @@
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
+import { Card, CardContent, Modal, Button } from "@/components/ui";
+import { TransactionForm } from "@/components/forms/TransactionForm";
+import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
+import { deleteTransaction } from "@/db/transactions";
+import { Pencil, Trash2, Plus } from "lucide-react";
+import type { Transaction } from "@/types";
+
+export default function Dashboard() {
+  const { accounts, transactions, categories, refreshAll } = useWalletStore();
+  const { currency } = useSettingsStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [addOpen, setAddOpen] = useState(false);
+  const [defaultType, setDefaultType] = useState<Transaction["type"]>("expense");
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+
+  useEffect(() => {
+    void refreshAll();
+  }, []);
+
+  // Handle PWA shortcut deep-links: /?type=expense|income|transfer
+  useEffect(() => {
+    const type = searchParams.get("type") as Transaction["type"] | null;
+    if (type && ["expense", "income", "transfer"].includes(type)) {
+      setDefaultType(type);
+      setAddOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]);
+
+  const totalBalance = accounts.reduce((sum, a) => sum + a.currentBalance, 0);
+  const now = new Date();
+  const thisMonthTxs = transactions.filter((t) => t.date.startsWith(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`));
+  const monthIncome = thisMonthTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const monthExpense = thisMonthTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+
+  const recentTxs = transactions.slice(0, 10);
+
+  function getAccountName(id: number) {
+    return accounts.find((a) => a.id === id)?.name ?? "?";
+  }
+  function getCategoryName(id?: number) {
+    if (!id) return null;
+    const cat = categories.find((c) => c.id === id);
+    return cat ? `${cat.icon} ${cat.name}` : null;
+  }
+
+  async function handleDelete(id: number) {
+    await deleteTransaction(id);
+    await refreshAll();
+    setDeleteTargetId(null);
+  }
+
+  return (
+    <div className="p-4 space-y-5">
+      {/* Header */}
+      <div className="pt-2 pb-1">
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">Total Saldo</p>
+        <h1 className="text-3xl font-bold tracking-tight">{formatCurrency(totalBalance, currency)}</h1>
+        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{formatDate(now.toISOString(), "EEEE, dd MMMM yyyy")}</p>
+      </div>
+
+      {/* Monthly Summary */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">Pemasukan</span>
+            </div>
+            <p className="font-bold text-emerald-500 text-lg">{formatCurrency(monthIncome, currency)}</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">bulan ini</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">Pengeluaran</span>
+            </div>
+            <p className="font-bold text-red-500 text-lg">{formatCurrency(monthExpense, currency)}</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">bulan ini</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Account Cards */}
+      {accounts.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold mb-2">Akun Kamu</p>
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
+            {accounts.map((account) => (
+              <div
+                key={account.id}
+                className="flex-none w-44 rounded-2xl p-4 text-white relative overflow-hidden"
+                style={{ background: `linear-gradient(135deg, ${account.color}, ${account.color}cc)` }}
+              >
+                <span className="text-2xl">{account.icon}</span>
+                <p className="text-xs opacity-80 mt-2">{account.name}</p>
+                <p className="font-bold text-base mt-0.5">{formatCurrency(account.currentBalance, currency)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "Pengeluaran", type: "expense" as const, emoji: "💸", bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-600" },
+          { label: "Pemasukan", type: "income" as const, emoji: "💰", bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600" },
+          { label: "Transfer", type: "transfer" as const, emoji: "↔️", bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-600" },
+        ].map(({ label, type, emoji, bg, text }) => (
+          <button
+            key={type}
+            onClick={() => {
+              setDefaultType(type);
+              setAddOpen(true);
+            }}
+            className={`${bg} rounded-2xl p-3 flex flex-col items-center gap-1 transition-transform active:scale-95`}
+          >
+            <span className="text-2xl">{emoji}</span>
+            <span className={`text-xs font-medium ${text}`}>{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Recent Transactions */}
+      {recentTxs.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold mb-2">Transaksi Terbaru</p>
+          <div className="space-y-2">
+            {recentTxs.map((tx) => (
+              <TransactionItem
+                key={tx.id}
+                tx={tx}
+                accountName={getAccountName(tx.accountId)}
+                toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}
+                categoryLabel={getCategoryName(tx.categoryId) ?? undefined}
+                currency={currency}
+                onDelete={() => setDeleteTargetId(tx.id!)}
+                onEdit={() => setEditTx(tx)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {accounts.length === 0 && (
+        <div className="py-4 space-y-5">
+          <div className="text-center">
+            <div className="text-6xl mb-3">💰</div>
+            <h2 className="text-xl font-bold">Selamat Datang!</h2>
+            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 max-w-xs mx-auto">
+              Kelola semua keuangan kamu di satu tempat. Mulai dalam 2 langkah mudah!
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="p-4 rounded-2xl border-2 border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center text-sm font-bold flex-none">1</div>
+                <div>
+                  <p className="font-semibold text-sm">Tambah akun pertamamu</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Bank, e-wallet, kartu kredit, atau dompet tunai</p>
+                </div>
+                <span className="ml-auto text-indigo-500 text-lg">→</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl border-2 border-dashed border-[hsl(var(--border))] opacity-50">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] flex items-center justify-center text-sm font-bold flex-none">2</div>
+                <div>
+                  <p className="font-semibold text-sm">Catat transaksi pertama</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Pengeluaran, pemasukan, atau transfer antar akun</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Link to="/accounts">
+            <Button className="w-full gap-2 h-12 text-base">
+              <Plus size={18} /> Tambah Akun Sekarang
+            </Button>
+          </Link>
+        </div>
+      )}
+
+      <TransactionForm
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSaved={() => void refreshAll()}
+        accounts={accounts.filter((a) => !a.isArchived) as typeof accounts}
+        categories={categories}
+        defaultType={defaultType}
+      />
+
+      <TransactionForm
+        open={editTx !== null}
+        onClose={() => setEditTx(null)}
+        onSaved={() => { void refreshAll(); setEditTx(null); }}
+        accounts={accounts.filter((a) => !a.isArchived) as typeof accounts}
+        categories={categories}
+        existing={editTx ?? undefined}
+      />
+
+      <Modal open={deleteTargetId !== null} onClose={() => setDeleteTargetId(null)} title="Hapus Transaksi">
+        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">Yakin ingin menghapus transaksi ini? Aksi ini tidak bisa dibatalkan.</p>
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => setDeleteTargetId(null)}>Batal</Button>
+          <Button variant="destructive" className="flex-1" onClick={() => deleteTargetId !== null && handleDelete(deleteTargetId)}>Hapus</Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+function TransactionItem({
+  tx,
+  accountName,
+  toAccountName,
+  categoryLabel,
+  currency,
+  onDelete,
+  onEdit,
+}: {
+  tx: Transaction;
+  accountName: string;
+  toAccountName?: string;
+  categoryLabel?: string;
+  currency: string;
+  onDelete: () => void;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${TRANSACTION_TYPE_BG[tx.type]}`}>
+        {tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️"}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">
+          {tx.note || (tx.type === "transfer" ? `${accountName} → ${toAccountName}` : (categoryLabel ?? accountName))}
+        </p>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          {categoryLabel ? `${categoryLabel} · ` : ""}
+          {accountName}
+          {toAccountName ? ` → ${toAccountName}` : ""} · {formatDate(tx.date)}
+        </p>
+      </div>
+      <div className="flex items-center gap-1 text-right">
+        <p
+          className={`font-semibold text-sm ${tx.type === "income" ? "text-emerald-500" : tx.type === "expense" ? "text-red-500" : "text-amber-500"}`}
+        >
+          {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
+          {formatCurrency(tx.amount, currency)}
+        </p>
+        <button onClick={onEdit} className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-indigo-500 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
+          <Pencil size={13} />
+        </button>
+        <button onClick={onDelete} className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30">
+          <Trash2 size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
