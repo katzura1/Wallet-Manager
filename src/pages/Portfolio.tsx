@@ -175,6 +175,15 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
                 📈 Reksa Dana
               </button>
             </div>
+            <div className="flex border-t border-[hsl(var(--border))]">
+              <button
+                type="button"
+                onClick={() => setType("deposito")}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "deposito" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              >
+                🏦 Deposito
+              </button>
+            </div>
           </div>
         )}
 
@@ -285,6 +294,27 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           </>
         )}
 
+        {/* Deposito — manual, unit = jumlah nominal, harga manual = nilai saat ini */}
+        {type === "deposito" && !existing && (
+          <>
+            <Input
+              label="Nama Bank / Label"
+              placeholder="BCA Deposito 12 Bulan"
+              value={name}
+              onChange={(e) => { setName(e.target.value); setError(""); }}
+            />
+            <Input
+              label="Kode (bebas, mis. DEP_BCA)"
+              placeholder="DEP_BCA"
+              value={symbol}
+              onChange={(e) => { setSymbol(e.target.value.toUpperCase()); setError(""); }}
+            />
+            <p className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2">
+              🏦 Jumlah = 1 (satu deposito). Harga Beli = nominal pokok. Harga Manual = nilai saat ini (pokok + bunga).
+            </p>
+          </>
+        )}
+
         {/* Show resolved name/symbol for crypto after selection */}
         {type === "crypto" && !existing && (name || symbol) && (
           <div className="rounded-xl bg-indigo-50 dark:bg-indigo-900/20 px-3 py-2 text-sm">
@@ -299,12 +329,12 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           <div className="rounded-xl bg-[hsl(var(--muted))] px-3 py-2 text-sm flex items-center gap-2">
             <span className="font-semibold">{existing.symbol}</span>
             <span className="text-[hsl(var(--muted-foreground))]">{existing.name}</span>
-            <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">{existing.type === "crypto" ? "₿ Kripto" : existing.type === "stock_idx" ? "🇮🇩 Saham IDX" : existing.type === "gold_physical" ? "🥇 Emas Fisik" : existing.type === "gold_digital" ? "🥇 Emas Digital" : existing.type === "mutual_fund" ? "📈 Reksa Dana" : "🇺🇸 Saham AS"}</span>
+            <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">{existing.type === "crypto" ? "₿ Kripto" : existing.type === "stock_idx" ? "🇮🇩 Saham IDX" : existing.type === "gold_physical" ? "🥇 Emas Fisik" : existing.type === "gold_digital" ? "🥇 Emas Digital" : existing.type === "mutual_fund" ? "📈 Reksa Dana" : existing.type === "deposito" ? "🏦 Deposito" : "🇺🇸 Saham AS"}</span>
           </div>
         )}
 
         <Input
-          label={type === "gold_physical" || type === "gold_digital" ? "Jumlah (gram)" : type === "mutual_fund" ? "Jumlah Unit Penyertaan" : "Jumlah / Lot"}
+          label={type === "gold_physical" || type === "gold_digital" ? "Jumlah (gram)" : type === "mutual_fund" ? "Jumlah Unit Penyertaan" : type === "deposito" ? "Jumlah Deposito" : "Jumlah / Lot"}
           type="number"
           inputMode="decimal"
           placeholder={type === "gold_physical" || type === "gold_digital" ? "10" : "0.001"}
@@ -379,7 +409,7 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
           <div className="flex items-center gap-2">
             <span className="font-bold text-[hsl(var(--foreground))]">{asset.symbol}</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-              {asset.type === "crypto" ? "₿" : asset.type === "stock_idx" ? "🇮🇩" : asset.type === "gold_physical" ? "🥇 Fisik" : asset.type === "gold_digital" ? "🥇 Digital" : asset.type === "mutual_fund" ? "📈 RD" : "🇺🇸"}
+              {asset.type === "crypto" ? "₿" : asset.type === "stock_idx" ? "🇮🇩" : asset.type === "gold_physical" ? "🥇 Fisik" : asset.type === "gold_digital" ? "🥇 Digital" : asset.type === "mutual_fund" ? "📈 RD" : asset.type === "deposito" ? "🏦" : "🇺🇸"}
             </span>
           </div>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">{asset.name}</p>
@@ -420,7 +450,7 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
       </div>
 
       <div className="flex items-center justify-between text-xs text-[hsl(var(--muted-foreground))]">
-        <span>{asset.quantity.toLocaleString("id-ID")} {asset.type === "gold_physical" || asset.type === "gold_digital" ? "gram" : asset.type === "mutual_fund" ? "unit" : "unit"}</span>
+        <span>{asset.quantity.toLocaleString("id-ID")} {asset.type === "gold_physical" || asset.type === "gold_digital" ? "gram" : asset.type === "deposito" ? "deposito" : "unit"}</span>
         <div className="flex items-center gap-2">
           {price?.changePercent24h !== undefined && (
             <span className={gainCls(price.changePercent24h)}>
@@ -444,7 +474,7 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
 
 // ─── Portfolio Page ───────────────────────────────────────────────────────────
 
-type Filter = "all" | "crypto" | "stock_us" | "stock_idx" | "gold" | "mutual_fund";
+type Filter = "all" | "crypto" | "stock_us" | "stock_idx" | "gold" | "mutual_fund" | "deposito";
 
 export default function Portfolio() {
   const { currency } = useSettingsStore();
@@ -550,6 +580,7 @@ export default function Portfolio() {
     gold_physical: { label: "Emas Fisik",  color: "#f59e0b" },
     gold_digital:  { label: "Emas Digital",color: "#fbbf24" },
     mutual_fund:   { label: "Reksa Dana",  color: "#14b8a6" },
+    deposito:      { label: "Deposito",     color: "#3b82f6" },
   };
   const categoryTotals: Record<string, number> = {};
   for (const a of assets) {
@@ -654,13 +685,13 @@ export default function Portfolio() {
       {/* Filter Tabs */}
       {assets.length > 0 && (
         <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
-          {(["all", "crypto", "stock_us", "stock_idx", "gold", "mutual_fund"] as Filter[]).map((f) => (
+          {(["all", "crypto", "stock_us", "stock_idx", "gold", "mutual_fund", "deposito"] as Filter[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={`flex-1 py-1.5 font-medium transition-colors ${filter === f ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
             >
-              {f === "all" ? "Semua" : f === "crypto" ? "₿" : f === "stock_us" ? "🇺🇸" : f === "stock_idx" ? "🇮🇩" : f === "gold" ? "🥇" : "📈"}
+              {f === "all" ? "Semua" : f === "crypto" ? "₿" : f === "stock_us" ? "🇺🇸" : f === "stock_idx" ? "🇮🇩" : f === "gold" ? "🥇" : f === "mutual_fund" ? "📈" : "🏦"}
             </button>
           ))}
         </div>
