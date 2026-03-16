@@ -103,7 +103,7 @@ export interface Budget {
 
 // ─── Portfolio ────────────────────────────────────────────────────────────────
 
-export type AssetType = "crypto" | "stock";
+export type AssetType = "crypto" | "stock_us" | "stock_idx" | "stock"; // "stock" is legacy alias for stock_us
 
 export interface Asset {
   id?: number;

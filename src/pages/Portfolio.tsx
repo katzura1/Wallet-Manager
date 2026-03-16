@@ -144,10 +144,17 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
             </button>
             <button
               type="button"
-              onClick={() => setType("stock")}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "stock" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              onClick={() => setType("stock_us")}
+              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "stock_us" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}` }
             >
-              📈 Saham
+              🇺🇸 Saham AS
+            </button>
+            <button
+              type="button"
+              onClick={() => setType("stock_idx")}
+              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "stock_idx" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}` }
+            >
+              🇮🇩 Saham IDX
             </button>
           </div>
         )}
@@ -187,11 +194,11 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           </div>
         )}
 
-        {/* Stock: manual symbol + name */}
-        {type === "stock" && !existing && (
+        {/* Stock US: symbol + name — auto-sync via Alpha Vantage */}
+        {(type === "stock_us" || type === "stock") && !existing && (
           <>
             <Input
-              label="Simbol Ticker (mis. AAPL, BBCA.JK)"
+              label="Simbol Ticker AS (mis. AAPL, MSFT, TSM, NVDA)"
               placeholder="AAPL"
               value={symbol}
               onChange={(e) => { setSymbol(e.target.value.toUpperCase()); setError(""); }}
@@ -202,6 +209,27 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
               value={name}
               onChange={(e) => { setName(e.target.value); setError(""); }}
             />
+          </>
+        )}
+
+        {/* Stock IDX: symbol + name — manual price (no auto-sync API) */}
+        {type === "stock_idx" && !existing && (
+          <>
+            <Input
+              label="Kode Saham IDX (mis. BBCA, TLKM, GOTO)"
+              placeholder="BBCA"
+              value={symbol}
+              onChange={(e) => { setSymbol(e.target.value.toUpperCase()); setError(""); }}
+            />
+            <Input
+              label="Nama Perusahaan"
+              placeholder="Bank Central Asia"
+              value={name}
+              onChange={(e) => { setName(e.target.value); setError(""); }}
+            />
+            <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-3 py-2">
+              💡 Saham IDX tidak mendukung sync otomatis. Masukkan harga di kolom &quot;Harga Manual&quot; di bawah.
+            </p>
           </>
         )}
 
@@ -219,7 +247,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           <div className="rounded-xl bg-[hsl(var(--muted))] px-3 py-2 text-sm flex items-center gap-2">
             <span className="font-semibold">{existing.symbol}</span>
             <span className="text-[hsl(var(--muted-foreground))]">{existing.name}</span>
-            <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">{existing.type === "crypto" ? "₿ Kripto" : "📈 Saham"}</span>
+            <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">{existing.type === "crypto" ? "₿ Kripto" : existing.type === "stock_idx" ? "🇮🇩 Saham IDX" : "🇺🇸 Saham AS"}</span>
           </div>
         )}
 
@@ -299,7 +327,7 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
           <div className="flex items-center gap-2">
             <span className="font-bold text-[hsl(var(--foreground))]">{asset.symbol}</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-              {asset.type === "crypto" ? "₿" : "📈"}
+              {asset.type === "crypto" ? "₿" : asset.type === "stock_idx" ? "🇮🇩" : "🇺🇸"}
             </span>
           </div>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">{asset.name}</p>
@@ -364,7 +392,7 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
 
 // ─── Portfolio Page ───────────────────────────────────────────────────────────
 
-type Filter = "all" | "crypto" | "stock";
+type Filter = "all" | "crypto" | "stock_us" | "stock_idx";
 
 export default function Portfolio() {
   const { currency } = useSettingsStore();
@@ -412,11 +440,14 @@ export default function Portfolio() {
       for (const p of freshPrices) map[p.symbol] = p;
       setPrices(map);
       setNoKey(!getAlphaVantageKey());
-      if (result.noKey && list.some((a) => a.type === "stock")) {
-        if (!silent) setSyncMsg("⚠️ API key Alpha Vantage belum diatur — saham tidak disinkron. Buka Setelan untuk memasukkan key.");
+      if (result.noKey && list.some((a) => a.type === "stock_us" || a.type === "stock")) {
+        if (!silent) setSyncMsg("⚠️ API key Alpha Vantage belum diatur — saham AS tidak disinkron. Buka Setelan → Portofolio untuk memasukkan key.");
       } else if (!silent) {
         const failMsg = result.failed.length ? ` · Gagal: ${result.failed.join(", ")}` : "";
-        const syncedMsg = result.synced.length ? `✅ Diperbarui: ${result.synced.join(", ")}${failMsg}` : failMsg ? `❌${failMsg}` : "✅ Semua harga sudah terkini";
+        const skipMsg = result.skipped?.length ? ` · Segar (< 6j): ${result.skipped.join(", ")}` : "";
+        const syncedMsg = result.synced.length
+          ? `✅ Diperbarui: ${result.synced.join(", ")}${failMsg}${skipMsg}`
+          : failMsg ? `❌${failMsg}${skipMsg}` : `✅ Semua harga sudah terkini${skipMsg}`;
         setSyncMsg(syncedMsg);
         setTimeout(() => setSyncMsg(""), 6000);
       }
@@ -434,7 +465,12 @@ export default function Portfolio() {
     await loadAll();
   }
 
-  const filtered = filter === "all" ? assets : assets.filter((a) => a.type === filter);
+  const filtered =
+    filter === "all"
+      ? assets
+      : filter === "stock_us"
+        ? assets.filter((a) => a.type === "stock_us" || a.type === "stock")
+        : assets.filter((a) => a.type === filter);
 
   // Summary calculations
   const totalValue = assets.reduce((sum, a) => {
@@ -477,7 +513,7 @@ export default function Portfolio() {
       )}
 
       {/* No API key warning for stocks */}
-      {noKey && assets.some((a) => a.type === "stock") && (
+      {noKey && assets.some((a) => a.type === "stock_us" || a.type === "stock") && (
         <div className="rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm space-y-1">
           <p className="font-semibold text-amber-700 dark:text-amber-400">⚠️ API Key Saham Belum Diatur</p>
           <p className="text-amber-700 dark:text-amber-400 text-xs">
@@ -542,13 +578,13 @@ export default function Portfolio() {
       {/* Filter Tabs */}
       {assets.length > 0 && (
         <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
-          {(["all", "crypto", "stock"] as Filter[]).map((f) => (
+          {(["all", "crypto", "stock_us", "stock_idx"] as Filter[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={`flex-1 py-1.5 font-medium transition-colors ${filter === f ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
             >
-              {f === "all" ? "Semua" : f === "crypto" ? "₿ Kripto" : "📈 Saham"}
+              {f === "all" ? "Semua" : f === "crypto" ? "₿ Kripto" : f === "stock_us" ? "🇺🇸 AS" : "🇮🇩 IDX"}
             </button>
           ))}
         </div>
@@ -582,9 +618,9 @@ export default function Portfolio() {
       </Button>
 
       {/* Sync note for stocks */}
-      {assets.some((a) => a.type === "stock") && (
+      {assets.some((a) => a.type === "stock_us" || a.type === "stock" || a.type === "stock_idx") && (
         <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">
-          💡 Saham: harga dari Yahoo Finance. Jika gagal (CORS), masukkan harga manual di edit aset.
+          💡 Saham AS: sync otomatis via Alpha Vantage · Saham IDX: perbarui harga manual di edit aset
         </p>
       )}
 

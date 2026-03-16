@@ -258,8 +258,8 @@ export default function Settings() {
             lalu paste key di bawah. Free tier: <strong>25 req/hari per key</strong> — isi 2 key untuk 50 req/hari.
           </p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            🇮🇩 Saham IDX: gunakan suffix <code className="bg-[hsl(var(--muted))] px-1 rounded">.JKT</code> (mis. <code className="bg-[hsl(var(--muted))] px-1 rounded">BBCA.JKT</code>).
             🇺🇸 Saham AS: simbol biasa (mis. <code className="bg-[hsl(var(--muted))] px-1 rounded">AAPL</code>, <code className="bg-[hsl(var(--muted))] px-1 rounded">TSM</code>).
+            🇮🇩 Saham IDX: tidak didukung Alpha Vantage — masukkan harga manual di halaman Portofolio.
           </p>
           <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">API Key 1</p>
           <div className="flex gap-2">

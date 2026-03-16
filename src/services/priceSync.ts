@@ -17,10 +17,11 @@ export interface CoinSearchResult {
 export interface SyncResult {
   synced: string[];
   failed: string[];
+  skipped?: string[]; // assets with fresh price (< STALE_MS) — skipped to save API quota
   noKey?: boolean;
 }
 
-export const STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
+export const STALE_MS = 6 * 60 * 60 * 1000; // 6 hours — don't re-sync if fresher than this
 
 // ─── Alpha Vantage API keys (stored in localStorage, up to 2 keys) ─────────────
 // Two keys = 50 free requests/day. Keys are used round-robin per stock.
@@ -167,43 +168,67 @@ async function syncStock(asset: Asset, apiKey: string): Promise<boolean> {
   return true;
 }
 
+// ─── Freshness check ─────────────────────────────────────────────────────────
+
+async function isFresh(symbol: string): Promise<boolean> {
+  const row = await db.assetPrices.get(symbol);
+  if (!row) return false;
+  return Date.now() - new Date(row.lastSynced).getTime() < STALE_MS;
+}
+
 // ─── Main sync entry point ────────────────────────────────────────────────────
+// stock_idx has no free CORS-friendly API — skipped (use manual price).
+// Assets fresher than STALE_MS (6h) are also skipped to conserve API quota.
 
 export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
   const synced: string[] = [];
   const failed: string[] = [];
+  const skipped: string[] = [];
 
-  // Crypto via CoinGecko (bulk, no key required)
-  try {
-    const res = await syncCrypto(assets);
-    synced.push(...res.synced);
-    failed.push(...res.failed);
-  } catch {
-    for (const a of assets.filter((x) => x.type === "crypto")) failed.push(a.symbol);
+  // stock_idx: no auto-sync support — exclude from sync pipeline
+  const syncable = assets.filter((a) => a.type !== "stock_idx");
+
+  // Separate fresh (< 6h) vs stale assets
+  const stale: Asset[] = [];
+  for (const a of syncable) {
+    if (await isFresh(a.symbol)) skipped.push(a.symbol);
+    else stale.push(a);
   }
 
-  // Stocks via Alpha Vantage (round-robin across up to 2 keys, 2s delay each)
-  const stocks = assets.filter((a) => a.type === "stock");
-  if (stocks.length > 0) {
+  // Crypto via CoinGecko (bulk, no key required)
+  const staleCrypto = stale.filter((a) => a.type === "crypto");
+  if (staleCrypto.length > 0) {
+    try {
+      const res = await syncCrypto(staleCrypto);
+      synced.push(...res.synced);
+      failed.push(...res.failed);
+    } catch {
+      for (const a of staleCrypto) failed.push(a.symbol);
+    }
+  }
+
+  // US Stocks via Alpha Vantage — treat legacy "stock" as "stock_us"
+  const staleStocks = stale.filter((a) => a.type === "stock_us" || a.type === "stock");
+  if (staleStocks.length > 0) {
     const keys = getAvKeys();
     if (keys.length === 0) {
       // No key — skip stocks, caller will show a prompt
-      return { synced, failed, noKey: true };
+      return { synced, failed, skipped, noKey: true };
     }
-    for (let i = 0; i < stocks.length; i++) {
+    for (let i = 0; i < staleStocks.length; i++) {
       if (i > 0) await delay(AV_DELAY_MS); // respect rate limit
       const apiKey = keys[i % keys.length]; // round-robin
       try {
-        const ok = await syncStock(stocks[i], apiKey);
-        if (ok) synced.push(stocks[i].symbol);
-        else failed.push(stocks[i].symbol);
+        const ok = await syncStock(staleStocks[i], apiKey);
+        if (ok) synced.push(staleStocks[i].symbol);
+        else failed.push(staleStocks[i].symbol);
       } catch {
-        failed.push(stocks[i].symbol);
+        failed.push(staleStocks[i].symbol);
       }
     }
   }
 
-  return { synced, failed };
+  return { synced, failed, skipped };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
