@@ -7,6 +7,7 @@ import { db, seedMissingDefaultCategories } from "@/db/db";
 import { deleteCategory } from "@/db/categories";
 import { CategoryForm } from "@/components/forms/CategoryForm";
 import { Sun, Moon, Download, Upload, Trash2, Pencil, Plus, RefreshCw } from "lucide-react";
+import { getAlphaVantageKey, setAlphaVantageKey } from "@/services/priceSync";
 import type { Category } from "@/types";
 
 export default function Settings() {
@@ -21,6 +22,14 @@ export default function Settings() {
   const [deleteCatId, setDeleteCatId] = useState<number | null>(null);
   const [restoringCats, setRestoringCats] = useState(false);
   const [restoreMsg, setRestoreMsg] = useState("");
+  const [avKey, setAvKey] = useState(getAlphaVantageKey());
+  const [avSaved, setAvSaved] = useState(false);
+
+  function handleSaveAvKey() {
+    setAlphaVantageKey(avKey);
+    setAvSaved(true);
+    setTimeout(() => setAvSaved(false), 2000);
+  }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -225,6 +234,40 @@ export default function Settings() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Danger zone */}
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <p className="text-sm font-semibold">Portofolio — API Key Saham</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            Harga saham diambil dari <strong>Alpha Vantage</strong> (gratis, tanpa kartu kredit).
+            Daftar di{" "}
+            <a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">
+              alphavantage.co
+            </a>{" "}
+            lalu paste key di bawah. Free tier: 25 req/hari.
+          </p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            🇮🇩 Saham IDX: gunakan suffix <code className="bg-[hsl(var(--muted))] px-1 rounded">.JKT</code> (mis. <code className="bg-[hsl(var(--muted))] px-1 rounded">BBCA.JKT</code>).
+            🇺🇸 Saham AS: simbol biasa (mis. <code className="bg-[hsl(var(--muted))] px-1 rounded">AAPL</code>, <code className="bg-[hsl(var(--muted))] px-1 rounded">TSM</code>).
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              placeholder="Masukkan Alpha Vantage API key"
+              value={avKey}
+              onChange={(e) => { setAvKey(e.target.value); setAvSaved(false); }}
+              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <Button size="sm" onClick={handleSaveAvKey} disabled={avSaved}>
+              {avSaved ? "✅ Tersimpan" : "Simpan"}
+            </Button>
+          </div>
+          {avKey && !avSaved && (
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">Key terpasang. Buka halaman Portofolio dan tap “Sync Harga”.</p>
+          )}
         </CardContent>
       </Card>
 

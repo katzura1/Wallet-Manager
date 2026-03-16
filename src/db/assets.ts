@@ -2,7 +2,8 @@ import { db } from "./db";
 import type { Asset } from "@/types";
 
 export async function getAssets(): Promise<Asset[]> {
-  return db.assets.orderBy("createdAt").reverse().toArray();
+  const all = await db.assets.toArray();
+  return all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function addAsset(data: Omit<Asset, "id" | "createdAt" | "updatedAt">): Promise<number> {

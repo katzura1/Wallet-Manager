@@ -3,6 +3,7 @@ import type { Asset } from "@/types";
 
 const CG = "https://api.coingecko.com/api/v3";
 const CURRENCY_API = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json";
+const AV = "https://www.alphavantage.co/query";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,9 +17,20 @@ export interface CoinSearchResult {
 export interface SyncResult {
   synced: string[];
   failed: string[];
+  noKey?: boolean;
 }
 
 export const STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// ─── Alpha Vantage API key (stored in localStorage) ──────────────────────────
+
+export function getAlphaVantageKey(): string {
+  return localStorage.getItem("alphavantageKey") ?? "";
+}
+
+export function setAlphaVantageKey(key: string): void {
+  localStorage.setItem("alphavantageKey", key.trim());
+}
 
 // ─── CoinGecko coin search ────────────────────────────────────────────────────
 
@@ -57,7 +69,7 @@ export async function getUsdIdr(): Promise<number> {
   return 16200; // approximate fallback
 }
 
-// ─── Sync crypto prices (CoinGecko) ──────────────────────────────────────────
+// ─── Sync crypto prices (CoinGecko – free, CORS-friendly) ────────────────────
 
 async function syncCrypto(assets: Asset[]): Promise<SyncResult> {
   const cryptos = assets.filter((a) => a.type === "crypto" && a.coinGeckoId);
@@ -92,27 +104,41 @@ async function syncCrypto(assets: Asset[]): Promise<SyncResult> {
   return { synced, failed };
 }
 
-// ─── Sync stock price (Yahoo Finance) ────────────────────────────────────────
-// Note: Yahoo Finance may block browser requests (CORS). If it fails,
-// the user can enter a manual price override in the asset settings.
+// ─── Sync stock price (Alpha Vantage – free, CORS-friendly) ──────────────────
+// Free key: https://www.alphavantage.co/support/#api-key (no credit card needed)
+// Free tier: 25 requests / day. IDX stocks: use symbol like BBCA.JKT
+// By convention: if symbol ends with .JK or .JKT → price is in IDR, else USD.
 
-async function syncStock(asset: Asset): Promise<boolean> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.symbol)}?range=1d&interval=1d`;
-  const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+async function syncStock(asset: Asset, apiKey: string): Promise<boolean> {
+  const url = `${AV}?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(asset.symbol)}&apikey=${encodeURIComponent(apiKey)}`;
+  let resp: Response;
+  try {
+    resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  } catch {
+    return false;
+  }
   if (!resp.ok) return false;
 
-  const data = await resp.json();
-  const result = data?.chart?.result?.[0];
-  const price: number | undefined = result?.meta?.regularMarketPrice;
-  const currency: string | undefined = result?.meta?.currency;
-  const changePct: number = result?.meta?.regularMarketChangePercent ?? 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await resp.json();
 
-  if (!price) return false;
+  // Alpha Vantage returns { "Note": "..." } when rate-limited, or { "Information": "..." } for invalid key
+  if (data["Note"] || data["Information"]) return false;
 
-  let priceIdr = price;
-  if (currency && currency !== "IDR") {
-    priceIdr = price * (await getUsdIdr());
-  }
+  const quote = data?.["Global Quote"];
+  const priceStr: string | undefined = quote?.["05. price"];
+  const changePctStr: string | undefined = quote?.["10. change percent"];
+
+  if (!priceStr) return false;
+
+  const price = parseFloat(priceStr);
+  const changePct = parseFloat((changePctStr ?? "0%").replace("%", ""));
+  if (isNaN(price) || price <= 0) return false;
+
+  // Detect currency by symbol suffix: .JK / .JKT → IDR, otherwise assume USD
+  const sym = asset.symbol.toUpperCase();
+  const isIdr = sym.endsWith(".JK") || sym.endsWith(".JKT");
+  const priceIdr = isIdr ? price : price * (await getUsdIdr());
 
   await db.assetPrices.put({
     symbol: asset.symbol,
@@ -129,7 +155,7 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
   const synced: string[] = [];
   const failed: string[] = [];
 
-  // Crypto via CoinGecko (bulk, reliable)
+  // Crypto via CoinGecko (bulk, no key required)
   try {
     const res = await syncCrypto(assets);
     synced.push(...res.synced);
@@ -138,14 +164,22 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
     for (const a of assets.filter((x) => x.type === "crypto")) failed.push(a.symbol);
   }
 
-  // Stocks via Yahoo Finance (sequential; may fail on CORS)
-  for (const asset of assets.filter((a) => a.type === "stock")) {
-    try {
-      const ok = await syncStock(asset);
-      if (ok) synced.push(asset.symbol);
-      else failed.push(asset.symbol);
-    } catch {
-      failed.push(asset.symbol);
+  // Stocks via Alpha Vantage
+  const stocks = assets.filter((a) => a.type === "stock");
+  if (stocks.length > 0) {
+    const apiKey = getAlphaVantageKey();
+    if (!apiKey) {
+      // No key — skip stocks, caller will show a prompt
+      return { synced, failed, noKey: true };
+    }
+    for (const asset of stocks) {
+      try {
+        const ok = await syncStock(asset, apiKey);
+        if (ok) synced.push(asset.symbol);
+        else failed.push(asset.symbol);
+      } catch {
+        failed.push(asset.symbol);
+      }
     }
   }
 
@@ -154,14 +188,12 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Returns age of stored price in ms, or null if never synced. */
 export async function getPriceAge(symbol: string): Promise<number | null> {
   const row = await db.assetPrices.get(symbol);
   if (!row) return null;
   return Date.now() - new Date(row.lastSynced).getTime();
 }
 
-/** True if at least one asset has no price or a stale price. */
 export async function anyPriceStale(assets: Asset[]): Promise<boolean> {
   for (const a of assets) {
     const age = await getPriceAge(a.symbol);
