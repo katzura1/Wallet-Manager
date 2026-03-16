@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Select, Textarea, Modal } from "@/components/ui";
-import { getDebts, addDebt, updateDebt, deleteDebt, payDebt, getDebtPayments } from "@/db/debts";
+import { getDebts, addDebt, updateDebt, deleteDebt, payDebt, getDebtPayments, updateDebtPayment, deleteDebtPayment } from "@/db/debts";
 import { formatCurrency, formatDate, todayISO } from "@/lib/utils";
 import type { Debt, DebtPayment } from "@/types";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
@@ -179,10 +179,45 @@ interface PaymentsHistoryProps {
 function PaymentsHistory({ open, onClose, debt }: PaymentsHistoryProps) {
   const { currency } = useSettingsStore();
   const [payments, setPayments] = useState<DebtPayment[]>([]);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function reload() {
+    getDebtPayments(debt.id!).then(setPayments);
+  }
 
   useEffect(() => {
-    if (open) getDebtPayments(debt.id!).then(setPayments);
+    if (open) { reload(); setEditingId(null); }
   }, [open, debt.id]);
+
+  function startEdit(p: DebtPayment) {
+    setEditingId(p.id!);
+    setEditAmount(String(p.amount));
+    setEditDate(p.date);
+    setEditNote(p.note);
+  }
+
+  async function saveEdit(p: DebtPayment) {
+    const amountNum = Number(editAmount);
+    if (!amountNum || amountNum <= 0) return;
+    setSaving(true);
+    try {
+      await updateDebtPayment(p.id!, { amount: amountNum, date: editDate, note: editNote });
+      setEditingId(null);
+      reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(p: DebtPayment) {
+    if (!confirm(`Hapus pembayaran ${formatCurrency(p.amount, currency)} pada ${formatDate(p.date)}?`)) return;
+    await deleteDebtPayment(p.id!);
+    reload();
+  }
 
   return (
     <Modal open={open} onClose={onClose} title={`Riwayat: ${debt.name}`}>
@@ -191,12 +226,50 @@ function PaymentsHistory({ open, onClose, debt }: PaymentsHistoryProps) {
       ) : (
         <ul className="space-y-2">
           {payments.map((p) => (
-            <li key={p.id} className="flex justify-between text-sm py-2 border-b border-[hsl(var(--border))] last:border-0">
-              <div>
-                <div className="font-medium">{formatDate(p.date)}</div>
-                {p.note && <div className="text-[hsl(var(--muted-foreground))] text-xs">{p.note}</div>}
-              </div>
-              <span className="font-semibold text-emerald-500">{formatCurrency(p.amount, currency)}</span>
+            <li key={p.id} className="text-sm py-2 border-b border-[hsl(var(--border))] last:border-0">
+              {editingId === p.id ? (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                    />
+                    <input
+                      type="date"
+                      className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Catatan (opsional)"
+                    className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={editNote}
+                    onChange={(e) => setEditNote(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditingId(null)}>Batal</Button>
+                    <Button size="sm" className="flex-1" disabled={saving} onClick={() => saveEdit(p)}>
+                      {saving ? "Menyimpan…" : "Simpan"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-medium">{formatDate(p.date)}</div>
+                    {p.note && <div className="text-[hsl(var(--muted-foreground))] text-xs">{p.note}</div>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="font-semibold text-emerald-500">{formatCurrency(p.amount, currency)}</span>
+                    <button onClick={() => startEdit(p)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
+                    <button onClick={() => handleDelete(p)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>

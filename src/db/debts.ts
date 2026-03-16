@@ -28,6 +28,40 @@ export async function getDebtPayments(debtId: number): Promise<DebtPayment[]> {
 }
 
 /**
+ * Update a payment record and recalculate the parent debt's remaining balance.
+ */
+export async function updateDebtPayment(
+  paymentId: number,
+  data: Pick<DebtPayment, "amount" | "date" | "note">,
+): Promise<void> {
+  const payment = await db.debtPayments.get(paymentId);
+  if (!payment) return;
+  await db.debtPayments.update(paymentId, { amount: data.amount, date: data.date, note: data.note });
+  // Recalculate remaining from scratch
+  const payments = await db.debtPayments.where("debtId").equals(payment.debtId).toArray();
+  const debt = await db.debts.get(payment.debtId);
+  if (!debt) return;
+  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+  const newRemaining = Math.max(debt.amount - totalPaid, 0);
+  await db.debts.update(debt.id!, { remaining: newRemaining, isSettled: newRemaining <= 0, updatedAt: new Date().toISOString() });
+}
+
+/**
+ * Delete a payment record and recalculate the parent debt's remaining balance.
+ */
+export async function deleteDebtPayment(paymentId: number): Promise<void> {
+  const payment = await db.debtPayments.get(paymentId);
+  if (!payment) return;
+  await db.debtPayments.delete(paymentId);
+  const payments = await db.debtPayments.where("debtId").equals(payment.debtId).toArray();
+  const debt = await db.debts.get(payment.debtId);
+  if (!debt) return;
+  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+  const newRemaining = Math.max(debt.amount - totalPaid, 0);
+  await db.debts.update(debt.id!, { remaining: newRemaining, isSettled: newRemaining <= 0, updatedAt: new Date().toISOString() });
+}
+
+/**
  * Record a partial or full payment on a debt.
  * - If accountId provided, automatically creates a matching income/expense transaction.
  * - Updates `remaining` on the debt; marks `isSettled` when remaining <= 0.
