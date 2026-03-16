@@ -7,7 +7,7 @@ import { db, seedMissingDefaultCategories } from "@/db/db";
 import { deleteCategory } from "@/db/categories";
 import { CategoryForm } from "@/components/forms/CategoryForm";
 import { Sun, Moon, Download, Upload, Trash2, Pencil, Plus, RefreshCw } from "lucide-react";
-import { getAlphaVantageKey, setAlphaVantageKey, getAlphaVantageKey2, setAlphaVantageKey2 } from "@/services/priceSync";
+import { getAlphaVantageKey, setAlphaVantageKey, getAlphaVantageKey2, setAlphaVantageKey2, getTwelveDataKey, setTwelveDataKey } from "@/services/priceSync";
 import type { Category } from "@/types";
 
 export default function Settings() {
@@ -26,6 +26,8 @@ export default function Settings() {
   const [avSaved, setAvSaved] = useState(false);
   const [avKey2, setAvKey2] = useState(getAlphaVantageKey2());
   const [avSaved2, setAvSaved2] = useState(false);
+  const [tdKey, setTdKey] = useState(getTwelveDataKey());
+  const [tdSaved, setTdSaved] = useState(false);
 
   function handleSaveAvKey() {
     setAlphaVantageKey(avKey);
@@ -37,6 +39,12 @@ export default function Settings() {
     setAlphaVantageKey2(avKey2);
     setAvSaved2(true);
     setTimeout(() => setAvSaved2(false), 2000);
+  }
+
+  function handleSaveTdKey() {
+    setTwelveDataKey(tdKey);
+    setTdSaved(true);
+    setTimeout(() => setTdSaved(false), 2000);
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -291,6 +299,42 @@ export default function Settings() {
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
               {avKey && avKey2 ? "2 key terpasang (50 req/hari)" : "1 key terpasang (25 req/hari)"}. Buka Portofolio → tap “Sync Harga”.
             </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Twelve Data — IDX stocks */}
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <p className="text-sm font-semibold">Portofolio — API Key Saham IDX</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            Harga saham IDX diambil dari <strong>Twelve Data</strong> (gratis, tanpa kartu kredit).
+            Daftar di{" "}
+            <a href="https://twelvedata.com/pricing" target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">
+              twelvedata.com
+            </a>{" "}
+            → pilih <strong>Free</strong> → copy API key. Free tier: <strong>800 req/hari</strong>, 8 req/menit.
+          </p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            🇮🇩 Gunakan kode saham IDX tanpa suffix (mis.{" "}
+            <code className="bg-[hsl(var(--muted))] px-1 rounded">BBCA</code>,{" "}
+            <code className="bg-[hsl(var(--muted))] px-1 rounded">TLKM</code>,{" "}
+            <code className="bg-[hsl(var(--muted))] px-1 rounded">GOTO</code>).
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              placeholder="Masukkan Twelve Data API key"
+              value={tdKey}
+              onChange={(e) => { setTdKey(e.target.value); setTdSaved(false); }}
+              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <Button size="sm" onClick={handleSaveTdKey} disabled={tdSaved}>
+              {tdSaved ? "✅ Tersimpan" : "Simpan"}
+            </Button>
+          </div>
+          {tdKey && !tdSaved && (
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">Key terpasang (800 req/hari). Buka Portofolio → tap "Sync Harga".</p>
           )}
         </CardContent>
       </Card>

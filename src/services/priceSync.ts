@@ -4,6 +4,7 @@ import type { Asset } from "@/types";
 const CG = "https://api.coingecko.com/api/v3";
 const CURRENCY_API = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json";
 const AV = "https://www.alphavantage.co/query";
+const TD = "https://api.twelvedata.com"; // Twelve Data — IDX stocks, free 800 req/day
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,8 @@ export interface SyncResult {
   synced: string[];
   failed: string[];
   skipped?: string[]; // assets with fresh price (< STALE_MS) — skipped to save API quota
-  noKey?: boolean;
+  noKey?: boolean;    // no Alpha Vantage key (US stocks)
+  noIdxKey?: boolean; // no Twelve Data key (IDX stocks)
 }
 
 export const STALE_MS = 6 * 60 * 60 * 1000; // 6 hours — don't re-sync if fresher than this
@@ -45,6 +47,18 @@ export function setAlphaVantageKey2(key: string): void {
 /** Returns all configured (non-empty) Alpha Vantage keys. */
 function getAvKeys(): string[] {
   return [getAlphaVantageKey(), getAlphaVantageKey2()].filter(Boolean);
+}
+
+// ─── Twelve Data API key (for IDX stocks) ────────────────────────────────────
+// Free: 800 credits/day, 8 req/min. Register at https://twelvedata.com/
+// IDX symbol format: BBCA:IDX, TLKM:IDX, GOTO:IDX
+
+export function getTwelveDataKey(): string {
+  return localStorage.getItem("twelvedataKey") ?? "";
+}
+
+export function setTwelveDataKey(key: string): void {
+  localStorage.setItem("twelvedataKey", key.trim());
 }
 
 /** Wait ms milliseconds — used to respect Alpha Vantage rate limits. */
@@ -168,6 +182,38 @@ async function syncStock(asset: Asset, apiKey: string): Promise<boolean> {
   return true;
 }
 
+// ─── Sync IDX stock price (Twelve Data – free, CORS-friendly) ───────────────
+// Symbol format: just the bare IDX code (e.g. "BBCA"), suffix ":IDX" is added here.
+
+async function syncStockIdx(asset: Asset, apiKey: string): Promise<boolean> {
+  const sym = asset.symbol.toUpperCase().replace(/\.(JK|JKT)$/, ""); // strip old suffix
+  const url = `${TD}/quote?symbol=${encodeURIComponent(sym)}%3AIDX&apikey=${encodeURIComponent(apiKey)}`;
+  let resp: Response;
+  try {
+    resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  } catch {
+    return false;
+  }
+  if (!resp.ok) return false;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await resp.json();
+  if (data?.status === "error" || !data?.close) return false;
+
+  const price = parseFloat(data.close);
+  const changePct = parseFloat(data.percent_change ?? "0");
+  if (isNaN(price) || price <= 0) return false;
+
+  // Twelve Data returns IDX prices in IDR natively — no conversion needed
+  await db.assetPrices.put({
+    symbol: asset.symbol,
+    priceIdr: price,
+    changePercent24h: changePct,
+    lastSynced: new Date().toISOString(),
+  });
+  return true;
+}
+
 // ─── Freshness check ─────────────────────────────────────────────────────────
 
 async function isFresh(symbol: string): Promise<boolean> {
@@ -177,16 +223,16 @@ async function isFresh(symbol: string): Promise<boolean> {
 }
 
 // ─── Main sync entry point ────────────────────────────────────────────────────
-// stock_idx has no free CORS-friendly API — skipped (use manual price).
-// Assets fresher than STALE_MS (6h) are also skipped to conserve API quota.
+// IDX stocks use Twelve Data (free 800 req/day). US stocks use Alpha Vantage.
+// Assets fresher than STALE_MS (6h) are skipped to conserve API quota.
 
 export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
   const synced: string[] = [];
   const failed: string[] = [];
   const skipped: string[] = [];
 
-  // stock_idx: no auto-sync support — exclude from sync pipeline
-  const syncable = assets.filter((a) => a.type !== "stock_idx");
+  // All asset types are now syncable
+  const syncable = assets;
 
   // Separate fresh (< 6h) vs stale assets
   const stale: Asset[] = [];
@@ -208,27 +254,51 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
   }
 
   // US Stocks via Alpha Vantage — treat legacy "stock" as "stock_us"
-  const staleStocks = stale.filter((a) => a.type === "stock_us" || a.type === "stock");
-  if (staleStocks.length > 0) {
+  const staleUs = stale.filter((a) => a.type === "stock_us" || a.type === "stock");
+  let noKey = false;
+  if (staleUs.length > 0) {
     const keys = getAvKeys();
     if (keys.length === 0) {
-      // No key — skip stocks, caller will show a prompt
-      return { synced, failed, skipped, noKey: true };
-    }
-    for (let i = 0; i < staleStocks.length; i++) {
-      if (i > 0) await delay(AV_DELAY_MS); // respect rate limit
-      const apiKey = keys[i % keys.length]; // round-robin
-      try {
-        const ok = await syncStock(staleStocks[i], apiKey);
-        if (ok) synced.push(staleStocks[i].symbol);
-        else failed.push(staleStocks[i].symbol);
-      } catch {
-        failed.push(staleStocks[i].symbol);
+      noKey = true;
+      for (const a of staleUs) failed.push(a.symbol);
+    } else {
+      for (let i = 0; i < staleUs.length; i++) {
+        if (i > 0) await delay(AV_DELAY_MS); // respect rate limit
+        const apiKey = keys[i % keys.length]; // round-robin
+        try {
+          const ok = await syncStock(staleUs[i], apiKey);
+          if (ok) synced.push(staleUs[i].symbol);
+          else failed.push(staleUs[i].symbol);
+        } catch {
+          failed.push(staleUs[i].symbol);
+        }
       }
     }
   }
 
-  return { synced, failed, skipped };
+  // IDX Stocks via Twelve Data — free 800 req/day, proper CORS
+  const staleIdx = stale.filter((a) => a.type === "stock_idx");
+  let noIdxKey = false;
+  if (staleIdx.length > 0) {
+    const tdKey = getTwelveDataKey();
+    if (!tdKey) {
+      noIdxKey = true;
+      for (const a of staleIdx) failed.push(a.symbol);
+    } else {
+      for (let i = 0; i < staleIdx.length; i++) {
+        if (i > 0) await delay(AV_DELAY_MS); // keep 2s gap to respect 8 req/min
+        try {
+          const ok = await syncStockIdx(staleIdx[i], tdKey);
+          if (ok) synced.push(staleIdx[i].symbol);
+          else failed.push(staleIdx[i].symbol);
+        } catch {
+          failed.push(staleIdx[i].symbol);
+        }
+      }
+    }
+  }
+
+  return { synced, failed, skipped, noKey: noKey || undefined, noIdxKey: noIdxKey || undefined };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
