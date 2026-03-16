@@ -258,6 +258,35 @@ async function syncStockIdx(asset: Asset): Promise<boolean> {
   return syncStockIdxYahoo(asset);
 }
 
+// ─── Sync gold price (Yahoo Finance GC=F — IDR/gram) ────────────────────────
+// Gold Futures (GC=F) is quoted in USD/troy oz. Converted to IDR/gram.
+// Used for both gold_physical and gold_digital assets.
+
+async function fetchGoldPriceIdr(): Promise<{ priceIdr: number; changePct: number } | null> {
+  const target = "https://query2.finance.yahoo.com/v8/finance/chart/GC%3DF?interval=1d&range=1d";
+  const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(target)}`;
+  let resp: Response;
+  try {
+    resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+  } catch {
+    return null;
+  }
+  if (!resp.ok) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let data: any;
+  try { data = await resp.json(); } catch { return null; }
+  const result = data?.chart?.result?.[0];
+  if (!result) return null;
+  const goldUsd: number | undefined = result.meta?.regularMarketPrice;
+  const prevClose: number | undefined = result.meta?.chartPreviousClose;
+  if (!goldUsd || goldUsd <= 0) return null;
+  const changePct = prevClose ? ((goldUsd - prevClose) / prevClose) * 100 : 0;
+  const usdIdr = await getUsdIdr();
+  // 1 troy oz = 31.1035 grams → convert to IDR per gram
+  const priceIdr = (goldUsd / 31.1035) * usdIdr;
+  return { priceIdr, changePct };
+}
+
 // ─── Freshness check ─────────────────────────────────────────────────────────
 
 async function isFresh(symbol: string): Promise<boolean> {
@@ -334,6 +363,28 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
       }
     }
   }
+
+  // Gold (physical & digital) — Yahoo Finance GC=F, price in IDR/gram
+  const staleGold = stale.filter((a) => a.type === "gold_physical" || a.type === "gold_digital");
+  if (staleGold.length > 0) {
+    const goldPx = await fetchGoldPriceIdr();
+    const now = new Date().toISOString();
+    for (const a of staleGold) {
+      if (goldPx) {
+        await db.assetPrices.put({
+          symbol: a.symbol,
+          priceIdr: goldPx.priceIdr,
+          changePercent24h: goldPx.changePct,
+          lastSynced: now,
+        });
+        synced.push(a.symbol);
+      } else {
+        failed.push(a.symbol);
+      }
+    }
+  }
+
+  // Reksa dana: manual only — skip auto-sync
 
   return { synced, failed, skipped, noKey: noKey || undefined };
 }

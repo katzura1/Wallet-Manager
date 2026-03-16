@@ -206,7 +206,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           </>
         )}
 
-        {/* Stock IDX: symbol + name — manual price (no auto-sync API) */}
+        {/* Stock IDX: symbol + name — auto-sync via Yahoo Finance */}
         {type === "stock_idx" && !existing && (
           <>
             <Input
@@ -221,8 +221,41 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
               value={name}
               onChange={(e) => { setName(e.target.value); setError(""); }}
             />
+          </>
+        )}
+
+        {/* Gold physical / digital — auto-sync via Yahoo Finance GC=F, unit = gram */}
+        {(type === "gold_physical" || type === "gold_digital") && !existing && (
+          <>
+            <Input
+              label={`Nama / Label (mis. ${type === "gold_physical" ? "Emas Antam 10g" : "Pluang Gold"})`}
+              placeholder={type === "gold_physical" ? "Emas Antam 10g" : "Pluang Gold"}
+              value={name}
+              onChange={(e) => { setName(e.target.value); setSymbol(e.target.value.replace(/\s+/g, "_").toUpperCase()); setError(""); }}
+            />
+            <p className="text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl px-3 py-2">
+              ✅ Harga emas (IDR/gram) disync otomatis dari Yahoo Finance (GC=F + kurs USD). Jumlah = gram.
+            </p>
+          </>
+        )}
+
+        {/* Mutual fund — manual price only */}
+        {type === "mutual_fund" && !existing && (
+          <>
+            <Input
+              label="Nama Reksa Dana"
+              placeholder="Schroder Dana Prestasi Plus"
+              value={name}
+              onChange={(e) => { setName(e.target.value); setError(""); }}
+            />
+            <Input
+              label="Kode / Simbol (bebas, mis. SDP)"
+              placeholder="SDP"
+              value={symbol}
+              onChange={(e) => { setSymbol(e.target.value.toUpperCase()); setError(""); }}
+            />
             <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-3 py-2">
-              💡 Saham IDX tidak mendukung sync otomatis. Masukkan harga di kolom &quot;Harga Manual&quot; di bawah.
+              💡 NAV reksa dana diinput manual. Jumlah = unit penyertaan. Update harga di kolom &quot;Harga Manual&quot; secara berkala.
             </p>
           </>
         )}
@@ -241,15 +274,15 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           <div className="rounded-xl bg-[hsl(var(--muted))] px-3 py-2 text-sm flex items-center gap-2">
             <span className="font-semibold">{existing.symbol}</span>
             <span className="text-[hsl(var(--muted-foreground))]">{existing.name}</span>
-            <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">{existing.type === "crypto" ? "₿ Kripto" : existing.type === "stock_idx" ? "🇮🇩 Saham IDX" : "🇺🇸 Saham AS"}</span>
+            <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">{existing.type === "crypto" ? "₿ Kripto" : existing.type === "stock_idx" ? "🇮🇩 Saham IDX" : existing.type === "gold_physical" ? "🥇 Emas Fisik" : existing.type === "gold_digital" ? "🥇 Emas Digital" : existing.type === "mutual_fund" ? "📈 Reksa Dana" : "🇺🇸 Saham AS"}</span>
           </div>
         )}
 
         <Input
-          label="Jumlah / Lot"
+          label={type === "gold_physical" || type === "gold_digital" ? "Jumlah (gram)" : type === "mutual_fund" ? "Jumlah Unit Penyertaan" : "Jumlah / Lot"}
           type="number"
           inputMode="decimal"
-          placeholder="0.001"
+          placeholder={type === "gold_physical" || type === "gold_digital" ? "10" : "0.001"}
           value={quantity}
           onChange={(e) => { setQuantity(e.target.value); setError(""); }}
           error={error}
@@ -321,7 +354,7 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
           <div className="flex items-center gap-2">
             <span className="font-bold text-[hsl(var(--foreground))]">{asset.symbol}</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-              {asset.type === "crypto" ? "₿" : asset.type === "stock_idx" ? "🇮🇩" : "🇺🇸"}
+              {asset.type === "crypto" ? "₿" : asset.type === "stock_idx" ? "🇮🇩" : asset.type === "gold_physical" ? "🥇 Fisik" : asset.type === "gold_digital" ? "🥇 Digital" : asset.type === "mutual_fund" ? "📈 RD" : "🇺🇸"}
             </span>
           </div>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">{asset.name}</p>
@@ -362,7 +395,7 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
       </div>
 
       <div className="flex items-center justify-between text-xs text-[hsl(var(--muted-foreground))]">
-        <span>{asset.quantity.toLocaleString("id-ID")} unit</span>
+        <span>{asset.quantity.toLocaleString("id-ID")} {asset.type === "gold_physical" || asset.type === "gold_digital" ? "gram" : asset.type === "mutual_fund" ? "unit" : "unit"}</span>
         <div className="flex items-center gap-2">
           {price?.changePercent24h !== undefined && (
             <span className={gainCls(price.changePercent24h)}>
@@ -386,7 +419,7 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
 
 // ─── Portfolio Page ───────────────────────────────────────────────────────────
 
-type Filter = "all" | "crypto" | "stock_us" | "stock_idx";
+type Filter = "all" | "crypto" | "stock_us" | "stock_idx" | "gold" | "mutual_fund";
 
 export default function Portfolio() {
   const { currency } = useSettingsStore();
@@ -470,7 +503,9 @@ export default function Portfolio() {
       ? assets
       : filter === "stock_us"
         ? assets.filter((a) => a.type === "stock_us" || a.type === "stock")
-        : assets.filter((a) => a.type === filter);
+        : filter === "gold"
+          ? assets.filter((a) => a.type === "gold_physical" || a.type === "gold_digital")
+          : assets.filter((a) => a.type === filter);
 
   // Summary calculations
   const totalValue = assets.reduce((sum, a) => {
@@ -483,10 +518,13 @@ export default function Portfolio() {
 
   // Pie chart data — grouped by category
   const CATEGORY_META: Record<string, { label: string; color: string }> = {
-    crypto:    { label: "Kripto",     color: "#6366f1" },
-    stock_us:  { label: "Saham US",   color: "#22c55e" },
-    stock_idx: { label: "Saham IDX",  color: "#f97316" },
-    stock:     { label: "Saham US",   color: "#22c55e" },
+    crypto:        { label: "Kripto",      color: "#6366f1" },
+    stock_us:      { label: "Saham US",    color: "#22c55e" },
+    stock_idx:     { label: "Saham IDX",   color: "#f97316" },
+    stock:         { label: "Saham US",    color: "#22c55e" },
+    gold_physical: { label: "Emas Fisik",  color: "#f59e0b" },
+    gold_digital:  { label: "Emas Digital",color: "#fbbf24" },
+    mutual_fund:   { label: "Reksa Dana",  color: "#14b8a6" },
   };
   const categoryTotals: Record<string, number> = {};
   for (const a of assets) {
@@ -591,13 +629,13 @@ export default function Portfolio() {
       {/* Filter Tabs */}
       {assets.length > 0 && (
         <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
-          {(["all", "crypto", "stock_us", "stock_idx"] as Filter[]).map((f) => (
+          {(["all", "crypto", "stock_us", "stock_idx", "gold", "mutual_fund"] as Filter[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={`flex-1 py-1.5 font-medium transition-colors ${filter === f ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
             >
-              {f === "all" ? "Semua" : f === "crypto" ? "₿ Kripto" : f === "stock_us" ? "🇺🇸 AS" : "🇮🇩 IDX"}
+              {f === "all" ? "Semua" : f === "crypto" ? "₿" : f === "stock_us" ? "🇺🇸" : f === "stock_idx" ? "🇮🇩" : f === "gold" ? "🥇" : "📈"}
             </button>
           ))}
         </div>
