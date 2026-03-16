@@ -198,20 +198,26 @@ async function syncStockIdxYahoo(asset: Asset): Promise<boolean> {
     return false;
   }
   if (!resp.ok) return false;
-  const wrapper = await resp.json();
-  if (!wrapper?.contents) return false;
+
+  // corsproxy.io returns the Yahoo Finance response directly (no wrapper)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let data: any;
-  try { data = JSON.parse(wrapper.contents); } catch { return false; }
-  const meta = data?.chart?.result?.[0]?.meta;
-  const price: number | undefined = meta?.regularMarketPrice;
-  const changePct: number | undefined = meta?.regularMarketChangePercent;
+  try { data = await resp.json(); } catch { return false; }
+
+  const result = data?.chart?.result?.[0];
+  if (!result) return false;
+
+  const price: number | undefined = result.meta?.regularMarketPrice;
+  const prevClose: number | undefined = result.meta?.chartPreviousClose;
+  const changePct = price && prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+
   if (!price || price <= 0) return false;
+
   // Yahoo Finance IDX prices are already in IDR
   await db.assetPrices.put({
     symbol: asset.symbol,
     priceIdr: price,
-    changePercent24h: changePct ?? 0,
+    changePercent24h: changePct,
     lastSynced: new Date().toISOString(),
   });
   return true;
