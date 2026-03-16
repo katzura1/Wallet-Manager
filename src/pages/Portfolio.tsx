@@ -128,28 +128,53 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Type selector (locked when editing) */}
         {!existing && (
-          <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setType("crypto")}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "crypto" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-            >
-              ₿ Kripto
-            </button>
-            <button
-              type="button"
-              onClick={() => setType("stock_us")}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "stock_us" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}` }
-            >
-              🇺🇸 Saham AS
-            </button>
-            <button
-              type="button"
-              onClick={() => setType("stock_idx")}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "stock_idx" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}` }
-            >
-              🇮🇩 Saham IDX
-            </button>
+          <div className="rounded-xl border border-[hsl(var(--border))] overflow-hidden">
+            <div className="flex">
+              <button
+                type="button"
+                onClick={() => setType("crypto")}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "crypto" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              >
+                ₿ Kripto
+              </button>
+              <button
+                type="button"
+                onClick={() => setType("stock_us")}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "stock_us" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              >
+                🇺🇸 Saham AS
+              </button>
+              <button
+                type="button"
+                onClick={() => setType("stock_idx")}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "stock_idx" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              >
+                🇮🇩 Saham IDX
+              </button>
+            </div>
+            <div className="flex border-t border-[hsl(var(--border))]">
+              <button
+                type="button"
+                onClick={() => setType("gold_physical")}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "gold_physical" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              >
+                🥇 Emas Fisik
+              </button>
+              <button
+                type="button"
+                onClick={() => setType("gold_digital")}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "gold_digital" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              >
+                🥇 Emas Digital
+              </button>
+              <button
+                type="button"
+                onClick={() => setType("mutual_fund")}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "mutual_fund" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              >
+                📈 Reksa Dana
+              </button>
+            </div>
           </div>
         )}
 
