@@ -20,7 +20,6 @@ export interface SyncResult {
   failed: string[];
   skipped?: string[]; // assets with fresh price (< STALE_MS) — skipped to save API quota
   noKey?: boolean;    // no Alpha Vantage key (US stocks)
-  noIdxKey?: boolean; // no Twelve Data key (IDX stocks)
 }
 
 export const STALE_MS = 6 * 60 * 60 * 1000; // 6 hours — don't re-sync if fresher than this
@@ -182,11 +181,44 @@ async function syncStock(asset: Asset, apiKey: string): Promise<boolean> {
   return true;
 }
 
-// ─── Sync IDX stock price (Twelve Data – free, CORS-friendly) ───────────────
-// Symbol format: just the bare IDX code (e.g. "BBCA"), suffix ":IDX" is added here.
+// ─── Sync IDX stock price ───────────────────────────────────────────────────────────
+// Primary: Yahoo Finance v8 chart API via allorigins.win proxy (no key needed).
+// IDX symbols on Yahoo Finance use .JK suffix (e.g. BBCA.JK). Price is in IDR.
+// Optional fallback: Twelve Data (paid plan >= Pro). Set key in Settings.
 
-async function syncStockIdx(asset: Asset, apiKey: string): Promise<boolean> {
-  const sym = asset.symbol.toUpperCase().replace(/\.(JK|JKT)$/, ""); // strip old suffix
+async function syncStockIdxYahoo(asset: Asset): Promise<boolean> {
+  const sym = asset.symbol.toUpperCase().replace(/\.(JK|JKT|IDX)$/, "");
+  const yhSym = encodeURIComponent(`${sym}.JK`);
+  const target = `https://query2.finance.yahoo.com/v8/finance/chart/${yhSym}?interval=1d&range=1d`;
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
+  let resp: Response;
+  try {
+    resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+  } catch {
+    return false;
+  }
+  if (!resp.ok) return false;
+  const wrapper = await resp.json();
+  if (!wrapper?.contents) return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let data: any;
+  try { data = JSON.parse(wrapper.contents); } catch { return false; }
+  const meta = data?.chart?.result?.[0]?.meta;
+  const price: number | undefined = meta?.regularMarketPrice;
+  const changePct: number | undefined = meta?.regularMarketChangePercent;
+  if (!price || price <= 0) return false;
+  // Yahoo Finance IDX prices are already in IDR
+  await db.assetPrices.put({
+    symbol: asset.symbol,
+    priceIdr: price,
+    changePercent24h: changePct ?? 0,
+    lastSynced: new Date().toISOString(),
+  });
+  return true;
+}
+
+async function syncStockIdxTd(asset: Asset, apiKey: string): Promise<boolean> {
+  const sym = asset.symbol.toUpperCase().replace(/\.(JK|JKT|IDX)$/, "");
   const url = `${TD}/quote?symbol=${encodeURIComponent(sym)}%3AIDX&apikey=${encodeURIComponent(apiKey)}`;
   let resp: Response;
   try {
@@ -195,16 +227,12 @@ async function syncStockIdx(asset: Asset, apiKey: string): Promise<boolean> {
     return false;
   }
   if (!resp.ok) return false;
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await resp.json();
   if (data?.status === "error" || !data?.close) return false;
-
   const price = parseFloat(data.close);
   const changePct = parseFloat(data.percent_change ?? "0");
   if (isNaN(price) || price <= 0) return false;
-
-  // Twelve Data returns IDX prices in IDR natively — no conversion needed
   await db.assetPrices.put({
     symbol: asset.symbol,
     priceIdr: price,
@@ -212,6 +240,16 @@ async function syncStockIdx(asset: Asset, apiKey: string): Promise<boolean> {
     lastSynced: new Date().toISOString(),
   });
   return true;
+}
+
+/** Try Twelve Data (if key set) first, then fall back to Yahoo Finance proxy. */
+async function syncStockIdx(asset: Asset): Promise<boolean> {
+  const tdKey = getTwelveDataKey();
+  if (tdKey) {
+    const ok = await syncStockIdxTd(asset, tdKey);
+    if (ok) return true;
+  }
+  return syncStockIdxYahoo(asset);
 }
 
 // ─── Freshness check ─────────────────────────────────────────────────────────
@@ -276,29 +314,22 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
     }
   }
 
-  // IDX Stocks via Twelve Data — free 800 req/day, proper CORS
+  // IDX Stocks: try Twelve Data (paid) first, then Yahoo Finance proxy (free, keyless)
   const staleIdx = stale.filter((a) => a.type === "stock_idx");
-  let noIdxKey = false;
   if (staleIdx.length > 0) {
-    const tdKey = getTwelveDataKey();
-    if (!tdKey) {
-      noIdxKey = true;
-      for (const a of staleIdx) failed.push(a.symbol);
-    } else {
-      for (let i = 0; i < staleIdx.length; i++) {
-        if (i > 0) await delay(AV_DELAY_MS); // keep 2s gap to respect 8 req/min
-        try {
-          const ok = await syncStockIdx(staleIdx[i], tdKey);
-          if (ok) synced.push(staleIdx[i].symbol);
-          else failed.push(staleIdx[i].symbol);
-        } catch {
-          failed.push(staleIdx[i].symbol);
-        }
+    for (let i = 0; i < staleIdx.length; i++) {
+      if (i > 0) await delay(AV_DELAY_MS);
+      try {
+        const ok = await syncStockIdx(staleIdx[i]);
+        if (ok) synced.push(staleIdx[i].symbol);
+        else failed.push(staleIdx[i].symbol);
+      } catch {
+        failed.push(staleIdx[i].symbol);
       }
     }
   }
 
-  return { synced, failed, skipped, noKey: noKey || undefined, noIdxKey: noIdxKey || undefined };
+  return { synced, failed, skipped, noKey: noKey || undefined };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

@@ -306,14 +306,14 @@ export default function Settings() {
       {/* Twelve Data — IDX stocks */}
       <Card>
         <CardContent className="p-4 space-y-3">
-          <p className="text-sm font-semibold">Portofolio — API Key Saham IDX</p>
+          <p className="text-sm font-semibold">Portofolio — API Key Saham IDX <span className="font-normal text-[hsl(var(--muted-foreground))]">(opsional)</span></p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Harga saham IDX diambil dari <strong>Twelve Data</strong> (gratis, tanpa kartu kredit).
-            Daftar di{" "}
+            Saham IDX disinkron otomatis via <strong>Yahoo Finance</strong> (tanpa key, gratis).
+            Jika ingin koneksi lebih stabil, daftarkan key <strong>Twelve Data</strong> plan berbayar di{" "}
             <a href="https://twelvedata.com/pricing" target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">
               twelvedata.com
             </a>{" "}
-            → pilih <strong>Free</strong> → copy API key. Free tier: <strong>800 req/hari</strong>, 8 req/menit.
+            sebagai fallback. Kosongkan saja jika tidak punya.
           </p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
             🇮🇩 Gunakan kode saham IDX tanpa suffix (mis.{" "}
@@ -324,7 +324,7 @@ export default function Settings() {
           <div className="flex gap-2">
             <input
               type="password"
-              placeholder="Masukkan Twelve Data API key"
+              placeholder="Twelve Data API key (opsional)"
               value={tdKey}
               onChange={(e) => { setTdKey(e.target.value); setTdSaved(false); }}
               className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
@@ -334,7 +334,7 @@ export default function Settings() {
             </Button>
           </div>
           {tdKey && !tdSaved && (
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Key terpasang (800 req/hari). Buka Portofolio → tap "Sync Harga".</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">Key Twelve Data terpasang — dipakai sebagai prioritas utama untuk IDX.</p>
           )}
         </CardContent>
       </Card>

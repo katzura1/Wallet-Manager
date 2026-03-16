@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Button, Input, Modal } from "@/components/ui";
 import { formatCurrency } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset } from "@/db/assets";
-import { syncAllPrices, searchCoins, anyPriceStale, getAlphaVantageKey, getTwelveDataKey, type CoinSearchResult } from "@/services/priceSync";
+import { syncAllPrices, searchCoins, anyPriceStale, getAlphaVantageKey, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
 import type { Asset, AssetPrice, AssetType } from "@/types";
@@ -402,7 +402,6 @@ export default function Portfolio() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
   const [noKey, setNoKey] = useState(!getAlphaVantageKey());
-  const [noIdxKey, setNoIdxKey] = useState(!getTwelveDataKey());
   const [filter, setFilter] = useState<Filter>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Asset | null>(null);
@@ -441,13 +440,9 @@ export default function Portfolio() {
       for (const p of freshPrices) map[p.symbol] = p;
       setPrices(map);
       setNoKey(!getAlphaVantageKey());
-      setNoIdxKey(!getTwelveDataKey());
       const msgs: string[] = [];
       if (result.noKey && list.some((a) => a.type === "stock_us" || a.type === "stock")) {
         msgs.push("⚠️ Key Alpha Vantage belum diatur — saham AS tidak disinkron");
-      }
-      if (result.noIdxKey && list.some((a) => a.type === "stock_idx")) {
-        msgs.push("⚠️ Key Twelve Data belum diatur — saham IDX tidak disinkron");
       }
       if (!silent) {
         if (msgs.length) {
@@ -529,17 +524,6 @@ export default function Portfolio() {
           <p className="font-semibold text-amber-700 dark:text-amber-400">⚠️ API Key Saham AS Belum Diatur</p>
           <p className="text-amber-700 dark:text-amber-400 text-xs">
             Diperlukan API key <strong>Alpha Vantage</strong> (gratis) untuk sync harga saham AS.
-            Buka <strong>Setelan → Portofolio</strong> untuk memasukkan key.
-          </p>
-        </div>
-      )}
-
-      {/* No API key warning for IDX stocks */}
-      {noIdxKey && assets.some((a) => a.type === "stock_idx") && (
-        <div className="rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm space-y-1">
-          <p className="font-semibold text-amber-700 dark:text-amber-400">⚠️ API Key Saham IDX Belum Diatur</p>
-          <p className="text-amber-700 dark:text-amber-400 text-xs">
-            Diperlukan API key <strong>Twelve Data</strong> (gratis, 800 req/hari) untuk sync harga saham IDX.
             Buka <strong>Setelan → Portofolio</strong> untuk memasukkan key.
           </p>
         </div>
