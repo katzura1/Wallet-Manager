@@ -101,6 +101,30 @@ export interface Budget {
   createdAt: string;
 }
 
+// ─── Portfolio ────────────────────────────────────────────────────────────────
+
+export type AssetType = "crypto" | "stock";
+
+export interface Asset {
+  id?: number;
+  symbol: string;            // BTC, AAPL, BBCA.JK
+  name: string;              // Bitcoin, Apple Inc
+  type: AssetType;
+  quantity: number;
+  avgBuyPrice: number;       // average buy price in IDR
+  coinGeckoId?: string;      // e.g. "bitcoin" — used for CoinGecko sync
+  manualPriceIdr?: number;   // user-entered fallback when API is unavailable
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetPrice {
+  symbol: string;            // primary key (matches Asset.symbol)
+  priceIdr: number;
+  changePercent24h: number;
+  lastSynced: string;
+}
+
 export interface AccountWithBalance extends Account {
   id: number;
   balance: number;

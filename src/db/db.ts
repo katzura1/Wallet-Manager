@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Account, Transaction, Category, Settings, Budget, RecurringTransaction, TransactionSplit, Debt, DebtPayment } from "@/types";
+import type { Account, Transaction, Category, Settings, Budget, RecurringTransaction, TransactionSplit, Debt, DebtPayment, Asset, AssetPrice } from "@/types";
 
 class WalletDB extends Dexie {
   accounts!: EntityTable<Account, "id">;
@@ -11,6 +11,9 @@ class WalletDB extends Dexie {
   transactionSplits!: EntityTable<TransactionSplit, "id">;
   debts!: EntityTable<Debt, "id">;
   debtPayments!: EntityTable<DebtPayment, "id">;
+
+  assets!: EntityTable<Asset, "id">;
+  assetPrices!: EntityTable<AssetPrice, "symbol">;
 
   constructor() {
     super("WalletDB");
@@ -28,6 +31,10 @@ class WalletDB extends Dexie {
       transactionSplits: "++id, transactionId, categoryId",
       debts: "++id, type, isSettled, createdAt",
       debtPayments: "++id, debtId, date",
+    });
+    this.version(4).stores({
+      assets: "++id, type, symbol",
+      assetPrices: "symbol", // symbol is the primary key (no auto-increment)
     });
   }
 }

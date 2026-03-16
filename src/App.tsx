@@ -6,6 +6,7 @@ import Accounts from '@/pages/Accounts'
 import Reports from '@/pages/Reports'
 import Settings from '@/pages/Settings'
 import Debts from '@/pages/Debts'
+import Portfolio from '@/pages/Portfolio'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/debts" element={<Debts />} />
+          <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
