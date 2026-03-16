@@ -618,11 +618,6 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* Add button */}
-      <Button className="w-full" onClick={() => setAddOpen(true)}>
-        + Tambah Aset
-      </Button>
-
       {/* Sync note for stocks */}
       {assets.some((a) => a.type === "stock_us" || a.type === "stock" || a.type === "stock_idx") && (
         <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">
@@ -640,6 +635,14 @@ export default function Portfolio() {
           onConfirm={handleDelete}
         />
       )}
+
+      {/* Floating Add button */}
+      <button
+        onClick={() => setAddOpen(true)}
+        className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-700 active:scale-95 transition-transform"
+      >
+        <span className="text-lg leading-none">+</span> Tambah Aset
+      </button>
     </div>
   );
 }
