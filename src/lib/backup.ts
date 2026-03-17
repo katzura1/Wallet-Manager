@@ -94,6 +94,26 @@ const DebtPaymentSchema = z.object({
   createdAt: z.string(),
 });
 
+const AssetSchema = z.object({
+  id: z.number().optional(),
+  symbol: z.string(),
+  name: z.string(),
+  type: z.enum(["crypto", "stock_us", "stock_idx", "stock", "gold_physical", "gold_digital", "mutual_fund", "deposito"]),
+  quantity: z.number(),
+  avgBuyPrice: z.number(),
+  coinGeckoId: z.string().optional(),
+  manualPriceIdr: z.number().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const AssetPriceSchema = z.object({
+  symbol: z.string(),
+  priceIdr: z.number(),
+  changePercent24h: z.number(),
+  lastSynced: z.string(),
+});
+
 const BackupSchemaV1 = z.object({
   version: z.literal(1),
   exportedAt: z.string(),
@@ -115,13 +135,28 @@ const BackupSchemaV2 = z.object({
   debtPayments: z.array(DebtPaymentSchema),
 });
 
-const BackupSchema = z.union([BackupSchemaV2, BackupSchemaV1]);
-export type BackupData = z.infer<typeof BackupSchemaV2>;
+const BackupSchemaV3 = z.object({
+  version: z.literal(3),
+  exportedAt: z.string(),
+  accounts: z.array(AccountSchema),
+  categories: z.array(CategorySchema),
+  transactions: z.array(TransactionSchema),
+  budgets: z.array(BudgetSchema),
+  recurring: z.array(RecurringSchema),
+  transactionSplits: z.array(TransactionSplitSchema),
+  debts: z.array(DebtSchema),
+  debtPayments: z.array(DebtPaymentSchema),
+  assets: z.array(AssetSchema),
+  assetPrices: z.array(AssetPriceSchema),
+});
+
+const BackupSchema = z.union([BackupSchemaV3, BackupSchemaV2, BackupSchemaV1]);
+export type BackupData = z.infer<typeof BackupSchemaV3>;
 
 // ─── Export ────────────────────────────────────────────────────────────────────
 
 export async function exportJSON(): Promise<void> {
-  const [accounts, categories, transactions, budgets, recurring, transactionSplits, debts, debtPayments] =
+  const [accounts, categories, transactions, budgets, recurring, transactionSplits, debts, debtPayments, assets, assetPrices] =
     await Promise.all([
       db.accounts.toArray(),
       db.categories.toArray(),
@@ -131,10 +166,12 @@ export async function exportJSON(): Promise<void> {
       db.transactionSplits.toArray(),
       db.debts.toArray(),
       db.debtPayments.toArray(),
+      db.assets.toArray(),
+      db.assetPrices.toArray(),
     ]);
 
   const backup: BackupData = {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     accounts,
     categories,
@@ -144,6 +181,8 @@ export async function exportJSON(): Promise<void> {
     transactionSplits,
     debts,
     debtPayments,
+    assets,
+    assetPrices,
   };
 
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -186,21 +225,35 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
   }
 
   const backup = parsed.data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const b = backup as any;
 
-  // Normalise — v1 backups won't have the new tables, fill with empty arrays
-  const accounts = backup.accounts;
-  const categories = backup.categories;
-  const transactions = backup.transactions;
-  const budgets = backup.version === 2 ? backup.budgets : [];
-  const recurring = backup.version === 2 ? backup.recurring : [];
-  const transactionSplits = backup.version === 2 ? backup.transactionSplits : [];
-  const debts = backup.version === 2 ? backup.debts : [];
-  const debtPayments = backup.version === 2 ? backup.debtPayments : [];
+  // Normalise — older backups won't have the new tables, fill with empty arrays
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const accounts: any[] = backup.accounts;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const categories: any[] = backup.categories;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const transactions: any[] = backup.transactions;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const budgets: any[] = b.budgets ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recurring: any[] = b.recurring ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const transactionSplits: any[] = b.transactionSplits ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const debts: any[] = b.debts ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const debtPayments: any[] = b.debtPayments ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assets: any[] = b.assets ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assetPrices: any[] = b.assetPrices ?? [];
 
   const allTables = [
     db.accounts, db.categories, db.transactions,
     db.budgets, db.recurring, db.transactionSplits,
-    db.debts, db.debtPayments,
+    db.debts, db.debtPayments, db.assets, db.assetPrices,
   ] as const;
 
   if (mode === "replace") {
@@ -214,16 +267,19 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
       await db.transactionSplits.bulkAdd(transactionSplits);
       await db.debts.bulkAdd(debts);
       await db.debtPayments.bulkAdd(debtPayments);
+      await db.assets.bulkAdd(assets);
+      await db.assetPrices.bulkPut(assetPrices);
     });
     // Re-seed any missing default categories (so app always has full category list)
     await seedMissingDefaultCategories();
   } else {
     // Merge: skip records that already exist by id
     await db.transaction("rw", allTables, async () => {
-      const mergeTable = async <T extends { id?: number }>(table: (typeof allTables)[number], items: T[]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mergeTable = async (table: any, items: any[]) => {
         for (const item of items) {
           if (item.id && await table.get(item.id)) continue;
-          await (table as unknown as { add: (item: T) => Promise<unknown> }).add(item);
+          await table.add(item);
         }
       };
       await mergeTable(db.accounts, accounts);
@@ -234,6 +290,14 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
       await mergeTable(db.transactionSplits, transactionSplits);
       await mergeTable(db.debts, debts);
       await mergeTable(db.debtPayments, debtPayments);
+      // assets: keyed by symbol — upsert
+      for (const a of assets) {
+        if (!await db.assets.where("symbol").equals(a.symbol).first()) {
+          await db.assets.add(a);
+        }
+      }
+      // assetPrices: keyed by symbol — upsert
+      await db.assetPrices.bulkPut(assetPrices);
     });
   }
 }
