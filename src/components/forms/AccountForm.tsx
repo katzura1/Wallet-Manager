@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Input, Select, Modal } from "@/components/ui";
 import { formatCurrency, ACCOUNT_COLORS, ACCOUNT_ICONS, ACCOUNT_TYPE_LABELS } from "@/lib/utils";
-import { addAccount, updateAccount } from "@/db/accounts";
+import { addAccount, updateAccount, recalculateAccountBalance } from "@/db/accounts";
 import type { Account } from "@/types";
 
 interface AccountFormProps {
@@ -33,7 +33,8 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
     setLoading(true);
     try {
       if (existing?.id) {
-        await updateAccount(existing.id, { name: name.trim(), type, color, icon });
+        await updateAccount(existing.id, { name: name.trim(), type, color, icon, initialBalance: balance });
+        await recalculateAccountBalance(existing.id);
       } else {
         await addAccount({ name: name.trim(), type, color, icon, initialBalance: balance, isArchived: false });
       }
@@ -64,9 +65,13 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
             </option>
           ))}
         </Select>
-        {!existing && (
-          <Input label="Saldo Awal" type="number" placeholder="0" value={initialBalance} onChange={(e) => setInitialBalance(e.target.value)} />
-        )}
+        <Input
+          label={existing ? "Saldo Awal (ubah jika perlu koreksi)" : "Saldo Awal"}
+          type="number"
+          placeholder="0"
+          value={initialBalance}
+          onChange={(e) => setInitialBalance(e.target.value)}
+        />
         <div className="space-y-2">
           <label className="text-sm font-medium">Warna</label>
           <div className="flex flex-wrap gap-2">
