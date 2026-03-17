@@ -178,6 +178,7 @@ interface PaymentsHistoryProps {
 
 function PaymentsHistory({ open, onClose, debt }: PaymentsHistoryProps) {
   const { currency } = useSettingsStore();
+  const { accounts } = useWalletStore();
   const [payments, setPayments] = useState<DebtPayment[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editAmount, setEditAmount] = useState("");
@@ -262,6 +263,7 @@ function PaymentsHistory({ open, onClose, debt }: PaymentsHistoryProps) {
                   <div>
                     <div className="font-medium">{formatDate(p.date)}</div>
                     {p.note && <div className="text-[hsl(var(--muted-foreground))] text-xs">{p.note}</div>}
+                    {p.accountId && (() => { const acc = accounts.find(a => a.id === p.accountId); return acc ? <div className="text-[hsl(var(--muted-foreground))] text-xs">{acc.icon} {acc.name}</div> : null; })()}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <span className="font-semibold text-emerald-500">{formatCurrency(p.amount, currency)}</span>

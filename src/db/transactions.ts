@@ -103,6 +103,30 @@ export async function getMonthlySummary(year: number, month: number) {
   return { income, expense, net: income - expense };
 }
 
+export async function getSummaryBetween(from: string, to: string) {
+  const transactions = await db.transactions
+    .where("date").between(from, to, true, true)
+    .toArray();
+  let income = 0, expense = 0;
+  for (const tx of transactions) {
+    if (tx.type === "income") income += tx.amount;
+    if (tx.type === "expense") expense += tx.amount;
+  }
+  return { income, expense, net: income - expense };
+}
+
+export async function getCategoryExpenseBetween(from: string, to: string) {
+  const transactions = await db.transactions
+    .where("date").between(from, to, true, true)
+    .filter((t) => t.type === "expense")
+    .toArray();
+  const map: Record<number, number> = {};
+  for (const tx of transactions) {
+    if (tx.categoryId) map[tx.categoryId] = (map[tx.categoryId] ?? 0) + tx.amount;
+  }
+  return map;
+}
+
 export async function getMonthlyChartData(months = 6) {
   const result = [];
   const now = new Date();

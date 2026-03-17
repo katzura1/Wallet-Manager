@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, CartesianGrid, XAxis, ResponsiveContainer } from "recharts";
 import { Button, Input, Modal } from "@/components/ui";
 import { formatCurrency } from "@/lib/utils";
-import { getAssets, addAsset, updateAsset, deleteAsset } from "@/db/assets";
+import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, getAlphaVantageKey, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
-import type { Asset, AssetPrice, AssetType } from "@/types";
+import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -481,6 +481,7 @@ export default function Portfolio() {
 
   const [assets, setAssets] = useState<Asset[]>([]);
   const [prices, setPrices] = useState<Record<string, AssetPrice>>({});
+  const [history, setHistory] = useState<PortfolioHistory[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
   const [noKey, setNoKey] = useState(!getAlphaVantageKey());
@@ -496,6 +497,14 @@ export default function Portfolio() {
     const map: Record<string, AssetPrice> = {};
     for (const p of storedPrices) map[p.symbol] = p;
     setPrices(map);
+    // Save today's snapshot based on current stored prices
+    const snap = a.reduce((sum, asset) => {
+      const p = map[asset.symbol]?.priceIdr ?? asset.manualPriceIdr ?? 0;
+      return sum + asset.quantity * p;
+    }, 0);
+    if (snap > 0) await savePortfolioSnapshot(snap);
+    // Refresh history
+    setHistory(await getPortfolioHistory(30));
     return a;
   }, []);
 
@@ -522,6 +531,15 @@ export default function Portfolio() {
       for (const p of freshPrices) map[p.symbol] = p;
       setPrices(map);
       setNoKey(!getAlphaVantageKey());
+      // Save daily portfolio snapshot using fresh prices
+      const snap = list.reduce((sum, a) => {
+        const p = map[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? 0;
+        return sum + a.quantity * p;
+      }, 0);
+      if (snap > 0) {
+        await savePortfolioSnapshot(snap);
+        setHistory(await getPortfolioHistory(30));
+      }
       const msgs: string[] = [];
       if (result.noKey && list.some((a) => a.type === "stock_us" || a.type === "stock")) {
         msgs.push("⚠️ Key Alpha Vantage belum diatur — saham AS tidak disinkron");
@@ -643,6 +661,43 @@ export default function Portfolio() {
               </span>
             </div>
           </div>
+
+          {/* Portfolio Value History */}
+          {history.length > 1 && (
+            <div className="rounded-2xl border border-[hsl(var(--border))] p-4 bg-[hsl(var(--card))]">
+              <p className="text-sm font-medium text-[hsl(var(--foreground))] mb-3">📈 Riwayat Nilai Portofolio</p>
+              <ResponsiveContainer width="100%" height={150}>
+                <AreaChart data={history} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="portGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 9 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(d: string) => d.slice(5)} // MM-DD
+                    interval="preserveStartEnd"
+                  />
+                  <Tooltip
+                    formatter={(val) => [formatCurrency(Number(val), currency), "Nilai"]}
+                    labelFormatter={(label) => String(label)}
+                    contentStyle={{
+                      background: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "12px",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Area dataKey="totalValue" name="Nilai" stroke="#6366f1" strokeWidth={2} fill="url(#portGrad)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {/* Allocation Pie Chart */}
           {pieData.length > 0 && (

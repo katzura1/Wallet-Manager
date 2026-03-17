@@ -76,3 +76,34 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ currency });
   },
 }));
+
+// PIN lock store
+interface PinState {
+  pin: string | null;
+  isLocked: boolean;
+  setPin: (pin: string | null) => void;
+  unlock: () => void;
+  lock: () => void;
+}
+
+export const usePinStore = create<PinState>((set) => ({
+  pin: localStorage.getItem("wallet_pin"),
+  isLocked: !!localStorage.getItem("wallet_pin") && !sessionStorage.getItem("wallet_unlocked"),
+  setPin: (pin) => {
+    if (pin) {
+      localStorage.setItem("wallet_pin", pin);
+    } else {
+      localStorage.removeItem("wallet_pin");
+      sessionStorage.removeItem("wallet_unlocked");
+    }
+    set({ pin, isLocked: false });
+  },
+  unlock: () => {
+    sessionStorage.setItem("wallet_unlocked", "1");
+    set({ isLocked: false });
+  },
+  lock: () => {
+    sessionStorage.removeItem("wallet_unlocked");
+    set({ isLocked: true });
+  },
+}));

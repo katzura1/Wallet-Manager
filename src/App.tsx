@@ -7,8 +7,14 @@ import Reports from '@/pages/Reports'
 import Settings from '@/pages/Settings'
 import Debts from '@/pages/Debts'
 import Portfolio from '@/pages/Portfolio'
+import { LockScreen } from '@/components/LockScreen'
+import { usePinStore } from '@/stores/walletStore'
 
 export default function App() {
+  const { isLocked } = usePinStore();
+
+  if (isLocked) return <LockScreen />;
+
   return (
     <BrowserRouter>
       <Routes>

@@ -74,6 +74,7 @@ export interface DebtPayment {
   amount: number;
   date: string;
   note: string;
+  accountId?: number;
   createdAt: string;
 }
 
@@ -124,6 +125,12 @@ export interface AssetPrice {
   priceIdr: number;
   changePercent24h: number;
   lastSynced: string;
+}
+
+export interface PortfolioHistory {
+  id?: number;
+  date: string;        // YYYY-MM-DD, unique per day
+  totalValue: number;
 }
 
 export interface AccountWithBalance extends Account {

@@ -11,7 +11,26 @@ export async function getDebts(includeSettled = false): Promise<Debt[]> {
 
 export async function addDebt(data: Omit<Debt, "id" | "createdAt" | "updatedAt">): Promise<number | undefined> {
   const now = new Date().toISOString();
-  return db.debts.add({ ...data, remaining: data.amount, createdAt: now, updatedAt: now });
+  const debtId = await db.debts.add({ ...data, remaining: data.amount, createdAt: now, updatedAt: now });
+
+  // Auto-create a transaction to reflect the account balance immediately
+  if (data.accountId) {
+    // owe = kita terima pinjaman = income (akun bertambah)
+    // owed = kita pinjamkan ke orang = expense (akun berkurang)
+    const txType = data.type === "owe" ? "income" : "expense";
+    const defaultNote = data.type === "owe"
+      ? `Pinjaman dari: ${data.name}`
+      : `Dipinjamkan ke: ${data.name}`;
+    await addTransaction({
+      type: txType,
+      amount: data.amount,
+      accountId: data.accountId,
+      date: todayISO(),
+      note: data.note || defaultNote,
+    });
+  }
+
+  return debtId;
 }
 
 export async function updateDebt(id: number, data: Partial<Omit<Debt, "id">>): Promise<void> {
@@ -79,7 +98,7 @@ export async function payDebt(
   const actualAmount = Math.min(amount, debt.remaining);
   const newRemaining = Math.max(debt.remaining - actualAmount, 0);
 
-  await db.debtPayments.add({ debtId, amount: actualAmount, date, note, createdAt: new Date().toISOString() });
+  await db.debtPayments.add({ debtId, amount: actualAmount, date, note, accountId, createdAt: new Date().toISOString() });
   await db.debts.update(debtId, {
     remaining: newRemaining,
     isSettled: newRemaining <= 0,

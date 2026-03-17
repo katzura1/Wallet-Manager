@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui";
-import { getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory } from "@/db/transactions";
+import { getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween } from "@/db/transactions";
 import { getBudgetsForMonth } from "@/db/budgets";
 import { BudgetForm } from "@/components/forms/BudgetForm";
 import { formatCurrency } from "@/lib/utils";
@@ -21,6 +21,20 @@ interface PieEntry {
   icon: string;
 }
 
+/** Merge entries with the same name (e.g. multiple orphan "Lainnya") to prevent duplicate React keys */
+function mergePieEntries(entries: PieEntry[]): PieEntry[] {
+  const map = new Map<string, PieEntry>();
+  for (const e of entries) {
+    const existing = map.get(e.name);
+    if (existing) {
+      existing.value += e.value;
+    } else {
+      map.set(e.name, { ...e });
+    }
+  }
+  return Array.from(map.values());
+}
+
 export default function Reports() {
   const { accounts, categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
@@ -37,17 +51,45 @@ export default function Reports() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
 
+  // Range mode
+  const [mode, setMode] = useState<"monthly" | "range">("monthly");
+  const todayStr = now.toISOString().split("T")[0];
+  const firstOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const [dateFrom, setDateFrom] = useState(firstOfMonth);
+  const [dateTo, setDateTo] = useState(todayStr);
+
   useEffect(() => {
     void refreshAll();
   }, []);
 
   useEffect(() => {
     void loadChartData();
-  }, [selectedYear, selectedMonth, categories]);
+  }, [selectedYear, selectedMonth, categories, mode, dateFrom, dateTo]);
 
   async function loadChartData() {
     const monthStr = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
-    const [bars, catMap, sum, history, bdgtList] = await Promise.all([
+
+    let catMap: Record<number, number>;
+    let sum: { income: number; expense: number; net: number };
+
+    if (mode === "range" && dateFrom && dateTo) {
+      [catMap, sum] = await Promise.all([
+        getCategoryExpenseBetween(dateFrom, dateTo),
+        getSummaryBetween(dateFrom, dateTo),
+      ]);
+      // Bar chart & balance history don't apply in range mode — keep stale
+      setSummary(sum);
+      const pie: PieEntry[] = mergePieEntries(
+        Object.entries(catMap).map(([catId, amount]) => {
+          const cat = categories.find((c) => c.id === Number(catId));
+          return { name: cat?.name ?? "Lainnya", value: amount, color: cat?.color ?? "#6b7280", icon: cat?.icon ?? "📦" };
+        })
+      ).sort((a, b) => b.value - a.value);
+      setPieData(pie);
+      return;
+    }
+
+    const [bars, catMapM, sumM, history, bdgtList] = await Promise.all([
       getMonthlyChartData(6),
       getCategoryExpenseData(selectedYear, selectedMonth),
       getMonthlySummary(selectedYear, selectedMonth),
@@ -55,12 +97,11 @@ export default function Reports() {
       getBudgetsForMonth(monthStr),
     ]);
     setChartData(bars);
-    setSummary(sum);
+    setSummary(sumM);
     setBalanceHistory(history);
     setBudgets(bdgtList);
-
-    const pie: PieEntry[] = Object.entries(catMap)
-      .map(([catId, amount]) => {
+    const pie: PieEntry[] = mergePieEntries(
+      Object.entries(catMapM).map(([catId, amount]) => {
         const cat = categories.find((c) => c.id === Number(catId));
         return {
           name: cat?.name ?? "Lainnya",
@@ -69,7 +110,7 @@ export default function Reports() {
           icon: cat?.icon ?? "📦",
         };
       })
-      .sort((a, b) => b.value - a.value);
+    ).sort((a, b) => b.value - a.value);
     setPieData(pie);
   }
 
@@ -103,16 +144,54 @@ export default function Reports() {
         <h1 className="text-xl font-bold">Laporan</h1>
       </div>
 
-      {/* Month navigator */}
-      <div className="flex items-center justify-between">
-        <button onClick={prevMonth} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))]">
-          <ChevronLeft size={18} />
+      {/* Mode toggle */}
+      <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
+        <button
+          onClick={() => setMode("monthly")}
+          className={`flex-1 py-2 font-medium transition-colors ${mode === "monthly" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+        >
+          📅 Bulanan
         </button>
-        <p className="font-semibold capitalize">{monthLabel}</p>
-        <button onClick={nextMonth} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))]">
-          <ChevronRight size={18} />
+        <button
+          onClick={() => setMode("range")}
+          className={`flex-1 py-2 font-medium transition-colors ${mode === "range" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+        >
+          📆 Rentang
         </button>
       </div>
+
+      {/* Month navigator — only in monthly mode */}
+      {mode === "monthly" && (
+        <div className="flex items-center justify-between">
+          <button onClick={prevMonth} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))]"><ChevronLeft size={18} /></button>
+          <p className="font-semibold capitalize">{monthLabel}</p>
+          <button onClick={nextMonth} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))]"><ChevronRight size={18} /></button>
+        </div>
+      )}
+
+      {/* Date range picker — only in range mode */}
+      {mode === "range" && (
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Dari</p>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Sampai</p>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Monthly summary cards */}
       <div className="grid grid-cols-3 gap-2">
@@ -138,8 +217,8 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* Cash Flow Bar Chart */}
-      <Card>
+      {/* Cash Flow Bar Chart — monthly only */}
+      {mode === "monthly" && <Card>
         <CardHeader>
           <CardTitle>Arus Kas 6 Bulan</CardTitle>
         </CardHeader>
@@ -167,7 +246,7 @@ export default function Reports() {
             <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data</p>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Category Pie Chart */}
       {pieData.length > 0 && (
@@ -253,8 +332,8 @@ export default function Reports() {
         </Card>
       )}
 
-      {/* Budget vs Actuals */}
-      {pieData.length > 0 && (
+      {/* Budget vs Actuals — monthly only */}
+      {mode === "monthly" && pieData.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -315,8 +394,8 @@ export default function Reports() {
         </Card>
       )}
 
-      {/* Balance History */}
-      {balanceHistory.length > 0 && balanceHistory.some((d) => d.balance !== 0) && (
+      {/* Balance History — monthly only */}
+      {mode === "monthly" && balanceHistory.length > 0 && balanceHistory.some((d) => d.balance !== 0) && (
         <Card>
           <CardHeader>
             <CardTitle>Riwayat Total Saldo</CardTitle>

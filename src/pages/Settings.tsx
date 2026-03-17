@@ -6,13 +6,47 @@ import { useWalletStore } from "@/stores/walletStore";
 import { db, seedMissingDefaultCategories } from "@/db/db";
 import { deleteCategory } from "@/db/categories";
 import { CategoryForm } from "@/components/forms/CategoryForm";
-import { Sun, Moon, Download, Upload, Trash2, Pencil, Plus, RefreshCw } from "lucide-react";
+import { Sun, Moon, Download, Upload, Trash2, Pencil, Plus, RefreshCw, Lock } from "lucide-react";
 import { getAlphaVantageKey, setAlphaVantageKey, getAlphaVantageKey2, setAlphaVantageKey2, getTwelveDataKey, setTwelveDataKey } from "@/services/priceSync";
+import { usePinStore } from "@/stores/walletStore";
 import type { Category } from "@/types";
 
 export default function Settings() {
   const { theme, currency, setTheme, setCurrency } = useSettingsStore();
   const { refreshAll, categories } = useWalletStore();
+  const { pin, setPin } = usePinStore();
+
+  // PIN setup state
+  const [pinStep, setPinStep] = useState<null | "enter" | "confirm">(null);
+  const [pinDraft, setPinDraft] = useState("");
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+
+  function startSetPin() { setPinStep("enter"); setPinInput(""); setPinDraft(""); setPinError(""); }
+  function cancelPin() { setPinStep(null); setPinInput(""); setPinDraft(""); setPinError(""); }
+  function handlePinDigit(d: string) {
+    if (pinInput.length >= 4) return;
+    const next = pinInput + d;
+    setPinInput(next);
+    if (next.length === 4) {
+      if (pinStep === "enter") {
+        setPinDraft(next);
+        setPinStep("confirm");
+        setTimeout(() => setPinInput(""), 100);
+      } else {
+        if (next === pinDraft) {
+          setPin(next);
+          cancelPin();
+        } else {
+          setPinError("PIN tidak cocok, ulangi dari awal");
+          setPinDraft("");
+          setPinStep("enter");
+          setTimeout(() => { setPinInput(""); setPinError(""); }, 800);
+        }
+      }
+    }
+  }
+  function handlePinDel() { setPinInput((v) => v.slice(0, -1)); }
   const [importMode, setImportMode] = useState<"replace" | "merge">("merge");
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
@@ -335,6 +369,56 @@ export default function Settings() {
           </div>
           {tdKey && !tdSaved && (
             <p className="text-xs text-[hsl(var(--muted-foreground))]">Key Twelve Data terpasang — dipakai sebagai prioritas utama untuk IDX.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* PIN Lock */}
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Lock size={15} />
+            <p className="text-sm font-semibold">Kunci PIN</p>
+            {pin && <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-400 font-medium">✅ Aktif</span>}
+          </div>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">PIN 4 digit dikunci saat tab ditutup lalu dibuka kembali.</p>
+
+          {pinStep === null ? (
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 gap-1" onClick={startSetPin}>
+                <Lock size={13} /> {pin ? "Ubah PIN" : "Aktifkan PIN"}
+              </Button>
+              {pin && (
+                <Button variant="destructive" className="flex-1" onClick={() => setPin(null)}>
+                  Hapus PIN
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-[hsl(var(--foreground))]">
+                {pinStep === "enter" ? "Masukkan PIN baru (4 digit)" : "Konfirmasi PIN"}
+              </p>
+              {/* Dots */}
+              <div className="flex gap-3 justify-center">
+                {Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${i < pinInput.length ? "bg-indigo-600 border-indigo-600" : "border-[hsl(var(--border))]"}`} />
+                ))}
+              </div>
+              {pinError && <p className="text-xs text-red-500 text-center">{pinError}</p>}
+              {/* Mini numpad */}
+              <div className="grid grid-cols-3 gap-2">
+                {["1","2","3","4","5","6","7","8","9"].map((d) => (
+                  <button key={d} onClick={() => handlePinDigit(d)}
+                    className="h-11 rounded-xl bg-[hsl(var(--muted))] text-sm font-semibold hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform">
+                    {d}
+                  </button>
+                ))}
+                <button onClick={cancelPin} className="h-11 rounded-xl bg-[hsl(var(--muted))] text-xs text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform">Batal</button>
+                <button onClick={() => handlePinDigit("0")} className="h-11 rounded-xl bg-[hsl(var(--muted))] text-sm font-semibold hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform">0</button>
+                <button onClick={handlePinDel} className="h-11 rounded-xl bg-[hsl(var(--muted))] text-sm font-semibold hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform">⌫</button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
