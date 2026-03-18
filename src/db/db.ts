@@ -26,7 +26,7 @@ class WalletDB extends Dexie {
     });
     this.version(2).stores({
       budgets: "++id, categoryId, month",
-      recurring: "++id, type, accountId, nextDate",
+      recurring: "++id, type, accountId, nextDate", 
     });
     this.version(3).stores({
       transactionSplits: "++id, transactionId, categoryId",

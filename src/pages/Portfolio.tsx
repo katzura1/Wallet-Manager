@@ -6,6 +6,7 @@ import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, g
 import { syncAllPrices, searchCoins, anyPriceStale, getAlphaVantageKey, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
+import { Eye, EyeOff } from "lucide-react";
 import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -489,6 +490,14 @@ export default function Portfolio() {
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Asset | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
+  const [portfolioHidden, setPortfolioHidden] = useState(() => localStorage.getItem("portfolio_hidden") === "1");
+
+  function togglePortfolioHidden() {
+    setPortfolioHidden((v) => {
+      localStorage.setItem("portfolio_hidden", v ? "0" : "1");
+      return !v;
+    });
+  }
 
   const loadAll = useCallback(async () => {
     const a = await getAssets();
@@ -652,13 +661,22 @@ export default function Portfolio() {
         <>
           {/* Summary Card */}
           <div className="rounded-2xl bg-linear-to-br from-indigo-600 to-purple-600 p-5 text-white space-y-1">
-            <p className="text-xs opacity-70">Total Portofolio</p>
-            <p className="text-2xl font-bold">{formatCurrency(totalValue, currency)}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs opacity-70">Total Portofolio</p>
+              <button onClick={togglePortfolioHidden} className="opacity-70 hover:opacity-100 transition-opacity">
+                {portfolioHidden ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            <p className="text-2xl font-bold">
+              {portfolioHidden ? <span className="tracking-widest">••••••</span> : formatCurrency(totalValue, currency)}
+            </p>
             <div className="flex items-center gap-3 pt-1 text-xs">
-              <span className="opacity-70">Modal: {formatCurrency(totalCost, currency)}</span>
-              <span className={`font-semibold ${totalGain >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                {totalGain >= 0 ? "▲" : "▼"} {formatCurrency(Math.abs(totalGain), currency)} ({fmtPct(totalGainPct)})
-              </span>
+              <span className="opacity-70">Modal: {portfolioHidden ? "••••••" : formatCurrency(totalCost, currency)}</span>
+              {!portfolioHidden && (
+                <span className={`font-semibold ${totalGain >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                  {totalGain >= 0 ? "▲" : "▼"} {formatCurrency(Math.abs(totalGain), currency)} ({fmtPct(totalGainPct)})
+                </span>
+              )}
             </div>
           </div>
 

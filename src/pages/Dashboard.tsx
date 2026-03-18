@@ -5,7 +5,7 @@ import { Card, CardContent, Modal, Button } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
 import { deleteTransaction } from "@/db/transactions";
-import { Pencil, Trash2, Plus, Settings, CreditCard } from "lucide-react";
+import { Pencil, Trash2, Plus, Settings, CreditCard, Eye, EyeOff } from "lucide-react";
 import type { Transaction } from "@/types";
 
 export default function Dashboard() {
@@ -16,6 +16,14 @@ export default function Dashboard() {
   const [defaultType, setDefaultType] = useState<Transaction["type"]>("expense");
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [balanceHidden, setBalanceHidden] = useState(() => localStorage.getItem("balance_hidden") === "1");
+
+  function toggleBalanceHidden() {
+    setBalanceHidden((v) => {
+      localStorage.setItem("balance_hidden", v ? "0" : "1");
+      return !v;
+    });
+  }
 
   useEffect(() => {
     void refreshAll();
@@ -60,10 +68,15 @@ export default function Dashboard() {
       <div className="pt-2 pb-1 flex items-start justify-between">
         <div>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">Total Saldo</p>
-          <h1 className="text-3xl font-bold tracking-tight">{formatCurrency(totalBalance, currency)}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {balanceHidden ? <span className="tracking-widest text-2xl">••••••</span> : formatCurrency(totalBalance, currency)}
+          </h1>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{formatDate(now.toISOString(), "EEEE, dd MMMM yyyy")}</p>
         </div>
         <div className="flex items-center gap-1 pt-1">
+          <button onClick={toggleBalanceHidden} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))] transition-colors text-[hsl(var(--muted-foreground))]">
+            {balanceHidden ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
           <Link to="/accounts" className="p-2 rounded-xl hover:bg-[hsl(var(--accent))] transition-colors text-[hsl(var(--muted-foreground))]">
             <CreditCard size={20} />
           </Link>
