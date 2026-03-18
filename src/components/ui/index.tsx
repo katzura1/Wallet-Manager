@@ -56,7 +56,7 @@ export function Input({ label, error, className, ...props }: InputProps) {
       {label && <label className="text-sm font-medium text-[hsl(var(--foreground))]">{label}</label>}
       <input
         className={cn(
-          "w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-sm placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500",
+          "w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500",
           error && "border-red-500",
           className,
         )}
@@ -78,7 +78,7 @@ export function Select({ label, error, className, children, ...props }: SelectPr
       {label && <label className="text-sm font-medium text-[hsl(var(--foreground))]">{label}</label>}
       <select
         className={cn(
-          "w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500",
+          "w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500",
           error && "border-red-500",
           className,
         )}
@@ -101,7 +101,7 @@ export function Textarea({ label, className, ...props }: TextareaProps) {
       {label && <label className="text-sm font-medium text-[hsl(var(--foreground))]">{label}</label>}
       <textarea
         className={cn(
-          "w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-sm placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none",
+          "w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none",
           className,
         )}
         {...props}

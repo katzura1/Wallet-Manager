@@ -6,9 +6,7 @@ const navItems = [
   { to: "/transactions", icon: "📋", label: "Transaksi", exact: false },
   { to: "/debts", icon: "🤝", label: "Hutang", exact: false },
   { to: "/portfolio", icon: "📈", label: "Portofolio", exact: false },
-  { to: "/accounts", icon: "💳", label: "Akun", exact: false },
   { to: "/reports", icon: "📊", label: "Laporan", exact: false },
-  { to: "/settings", icon: "⚙️", label: "Setelan", exact: false },
 ];
 
 export function BottomNav() {
@@ -24,7 +22,7 @@ export function BottomNav() {
               end={item.exact}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 px-1 text-[10px] font-medium transition-colors min-w-[44px]",
+                  "flex flex-1 flex-col items-center justify-center gap-0.5 py-3 px-1 text-[10px] font-medium transition-colors min-w-11 min-h-14",
                   isActive ? "text-indigo-600 dark:text-indigo-400" : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
                 )
               }

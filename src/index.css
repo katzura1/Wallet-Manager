@@ -57,6 +57,16 @@
     height: 100%;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+
+  /* Prevent iOS Safari from zooming in when tapping input fields */
+  input, textarea, select {
+    font-size: max(16px, 1em);
+  }
+
+  /* Safe area padding helper for bottom nav */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }
 
 /* Custom scrollbar */

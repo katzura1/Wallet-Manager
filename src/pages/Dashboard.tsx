@@ -5,7 +5,7 @@ import { Card, CardContent, Modal, Button } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
 import { deleteTransaction } from "@/db/transactions";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, Settings, CreditCard } from "lucide-react";
 import type { Transaction } from "@/types";
 
 export default function Dashboard() {
@@ -57,10 +57,20 @@ export default function Dashboard() {
   return (
     <div className="p-4 space-y-5">
       {/* Header */}
-      <div className="pt-2 pb-1">
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">Total Saldo</p>
-        <h1 className="text-3xl font-bold tracking-tight">{formatCurrency(totalBalance, currency)}</h1>
-        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{formatDate(now.toISOString(), "EEEE, dd MMMM yyyy")}</p>
+      <div className="pt-2 pb-1 flex items-start justify-between">
+        <div>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">Total Saldo</p>
+          <h1 className="text-3xl font-bold tracking-tight">{formatCurrency(totalBalance, currency)}</h1>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{formatDate(now.toISOString(), "EEEE, dd MMMM yyyy")}</p>
+        </div>
+        <div className="flex items-center gap-1 pt-1">
+          <Link to="/accounts" className="p-2 rounded-xl hover:bg-[hsl(var(--accent))] transition-colors text-[hsl(var(--muted-foreground))]">
+            <CreditCard size={20} />
+          </Link>
+          <Link to="/settings" className="p-2 rounded-xl hover:bg-[hsl(var(--accent))] transition-colors text-[hsl(var(--muted-foreground))]">
+            <Settings size={20} />
+          </Link>
+        </div>
       </div>
 
       {/* Monthly Summary */}
@@ -200,6 +210,7 @@ export default function Dashboard() {
       />
 
       <TransactionForm
+        key={editTx?.id ?? "edit-none"}
         open={editTx !== null}
         onClose={() => setEditTx(null)}
         onSaved={() => { void refreshAll(); setEditTx(null); }}

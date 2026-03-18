@@ -6,6 +6,28 @@ const CURRENCY_API = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@lat
 const AV = "https://www.alphavantage.co/query";
 const TD = "https://api.twelvedata.com"; // Twelve Data — IDX stocks, free 800 req/day
 
+// ─── CORS proxy helper (with fallback) ───────────────────────────────────────
+// corsproxy.io is blocked in some regions (incl. Indonesia). Use allorigins.win
+// as primary; fall back to corsproxy.io (for users with VPN or unblocked ISP).
+
+const CORS_PROXIES = [
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+];
+
+async function fetchViaProxy(targetUrl: string, timeoutMs = 15000): Promise<Response> {
+  let lastErr: unknown;
+  for (const makeProxy of CORS_PROXIES) {
+    try {
+      const resp = await fetch(makeProxy(targetUrl), { signal: AbortSignal.timeout(timeoutMs) });
+      if (resp.ok) return resp;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr ?? new Error("All CORS proxies failed");
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CoinSearchResult {
@@ -188,12 +210,10 @@ async function syncStock(asset: Asset, apiKey: string): Promise<boolean> {
 
 async function syncStockIdxYahoo(asset: Asset): Promise<boolean> {
   const sym = asset.symbol.toUpperCase().replace(/\.(JK|JKT|IDX)$/, "");
-  const yhSym = encodeURIComponent(`${sym}.JK`);
-  const target = `https://query2.finance.yahoo.com/v8/finance/chart/${yhSym}?interval=1d&range=1d`;
-  const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(target)}`;
+  const target = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(`${sym}.JK`)}?interval=1d&range=1d`;
   let resp: Response;
   try {
-    resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+    resp = await fetchViaProxy(target);
   } catch {
     return false;
   }
@@ -264,10 +284,9 @@ async function syncStockIdx(asset: Asset): Promise<boolean> {
 
 async function fetchGoldPriceIdr(): Promise<{ priceIdr: number; changePct: number } | null> {
   const target = "https://query2.finance.yahoo.com/v8/finance/chart/GC%3DF?interval=1d&range=1d";
-  const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(target)}`;
   let resp: Response;
   try {
-    resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+    resp = await fetchViaProxy(target);
   } catch {
     return null;
   }

@@ -289,6 +289,7 @@ export default function Transactions() {
       )}
 
       <RecurringForm
+        key={editRecurring?.id ?? "recurring-new"}
         open={recurringFormOpen || editRecurring !== null}
         onClose={() => { setRecurringFormOpen(false); setEditRecurring(null); }}
         onSaved={() => { void loadRecurring(); setRecurringFormOpen(false); setEditRecurring(null); }}

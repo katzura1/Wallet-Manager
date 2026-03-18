@@ -420,7 +420,7 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-sm">
+      <div className="grid grid-cols-2 gap-2 text-xs">
         <div>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">Nilai Saat Ini</p>
           <p className="font-semibold text-[hsl(var(--foreground))]">
@@ -651,10 +651,10 @@ export default function Portfolio() {
       {assets.length > 0 && (
         <>
           {/* Summary Card */}
-          <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 p-5 text-white space-y-1">
+          <div className="rounded-2xl bg-linear-to-br from-indigo-600 to-purple-600 p-5 text-white space-y-1">
             <p className="text-xs opacity-70">Total Portofolio</p>
             <p className="text-2xl font-bold">{formatCurrency(totalValue, currency)}</p>
-            <div className="flex items-center gap-3 pt-1 text-sm">
+            <div className="flex items-center gap-3 pt-1 text-xs">
               <span className="opacity-70">Modal: {formatCurrency(totalCost, currency)}</span>
               <span className={`font-semibold ${totalGain >= 0 ? "text-emerald-300" : "text-red-300"}`}>
                 {totalGain >= 0 ? "▲" : "▼"} {formatCurrency(Math.abs(totalGain), currency)} ({fmtPct(totalGainPct)})
@@ -704,7 +704,7 @@ export default function Portfolio() {
             <div className="rounded-2xl border border-[hsl(var(--border))] p-4 bg-[hsl(var(--card))]">
               <p className="text-sm font-medium text-[hsl(var(--foreground))] mb-3">Alokasi Portofolio</p>
               <div className="flex items-center gap-4">
-                <div className="w-36 h-36 flex-shrink-0">
+                <div className="w-36 h-36 shrink-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={60} paddingAngle={2} dataKey="value">
@@ -724,7 +724,7 @@ export default function Portfolio() {
                     const pct = totalValue > 0 ? (d.value / totalValue) * 100 : 0;
                     return (
                       <li key={d.name} className="flex items-center gap-2 text-xs">
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.color }} />
                         <span className="font-medium text-[hsl(var(--foreground))]">{d.name}</span>
                         <span className="ml-auto text-[hsl(var(--muted-foreground))]">{pct.toFixed(1)}%</span>
                       </li>
@@ -795,9 +795,9 @@ export default function Portfolio() {
       {/* Floating Add button */}
       <button
         onClick={() => setAddOpen(true)}
-        className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-700 active:scale-95 transition-transform"
+        className="fixed bottom-25 right-4 z-40 flex items-center gap-2 rounded-full   bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-700 active:scale-95 transition-transform"
       >
-        <span className="text-lg leading-none">+</span> Tambah Aset
+        <span className="text-lg leading-none">+</span>
       </button>
     </div>
   );
