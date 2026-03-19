@@ -483,72 +483,107 @@ function AssetCard({ asset, price, currency, onEdit, onDelete, onHistory }: Asse
 
 type SyncStatus = "pending" | "syncing" | "done" | "failed" | "skipped";
 
-const STATUS_ICON: Record<SyncStatus, string> = {
-  pending: "⏳",
-  syncing: "🔄",
-  done: "✅",
-  failed: "❌",
-  skipped: "⏭️",
-};
-
 interface SyncProgressToastProps {
   assets: Asset[];
   progress: Record<string, SyncStatus>;
   syncing: boolean;
-  /** ms since sync finished — used to auto-fade */
   finishedAt: number | null;
 }
 
 function SyncProgressToast({ assets, progress, syncing, finishedAt }: SyncProgressToastProps) {
-  const visible = syncing || (finishedAt !== null && Date.now() - finishedAt < 3500);
+  // Track visibility with a local state so the toast fades out smoothly
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (syncing || Object.keys(progress).length > 0) {
+      setVisible(true);
+    }
+    if (!syncing && finishedAt !== null) {
+      const t = setTimeout(() => setVisible(false), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [syncing, finishedAt, progress]);
+
   if (!visible || Object.keys(progress).length === 0) return null;
 
-  const allDone = !syncing;
-  const failedCount = Object.values(progress).filter((s) => s === "failed").length;
-  const doneCount = Object.values(progress).filter((s) => s === "done").length;
+  // Only count assets that are included in this sync (not mutual_fund/deposito)
+  const syncableSymbols = assets
+    .filter((a) => a.type !== "mutual_fund" && a.type !== "deposito")
+    .map((a) => a.symbol);
+
+  const total = syncableSymbols.length || 1;
+  const doneCount = syncableSymbols.filter((s) => {
+    const st = progress[s];
+    return st === "done" || st === "failed" || st === "skipped";
+  }).length;
+  const successCount = syncableSymbols.filter((s) => progress[s] === "done").length;
+  const failedCount = syncableSymbols.filter((s) => progress[s] === "failed").length;
+  const pct = Math.round((doneCount / total) * 100);
+
+  // Find the asset currently being synced
+  const currentlySyncing = assets.find((a) => progress[a.symbol] === "syncing");
+
+  const allDone = !syncing && doneCount >= total;
 
   return (
     <div className="fixed bottom-20 left-3 right-3 z-50 pointer-events-none">
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-xl p-3 space-y-2">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
-            {allDone
-              ? failedCount > 0
-                ? `✅ Sync selesai · ${failedCount} gagal`
-                : "✅ Sync selesai"
-              : "🔄 Memperbarui harga…"}
-          </span>
-          {allDone && (
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              {doneCount} diperbarui
-            </span>
-          )}
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-xl overflow-hidden">
+        {/* Progress bar */}
+        <div className="h-1 bg-[hsl(var(--muted))]">
+          <div
+            className={`h-full transition-all duration-500 ${allDone && failedCount > 0 ? "bg-amber-500" : allDone ? "bg-emerald-500" : "bg-indigo-500"}`}
+            style={{ width: `${pct}%` }}
+          />
         </div>
-        {/* Per-asset rows */}
-        <div className="flex flex-wrap gap-1.5">
-          {assets.map((a) => {
-            const status = progress[a.symbol] ?? "pending";
-            return (
-              <div
-                key={a.symbol}
-                className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs border transition-all ${
+
+        <div className="p-3 space-y-1.5">
+          {/* Header row: status text + percentage */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
+              {allDone
+                ? failedCount > 0
+                  ? `✅ Selesai · ${successCount} berhasil, ${failedCount} gagal`
+                  : `✅ Semua harga diperbarui`
+                : currentlySyncing
+                ? `🔄 Memperbarui ${currentlySyncing.symbol}…`
+                : "🔄 Memperbarui harga…"}
+            </span>
+            <span className="text-xs font-bold tabular-nums text-[hsl(var(--muted-foreground))]">
+              {pct}%
+            </span>
+          </div>
+
+          {/* Sub-label: N dari M aset */}
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            {allDone
+              ? `${doneCount} dari ${total} aset selesai diproses`
+              : `${doneCount} dari ${total} aset selesai`}
+          </p>
+
+          {/* Per-asset status chips — only syncable assets */}
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {assets
+              .filter((a) => a.type !== "mutual_fund" && a.type !== "deposito")
+              .map((a) => {
+                const status = progress[a.symbol] ?? "pending";
+                const chipCls =
                   status === "syncing"
                     ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
                     : status === "done"
                     ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
                     : status === "failed"
                     ? "border-red-400 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                    : status === "skipped"
-                    ? "border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
-                    : "border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
-                }`}
-              >
-                <span className={status === "syncing" ? "animate-spin inline-block" : ""}>{STATUS_ICON[status]}</span>
-                <span className="font-medium">{a.symbol}</span>
-              </div>
-            );
-          })}
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]";
+                const icon =
+                  status === "syncing" ? "🔄" : status === "done" ? "✅" : status === "failed" ? "❌" : status === "skipped" ? "⏭️" : "⏳";
+                return (
+                  <div key={a.symbol} className={`flex items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-[10px] border ${chipCls}`}>
+                    <span className={status === "syncing" ? "animate-spin inline-block" : ""}>{icon}</span>
+                    <span className="font-medium">{a.symbol}</span>
+                  </div>
+                );
+              })}
+          </div>
         </div>
       </div>
     </div>
