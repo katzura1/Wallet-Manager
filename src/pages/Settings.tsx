@@ -310,7 +310,7 @@ export default function Settings() {
               placeholder="Masukkan Alpha Vantage API key 1"
               value={avKey}
               onChange={(e) => { setAvKey(e.target.value); setAvSaved(false); }}
-              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <Button size="sm" onClick={handleSaveAvKey} disabled={avSaved}>
               {avSaved ? "✅ Tersimpan" : "Simpan"}
@@ -323,7 +323,7 @@ export default function Settings() {
               placeholder="Masukkan Alpha Vantage API key 2 (opsional)"
               value={avKey2}
               onChange={(e) => { setAvKey2(e.target.value); setAvSaved2(false); }}
-              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <Button size="sm" onClick={handleSaveAvKey2} disabled={avSaved2}>
               {avSaved2 ? "✅ Tersimpan" : "Simpan"}
@@ -361,7 +361,7 @@ export default function Settings() {
               placeholder="Twelve Data API key (opsional)"
               value={tdKey}
               onChange={(e) => { setTdKey(e.target.value); setTdSaved(false); }}
-              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <Button size="sm" onClick={handleSaveTdKey} disabled={tdSaved}>
               {tdSaved ? "✅ Tersimpan" : "Simpan"}

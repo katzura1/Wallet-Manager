@@ -711,18 +711,18 @@ export default function Portfolio() {
     return a;
   }, []);
 
-  // Auto-sync stale prices on page load (silent)
+  // Auto-sync stale prices on page load
   useEffect(() => {
     loadAll().then(async (a) => {
       if (!a.length) return;
       if (await anyPriceStale(a)) {
-        handleSync(a, true);
+        handleSync(a);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleSync(assetsToSync?: Asset[], silent = false) {
+  async function handleSync(assetsToSync?: Asset[]) {
     const list = assetsToSync ?? assets;
     if (!list.length) return;
 
@@ -736,20 +736,15 @@ export default function Portfolio() {
     // Init progress state — all assets start as "pending"
     const initProgress: Record<string, SyncStatus> = {};
     for (const a of list) initProgress[a.symbol] = "pending";
-    if (!silent) {
-      setSyncProgress(initProgress);
-      setSyncFinishedAt(null);
-      if (syncFinishTimerRef.current) clearTimeout(syncFinishTimerRef.current);
-    }
+    setSyncProgress(initProgress);
+    setSyncFinishedAt(null);
+    if (syncFinishTimerRef.current) clearTimeout(syncFinishTimerRef.current);
 
     setSyncing(true);
-    if (!silent) setSyncMsg("");
 
-    const onProgress = silent
-      ? undefined
-      : (symbol: string, status: "syncing" | "done" | "failed" | "skipped") => {
-          setSyncProgress((prev) => ({ ...prev, [symbol]: status }));
-        };
+    const onProgress = (symbol: string, status: "syncing" | "done" | "failed" | "skipped") => {
+      setSyncProgress((prev) => ({ ...prev, [symbol]: status }));
+    };
 
     try {
       const result = await syncAllPrices(list, onProgress);
@@ -794,28 +789,24 @@ export default function Portfolio() {
       if (result.noKey && list.some((a) => a.type === "stock_us" || a.type === "stock")) {
         msgs.push("⚠️ Key Alpha Vantage belum diatur — saham AS tidak disinkron");
       }
-      if (!silent) {
-        if (msgs.length) {
-          setSyncMsg(msgs.join(" · ") + " — Buka Setelan → Portofolio.");
-        } else {
-          setSyncMsg("");
-        }
-        // Show toast "done" state, then auto-hide after 3.5s
-        setSyncFinishedAt(Date.now());
-        syncFinishTimerRef.current = setTimeout(() => {
-          setSyncProgress({});
-          setSyncFinishedAt(null);
-        }, 3500);
+      if (msgs.length) {
+        setSyncMsg(msgs.join(" · ") + " — Buka Setelan → Portofolio.");
+      } else {
+        setSyncMsg("");
       }
+      // Show toast "done" state, then auto-hide after 3.5s
+      setSyncFinishedAt(Date.now());
+      syncFinishTimerRef.current = setTimeout(() => {
+        setSyncProgress({});
+        setSyncFinishedAt(null);
+      }, 3500);
     } catch {
-      if (!silent) {
-        setSyncMsg("❌ Sinkronisasi gagal. Cek koneksi internet.");
-        setSyncFinishedAt(Date.now());
-        syncFinishTimerRef.current = setTimeout(() => {
-          setSyncProgress({});
-          setSyncFinishedAt(null);
-        }, 3500);
-      }
+      setSyncMsg("❌ Sinkronisasi gagal. Cek koneksi internet.");
+      setSyncFinishedAt(Date.now());
+      syncFinishTimerRef.current = setTimeout(() => {
+        setSyncProgress({});
+        setSyncFinishedAt(null);
+      }, 3500);
     } finally {
       setSyncing(false);
     }

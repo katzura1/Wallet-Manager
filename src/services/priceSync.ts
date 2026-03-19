@@ -4,7 +4,7 @@ import type { Asset } from "@/types";
 const CG = "https://api.coingecko.com/api/v3";
 const CURRENCY_API = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json";
 const AV = "https://www.alphavantage.co/query";
-const TD = "https://api.twelvedata.com"; // Twelve Data — IDX stocks, free 800 req/day
+// const TD = "https://api.twelvedata.com"; // Twelve Data — IDX stocks, free 800 req/day (unused)
 
 // ─── CORS proxy helper (with fallback) ───────────────────────────────────────
 // corsproxy.io is blocked in some regions (incl. Indonesia). Use allorigins.win
@@ -250,6 +250,8 @@ async function syncStockIdxYahoo(asset: Asset): Promise<boolean> {
   return true;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/* Twelve Data fallback — uncomment call in syncStockIdx to enable
 async function syncStockIdxTd(asset: Asset, apiKey: string): Promise<boolean> {
   const sym = asset.symbol.toUpperCase().replace(/\.(JK|JKT|IDX)$/, "");
   const url = `${TD}/quote?symbol=${encodeURIComponent(sym)}%3AIDX&apikey=${encodeURIComponent(apiKey)}`;
@@ -274,14 +276,15 @@ async function syncStockIdxTd(asset: Asset, apiKey: string): Promise<boolean> {
   });
   return true;
 }
+*/
 
 /** Try Twelve Data (if key set) first, then fall back to Yahoo Finance proxy. */
 async function syncStockIdx(asset: Asset): Promise<boolean> {
-  const tdKey = getTwelveDataKey();
-  if (tdKey) {
-    const ok = await syncStockIdxTd(asset, tdKey);
-    if (ok) return true;
-  }
+  // const tdKey = getTwelveDataKey();
+  // if (tdKey) {
+  //   const ok = await _syncStockIdxTd(asset, tdKey);
+  //   if (ok) return true;
+  // }
   return syncStockIdxYahoo(asset);
 }
 
