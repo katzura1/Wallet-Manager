@@ -11,8 +11,8 @@ const TD = "https://api.twelvedata.com"; // Twelve Data — IDX stocks, free 800
 // as primary; fall back to corsproxy.io (for users with VPN or unblocked ISP).
 
 const CORS_PROXIES = [
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   (url: string) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
 ];
 
 async function fetchViaProxy(targetUrl: string, timeoutMs = 15000): Promise<Response> {
@@ -125,9 +125,14 @@ export async function getUsdIdr(): Promise<number> {
 
 // ─── Sync crypto prices (CoinGecko – free, CORS-friendly) ────────────────────
 
-async function syncCrypto(assets: Asset[]): Promise<SyncResult> {
+type ProgressCallback = (symbol: string, status: "syncing" | "done" | "failed" | "skipped") => void;
+
+async function syncCrypto(assets: Asset[], onProgress?: ProgressCallback): Promise<SyncResult> {
   const cryptos = assets.filter((a) => a.type === "crypto" && a.coinGeckoId);
   if (!cryptos.length) return { synced: [], failed: [] };
+
+  // Signal all crypto assets as "syncing" before the bulk fetch
+  for (const a of cryptos) onProgress?.(a.symbol, "syncing");
 
   const ids = [...new Set(cryptos.map((a) => a.coinGeckoId!))].join(",");
   const resp = await fetch(
@@ -151,8 +156,10 @@ async function syncCrypto(assets: Asset[]): Promise<SyncResult> {
         lastSynced: now,
       });
       synced.push(asset.symbol);
+      onProgress?.(asset.symbol, "done");
     } else {
       failed.push(asset.symbol);
+      onProgress?.(asset.symbol, "failed");
     }
   }
   return { synced, failed };
@@ -318,7 +325,7 @@ async function isFresh(symbol: string): Promise<boolean> {
 // IDX stocks use Twelve Data (free 800 req/day). US stocks use Alpha Vantage.
 // Assets fresher than STALE_MS (6h) are skipped to conserve API quota.
 
-export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
+export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallback): Promise<SyncResult> {
   const synced: string[] = [];
   const failed: string[] = [];
   const skipped: string[] = [];
@@ -329,19 +336,26 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
   // Separate fresh (< 6h) vs stale assets
   const stale: Asset[] = [];
   for (const a of syncable) {
-    if (await isFresh(a.symbol)) skipped.push(a.symbol);
-    else stale.push(a);
+    if (await isFresh(a.symbol)) {
+      skipped.push(a.symbol);
+      onProgress?.(a.symbol, "skipped");
+    } else {
+      stale.push(a);
+    }
   }
 
   // Crypto via CoinGecko (bulk, no key required)
   const staleCrypto = stale.filter((a) => a.type === "crypto");
   if (staleCrypto.length > 0) {
     try {
-      const res = await syncCrypto(staleCrypto);
+      const res = await syncCrypto(staleCrypto, onProgress);
       synced.push(...res.synced);
       failed.push(...res.failed);
     } catch {
-      for (const a of staleCrypto) failed.push(a.symbol);
+      for (const a of staleCrypto) {
+        failed.push(a.symbol);
+        onProgress?.(a.symbol, "failed");
+      }
     }
   }
 
@@ -352,17 +366,27 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
     const keys = getAvKeys();
     if (keys.length === 0) {
       noKey = true;
-      for (const a of staleUs) failed.push(a.symbol);
+      for (const a of staleUs) {
+        failed.push(a.symbol);
+        onProgress?.(a.symbol, "failed");
+      }
     } else {
       for (let i = 0; i < staleUs.length; i++) {
         if (i > 0) await delay(AV_DELAY_MS); // respect rate limit
         const apiKey = keys[i % keys.length]; // round-robin
+        onProgress?.(staleUs[i].symbol, "syncing");
         try {
           const ok = await syncStock(staleUs[i], apiKey);
-          if (ok) synced.push(staleUs[i].symbol);
-          else failed.push(staleUs[i].symbol);
+          if (ok) {
+            synced.push(staleUs[i].symbol);
+            onProgress?.(staleUs[i].symbol, "done");
+          } else {
+            failed.push(staleUs[i].symbol);
+            onProgress?.(staleUs[i].symbol, "failed");
+          }
         } catch {
           failed.push(staleUs[i].symbol);
+          onProgress?.(staleUs[i].symbol, "failed");
         }
       }
     }
@@ -373,12 +397,19 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
   if (staleIdx.length > 0) {
     for (let i = 0; i < staleIdx.length; i++) {
       if (i > 0) await delay(AV_DELAY_MS);
+      onProgress?.(staleIdx[i].symbol, "syncing");
       try {
         const ok = await syncStockIdx(staleIdx[i]);
-        if (ok) synced.push(staleIdx[i].symbol);
-        else failed.push(staleIdx[i].symbol);
+        if (ok) {
+          synced.push(staleIdx[i].symbol);
+          onProgress?.(staleIdx[i].symbol, "done");
+        } else {
+          failed.push(staleIdx[i].symbol);
+          onProgress?.(staleIdx[i].symbol, "failed");
+        }
       } catch {
         failed.push(staleIdx[i].symbol);
+        onProgress?.(staleIdx[i].symbol, "failed");
       }
     }
   }
@@ -386,6 +417,7 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
   // Gold (physical & digital) — Yahoo Finance GC=F, price in IDR/gram
   const staleGold = stale.filter((a) => a.type === "gold_physical" || a.type === "gold_digital");
   if (staleGold.length > 0) {
+    for (const a of staleGold) onProgress?.(a.symbol, "syncing");
     const goldPx = await fetchGoldPriceIdr();
     const now = new Date().toISOString();
     for (const a of staleGold) {
@@ -397,8 +429,10 @@ export async function syncAllPrices(assets: Asset[]): Promise<SyncResult> {
           lastSynced: now,
         });
         synced.push(a.symbol);
+        onProgress?.(a.symbol, "done");
       } else {
         failed.push(a.symbol);
+        onProgress?.(a.symbol, "failed");
       }
     }
   }

@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Account, Transaction, Category, Settings, Budget, RecurringTransaction, TransactionSplit, Debt, DebtPayment, Asset, AssetPrice, PortfolioHistory } from "@/types";
+import type { Account, Transaction, Category, Settings, Budget, RecurringTransaction, TransactionSplit, Debt, DebtPayment, Asset, AssetPrice, PortfolioHistory, SyncLogEntry } from "@/types";
 
 class WalletDB extends Dexie {
   accounts!: EntityTable<Account, "id">;
@@ -15,6 +15,7 @@ class WalletDB extends Dexie {
   assets!: EntityTable<Asset, "id">;
   assetPrices!: EntityTable<AssetPrice, "symbol">;
   portfolioHistory!: EntityTable<PortfolioHistory, "id">;
+  syncLog!: EntityTable<SyncLogEntry, "id">;
 
   constructor() {
     super("WalletDB");
@@ -39,6 +40,9 @@ class WalletDB extends Dexie {
     });
     this.version(5).stores({
       portfolioHistory: "++id, &date",
+    });
+    this.version(6).stores({
+      syncLog: "++id, syncedAt",
     });
   }
 }

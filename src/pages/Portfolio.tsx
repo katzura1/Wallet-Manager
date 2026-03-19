@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, CartesianGrid, XAxis, ResponsiveContainer } from "recharts";
-import { Button, Input, Modal } from "@/components/ui";
+import { Button, Input, Modal, Spinner } from "@/components/ui";
 import { formatCurrency } from "@/lib/utils";
-import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory } from "@/db/assets";
+import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, getAlphaVantageKey, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Clock } from "lucide-react";
 import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -394,9 +394,10 @@ interface AssetCardProps {
   currency: string;
   onEdit: () => void;
   onDelete: () => void;
+  onHistory: () => void;
 }
 
-function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps) {
+function AssetCard({ asset, price, currency, onEdit, onDelete, onHistory }: AssetCardProps) {
   const currentPrice = price?.priceIdr ?? asset.manualPriceIdr ?? null;
   const currentValue = currentPrice !== null ? asset.quantity * currentPrice : null;
   const costBasis = asset.quantity * asset.avgBuyPrice;
@@ -416,6 +417,11 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
           <p className="text-sm text-[hsl(var(--muted-foreground))]">{asset.name}</p>
         </div>
         <div className="flex gap-1">
+          {asset.type !== "mutual_fund" && asset.type !== "deposito" && (
+            <button onClick={onHistory} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-indigo-500" title="Riwayat harga">
+              <Clock size={14} />
+            </button>
+          )}
           <button onClick={onEdit} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
           <button onClick={onDelete} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
         </div>
@@ -473,6 +479,151 @@ function AssetCard({ asset, price, currency, onEdit, onDelete }: AssetCardProps)
   );
 }
 
+// ─── Sync Progress Toast ──────────────────────────────────────────────────────
+
+type SyncStatus = "pending" | "syncing" | "done" | "failed" | "skipped";
+
+const STATUS_ICON: Record<SyncStatus, string> = {
+  pending: "⏳",
+  syncing: "🔄",
+  done: "✅",
+  failed: "❌",
+  skipped: "⏭️",
+};
+
+interface SyncProgressToastProps {
+  assets: Asset[];
+  progress: Record<string, SyncStatus>;
+  syncing: boolean;
+  /** ms since sync finished — used to auto-fade */
+  finishedAt: number | null;
+}
+
+function SyncProgressToast({ assets, progress, syncing, finishedAt }: SyncProgressToastProps) {
+  const visible = syncing || (finishedAt !== null && Date.now() - finishedAt < 3500);
+  if (!visible || Object.keys(progress).length === 0) return null;
+
+  const allDone = !syncing;
+  const failedCount = Object.values(progress).filter((s) => s === "failed").length;
+  const doneCount = Object.values(progress).filter((s) => s === "done").length;
+
+  return (
+    <div className="fixed bottom-20 left-3 right-3 z-50 pointer-events-none">
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-xl p-3 space-y-2">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
+            {allDone
+              ? failedCount > 0
+                ? `✅ Sync selesai · ${failedCount} gagal`
+                : "✅ Sync selesai"
+              : "🔄 Memperbarui harga…"}
+          </span>
+          {allDone && (
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">
+              {doneCount} diperbarui
+            </span>
+          )}
+        </div>
+        {/* Per-asset rows */}
+        <div className="flex flex-wrap gap-1.5">
+          {assets.map((a) => {
+            const status = progress[a.symbol] ?? "pending";
+            return (
+              <div
+                key={a.symbol}
+                className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs border transition-all ${
+                  status === "syncing"
+                    ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
+                    : status === "done"
+                    ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                    : status === "failed"
+                    ? "border-red-400 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                    : status === "skipped"
+                    ? "border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                }`}
+              >
+                <span className={status === "syncing" ? "animate-spin inline-block" : ""}>{STATUS_ICON[status]}</span>
+                <span className="font-medium">{a.symbol}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Price History Modal ──────────────────────────────────────────────────────
+
+function fmtAbsTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+interface PriceHistoryModalProps {
+  asset: Asset;
+  currency: string;
+  onClose: () => void;
+}
+
+function PriceHistoryModal({ asset, currency, onClose }: PriceHistoryModalProps) {
+  const [records, setRecords] = useState<{ syncedAt: string; price: number; changePct: number | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getAssetPriceHistory(asset.symbol, 30).then((r) => {
+      setRecords(r);
+      setLoading(false);
+    });
+  }, [asset.symbol]);
+
+  return (
+    <Modal open onClose={onClose} title={`${asset.symbol} — Riwayat Harga`}>
+      {loading ? (
+        <div className="flex justify-center py-8"><Spinner /></div>
+      ) : records.length === 0 ? (
+        <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-8">
+          Belum ada riwayat harga.<br />
+          <span className="text-xs">Riwayat tersimpan setiap kali harga berhasil disinkron.</span>
+        </p>
+      ) : (
+        <div className="overflow-x-auto -mx-1">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                <th className="text-left pb-2 font-medium">Waktu Sync</th>
+                <th className="text-right pb-2 font-medium">Harga</th>
+                <th className="text-right pb-2 font-medium">Perubahan</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[hsl(var(--border))]">
+              {records.map((r, i) => (
+                <tr key={i}>
+                  <td className="py-2 pr-3 text-[hsl(var(--muted-foreground))]">{fmtAbsTime(r.syncedAt)}</td>
+                  <td className="text-right py-2 pr-3 font-semibold text-[hsl(var(--foreground))]">
+                    {formatCurrency(r.price, currency)}
+                  </td>
+                  <td className="text-right py-2">
+                    {r.changePct !== null ? (
+                      <span className={r.changePct >= 0 ? "text-emerald-500 font-semibold" : "text-red-500 font-semibold"}>
+                        {r.changePct >= 0 ? "▲" : "▼"} {Math.abs(r.changePct).toFixed(2)}%
+                      </span>
+                    ) : (
+                      <span className="text-[hsl(var(--muted-foreground))]">pertama</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 // ─── Portfolio Page ───────────────────────────────────────────────────────────
 
 type Filter = "all" | "crypto" | "stock_us" | "stock_idx" | "gold" | "mutual_fund" | "deposito";
@@ -491,6 +642,14 @@ export default function Portfolio() {
   const [editTarget, setEditTarget] = useState<Asset | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
   const [portfolioHidden, setPortfolioHidden] = useState(() => localStorage.getItem("portfolio_hidden") === "1");
+
+  // Sync progress toast state
+  const [syncProgress, setSyncProgress] = useState<Record<string, SyncStatus>>({});
+  const [syncFinishedAt, setSyncFinishedAt] = useState<number | null>(null);
+  const syncFinishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Per-asset price history modal
+  const [historyTarget, setHistoryTarget] = useState<Asset | null>(null);
 
   function togglePortfolioHidden() {
     setPortfolioHidden((v) => {
@@ -531,15 +690,40 @@ export default function Portfolio() {
   async function handleSync(assetsToSync?: Asset[], silent = false) {
     const list = assetsToSync ?? assets;
     if (!list.length) return;
+
+    // Snapshot prices before sync (to compute deltas later)
+    const pricesBefore: Record<string, number | null> = {};
+    for (const a of list) {
+      const row = await db.assetPrices.get(a.symbol);
+      pricesBefore[a.symbol] = row?.priceIdr ?? null;
+    }
+
+    // Init progress state — all assets start as "pending"
+    const initProgress: Record<string, SyncStatus> = {};
+    for (const a of list) initProgress[a.symbol] = "pending";
+    if (!silent) {
+      setSyncProgress(initProgress);
+      setSyncFinishedAt(null);
+      if (syncFinishTimerRef.current) clearTimeout(syncFinishTimerRef.current);
+    }
+
     setSyncing(true);
     if (!silent) setSyncMsg("");
+
+    const onProgress = silent
+      ? undefined
+      : (symbol: string, status: "syncing" | "done" | "failed" | "skipped") => {
+          setSyncProgress((prev) => ({ ...prev, [symbol]: status }));
+        };
+
     try {
-      const result = await syncAllPrices(list);
+      const result = await syncAllPrices(list, onProgress);
       const freshPrices = await db.assetPrices.toArray();
       const map: Record<string, AssetPrice> = {};
       for (const p of freshPrices) map[p.symbol] = p;
       setPrices(map);
       setNoKey(!getAlphaVantageKey());
+
       // Save daily portfolio snapshot using fresh prices
       const snap = list.reduce((sum, a) => {
         const p = map[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? 0;
@@ -549,6 +733,28 @@ export default function Portfolio() {
         await savePortfolioSnapshot(snap);
         setHistory(await getPortfolioHistory(30));
       }
+
+      // Build sync log entry — only for auto-syncable types (exclude manual: reksa dana, deposito)
+      // Only save if at least one asset was actually synced (respects 6-hour rule)
+      const logResults = list
+        .filter((a) => a.type !== "mutual_fund" && a.type !== "deposito")
+        .map((a) => {
+          let status: "synced" | "failed" | "skipped" = "failed";
+          if (result.synced.includes(a.symbol)) status = "synced";
+          else if (result.skipped?.includes(a.symbol)) status = "skipped";
+          return {
+            symbol: a.symbol,
+            name: a.name,
+            status,
+            oldPrice: pricesBefore[a.symbol],
+            newPrice: map[a.symbol]?.priceIdr ?? null,
+          };
+        });
+      // Only save a log entry if something was actually synced this round
+      if (logResults.some((r) => r.status === "synced")) {
+        await saveSyncLog({ syncedAt: new Date().toISOString(), results: logResults });
+      }
+
       const msgs: string[] = [];
       if (result.noKey && list.some((a) => a.type === "stock_us" || a.type === "stock")) {
         msgs.push("⚠️ Key Alpha Vantage belum diatur — saham AS tidak disinkron");
@@ -557,17 +763,24 @@ export default function Portfolio() {
         if (msgs.length) {
           setSyncMsg(msgs.join(" · ") + " — Buka Setelan → Portofolio.");
         } else {
-          const failMsg = result.failed.length ? ` · Gagal: ${result.failed.join(", ")}` : "";
-          const skipMsg = result.skipped?.length ? ` · Segar (< 6j): ${result.skipped.join(", ")}` : "";
-          const syncedMsg = result.synced.length
-            ? `✅ Diperbarui: ${result.synced.join(", ")}${failMsg}${skipMsg}`
-            : failMsg ? `❌${failMsg}${skipMsg}` : `✅ Semua harga sudah terkini${skipMsg}`;
-          setSyncMsg(syncedMsg);
-          setTimeout(() => setSyncMsg(""), 6000);
+          setSyncMsg("");
         }
+        // Show toast "done" state, then auto-hide after 3.5s
+        setSyncFinishedAt(Date.now());
+        syncFinishTimerRef.current = setTimeout(() => {
+          setSyncProgress({});
+          setSyncFinishedAt(null);
+        }, 3500);
       }
     } catch {
-      if (!silent) setSyncMsg("❌ Sinkronisasi gagal. Cek koneksi internet.");
+      if (!silent) {
+        setSyncMsg("❌ Sinkronisasi gagal. Cek koneksi internet.");
+        setSyncFinishedAt(Date.now());
+        syncFinishTimerRef.current = setTimeout(() => {
+          setSyncProgress({});
+          setSyncFinishedAt(null);
+        }, 3500);
+      }
     } finally {
       setSyncing(false);
     }
@@ -781,6 +994,7 @@ export default function Portfolio() {
               currency={currency}
               onEdit={() => setEditTarget(asset)}
               onDelete={() => setDeleteTarget(asset)}
+              onHistory={() => setHistoryTarget(asset)}
             />
           ))}
         </div>
@@ -809,6 +1023,21 @@ export default function Portfolio() {
           onConfirm={handleDelete}
         />
       )}
+      {historyTarget && (
+        <PriceHistoryModal
+          asset={historyTarget}
+          currency={currency}
+          onClose={() => setHistoryTarget(null)}
+        />
+      )}
+
+      {/* Floating Sync Progress Toast */}
+      <SyncProgressToast
+        assets={assets}
+        progress={syncProgress}
+        syncing={syncing}
+        finishedAt={syncFinishedAt}
+      />
 
       {/* Floating Add button */}
       <button

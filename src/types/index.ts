@@ -133,6 +133,22 @@ export interface PortfolioHistory {
   totalValue: number;
 }
 
+// ─── Sync History ─────────────────────────────────────────────────────────────
+
+export interface SyncLogAssetResult {
+  symbol: string;
+  name: string;
+  status: "synced" | "failed" | "skipped";
+  oldPrice: number | null;  // priceIdr before sync (null = no previous price)
+  newPrice: number | null;  // priceIdr after sync (null = failed/skipped)
+}
+
+export interface SyncLogEntry {
+  id?: number;
+  syncedAt: string;  // ISO datetime
+  results: SyncLogAssetResult[];
+}
+
 export interface AccountWithBalance extends Account {
   id: number;
   balance: number;
