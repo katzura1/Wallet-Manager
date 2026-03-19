@@ -486,11 +486,12 @@ type SyncStatus = "pending" | "syncing" | "done" | "failed" | "skipped";
 interface SyncProgressToastProps {
   assets: Asset[];
   progress: Record<string, SyncStatus>;
+  errors: Record<string, string>;
   syncing: boolean;
   finishedAt: number | null;
 }
 
-function SyncProgressToast({ assets, progress, syncing, finishedAt }: SyncProgressToastProps) {
+function SyncProgressToast({ assets, progress, errors, syncing, finishedAt }: SyncProgressToastProps) {
   // Track visibility with a local state so the toast fades out smoothly
   const [visible, setVisible] = useState(false);
 
@@ -584,6 +585,19 @@ function SyncProgressToast({ assets, progress, syncing, finishedAt }: SyncProgre
                 );
               })}
           </div>
+
+          {/* Error detail list — shown after sync if any asset failed */}
+          {allDone && failedCount > 0 && (
+            <div className="mt-1 space-y-0.5 border-t border-[hsl(var(--border))] pt-1.5">
+              {assets
+                .filter((a) => progress[a.symbol] === "failed" && errors[a.symbol])
+                .map((a) => (
+                  <p key={a.symbol} className="text-[10px] text-red-600 dark:text-red-400 leading-snug">
+                    <span className="font-semibold">{a.symbol}:</span> {errors[a.symbol]}
+                  </p>
+                ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -680,6 +694,7 @@ export default function Portfolio() {
 
   // Sync progress toast state
   const [syncProgress, setSyncProgress] = useState<Record<string, SyncStatus>>({});
+  const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
   const [syncFinishedAt, setSyncFinishedAt] = useState<number | null>(null);
   const syncFinishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -737,13 +752,17 @@ export default function Portfolio() {
     const initProgress: Record<string, SyncStatus> = {};
     for (const a of list) initProgress[a.symbol] = "pending";
     setSyncProgress(initProgress);
+    setSyncErrors({});
     setSyncFinishedAt(null);
     if (syncFinishTimerRef.current) clearTimeout(syncFinishTimerRef.current);
 
     setSyncing(true);
 
-    const onProgress = (symbol: string, status: "syncing" | "done" | "failed" | "skipped") => {
+    const onProgress = (symbol: string, status: "syncing" | "done" | "failed" | "skipped", errorMsg?: string) => {
       setSyncProgress((prev) => ({ ...prev, [symbol]: status }));
+      if (status === "failed" && errorMsg) {
+        setSyncErrors((prev) => ({ ...prev, [symbol]: errorMsg }));
+      }
     };
 
     try {
@@ -798,15 +817,17 @@ export default function Portfolio() {
       setSyncFinishedAt(Date.now());
       syncFinishTimerRef.current = setTimeout(() => {
         setSyncProgress({});
+        setSyncErrors({});
         setSyncFinishedAt(null);
-      }, 3500);
+      }, 5000);
     } catch {
       setSyncMsg("❌ Sinkronisasi gagal. Cek koneksi internet.");
       setSyncFinishedAt(Date.now());
       syncFinishTimerRef.current = setTimeout(() => {
         setSyncProgress({});
+        setSyncErrors({});
         setSyncFinishedAt(null);
-      }, 3500);
+      }, 5000);
     } finally {
       setSyncing(false);
     }
@@ -1061,6 +1082,7 @@ export default function Portfolio() {
       <SyncProgressToast
         assets={assets}
         progress={syncProgress}
+        errors={syncErrors}
         syncing={syncing}
         finishedAt={syncFinishedAt}
       />

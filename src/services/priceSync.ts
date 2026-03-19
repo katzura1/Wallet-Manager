@@ -10,23 +10,23 @@ const AV = "https://www.alphavantage.co/query";
 // corsproxy.io is blocked in some regions (incl. Indonesia). Use allorigins.win
 // as primary; fall back to corsproxy.io (for users with VPN or unblocked ISP).
 
-const CORS_PROXIES = [
-  (url: string) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-];
+// const CORS_PROXIES = [
+//   (url: string) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+//   (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+// ];
 
-async function fetchViaProxy(targetUrl: string, timeoutMs = 15000): Promise<Response> {
-  let lastErr: unknown;
-  for (const makeProxy of CORS_PROXIES) {
-    try {
-      const resp = await fetch(makeProxy(targetUrl), { signal: AbortSignal.timeout(timeoutMs) });
-      if (resp.ok) return resp;
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  throw lastErr ?? new Error("All CORS proxies failed");
-}
+// async function fetchViaProxy(targetUrl: string, timeoutMs = 15000): Promise<Response> {
+//   let lastErr: unknown;
+//   for (const makeProxy of CORS_PROXIES) {
+//     try {
+//       const resp = await fetch(makeProxy(targetUrl), { signal: AbortSignal.timeout(timeoutMs) });
+//       if (resp.ok) return resp;
+//     } catch (e) {
+//       lastErr = e;
+//     }
+//   }
+//   throw lastErr ?? new Error("All CORS proxies failed");
+// }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,7 +125,7 @@ export async function getUsdIdr(): Promise<number> {
 
 // ─── Sync crypto prices (CoinGecko – free, CORS-friendly) ────────────────────
 
-type ProgressCallback = (symbol: string, status: "syncing" | "done" | "failed" | "skipped") => void;
+type ProgressCallback = (symbol: string, status: "syncing" | "done" | "failed" | "skipped", errorMsg?: string) => void;
 
 async function syncCrypto(assets: Asset[], onProgress?: ProgressCallback): Promise<SyncResult> {
   const cryptos = assets.filter((a) => a.type === "crypto" && a.coinGeckoId);
@@ -139,7 +139,7 @@ async function syncCrypto(assets: Asset[], onProgress?: ProgressCallback): Promi
     `${CG}/simple/price?ids=${ids}&vs_currencies=idr&include_24hr_change=true`,
     { signal: AbortSignal.timeout(12000) },
   );
-  if (!resp.ok) throw new Error("CoinGecko API error");
+  if (!resp.ok) throw new Error(`CoinGecko error ${resp.status}`);
   const data: Record<string, { idr?: number; idr_24h_change?: number }> = await resp.json();
 
   const synced: string[] = [];
@@ -159,7 +159,7 @@ async function syncCrypto(assets: Asset[], onProgress?: ProgressCallback): Promi
       onProgress?.(asset.symbol, "done");
     } else {
       failed.push(asset.symbol);
-      onProgress?.(asset.symbol, "failed");
+      onProgress?.(asset.symbol, "failed", "Tidak ada data harga dari CoinGecko");
     }
   }
   return { synced, failed };
@@ -170,31 +170,32 @@ async function syncCrypto(assets: Asset[], onProgress?: ProgressCallback): Promi
 // Free tier: 25 requests / day. IDX stocks: use symbol like BBCA.JKT
 // By convention: if symbol ends with .JK or .JKT → price is in IDR, else USD.
 
-async function syncStock(asset: Asset, apiKey: string): Promise<boolean> {
+async function syncStock(asset: Asset, apiKey: string): Promise<{ ok: boolean; error?: string }> {
   const url = `${AV}?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(asset.symbol)}&apikey=${encodeURIComponent(apiKey)}`;
   let resp: Response;
   try {
     resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
-  } catch {
-    return false;
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Koneksi gagal" };
   }
-  if (!resp.ok) return false;
+  if (!resp.ok) return { ok: false, error: `Alpha Vantage error ${resp.status}` };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await resp.json();
 
   // Alpha Vantage returns { "Note": "..." } when rate-limited, or { "Information": "..." } for invalid key
-  if (data["Note"] || data["Information"]) return false;
+  if (data["Note"]) return { ok: false, error: "Rate limit Alpha Vantage (25 req/hari)" };
+  if (data["Information"]) return { ok: false, error: "API key Alpha Vantage tidak valid" };
 
   const quote = data?.["Global Quote"];
   const priceStr: string | undefined = quote?.["05. price"];
   const changePctStr: string | undefined = quote?.["10. change percent"];
 
-  if (!priceStr) return false;
+  if (!priceStr) return { ok: false, error: "Data harga tidak ditemukan dari Alpha Vantage" };
 
   const price = parseFloat(priceStr);
   const changePct = parseFloat((changePctStr ?? "0%").replace("%", ""));
-  if (isNaN(price) || price <= 0) return false;
+  if (isNaN(price) || price <= 0) return { ok: false, error: "Harga tidak valid dari Alpha Vantage" };
 
   // Detect currency by symbol suffix: .JK / .JKT → IDR, otherwise assume USD
   const sym = asset.symbol.toUpperCase();
@@ -207,7 +208,7 @@ async function syncStock(asset: Asset, apiKey: string): Promise<boolean> {
     changePercent24h: changePct,
     lastSynced: new Date().toISOString(),
   });
-  return true;
+  return { ok: true };
 }
 
 // ─── Sync IDX stock price ───────────────────────────────────────────────────────────
@@ -215,30 +216,30 @@ async function syncStock(asset: Asset, apiKey: string): Promise<boolean> {
 // IDX symbols on Yahoo Finance use .JK suffix (e.g. BBCA.JK). Price is in IDR.
 // Optional fallback: Twelve Data (paid plan >= Pro). Set key in Settings.
 
-async function syncStockIdxYahoo(asset: Asset): Promise<boolean> {
+async function syncStockIdxYahoo(asset: Asset): Promise<{ ok: boolean; error?: string }> {
   const sym = asset.symbol.toUpperCase().replace(/\.(JK|JKT|IDX)$/, "");
-  const target = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(`${sym}.JK`)}?interval=1d&range=1d`;
+  const target = `https://empty-wind-fcef.denny-az45.workers.dev/?symbol=${encodeURIComponent(`${sym}.JK`)}&interval=1d&range=1d`;
   let resp: Response;
   try {
-    resp = await fetchViaProxy(target);
-  } catch {
-    return false;
+    resp = await fetch(target, { signal: AbortSignal.timeout(12000) });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Semua CORS proxy gagal" };
   }
-  if (!resp.ok) return false;
+  if (!resp.ok) return { ok: false, error: `Yahoo Finance error ${resp.status}` };
 
   // corsproxy.io returns the Yahoo Finance response directly (no wrapper)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let data: any;
-  try { data = await resp.json(); } catch { return false; }
+  try { data = await resp.json(); } catch { return { ok: false, error: "Response tidak valid (bukan JSON)" }; }
 
   const result = data?.chart?.result?.[0];
-  if (!result) return false;
+  if (!result) return { ok: false, error: "Data chart tidak tersedia dari Yahoo Finance" };
 
   const price: number | undefined = result.meta?.regularMarketPrice;
   const prevClose: number | undefined = result.meta?.chartPreviousClose;
   const changePct = price && prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
 
-  if (!price || price <= 0) return false;
+  if (!price || price <= 0) return { ok: false, error: "Harga tidak tersedia (market tutup / delisting?)" };
 
   // Yahoo Finance IDX prices are already in IDR
   await db.assetPrices.put({
@@ -247,7 +248,7 @@ async function syncStockIdxYahoo(asset: Asset): Promise<boolean> {
     changePercent24h: changePct,
     lastSynced: new Date().toISOString(),
   });
-  return true;
+  return { ok: true };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -279,11 +280,11 @@ async function syncStockIdxTd(asset: Asset, apiKey: string): Promise<boolean> {
 */
 
 /** Try Twelve Data (if key set) first, then fall back to Yahoo Finance proxy. */
-async function syncStockIdx(asset: Asset): Promise<boolean> {
+async function syncStockIdx(asset: Asset): Promise<{ ok: boolean; error?: string }> {
   // const tdKey = getTwelveDataKey();
   // if (tdKey) {
-  //   const ok = await _syncStockIdxTd(asset, tdKey);
-  //   if (ok) return true;
+  //   const result = await _syncStockIdxTd(asset, tdKey);
+  //   if (result.ok) return result;
   // }
   return syncStockIdxYahoo(asset);
 }
@@ -293,10 +294,10 @@ async function syncStockIdx(asset: Asset): Promise<boolean> {
 // Used for both gold_physical and gold_digital assets.
 
 async function fetchGoldPriceIdr(): Promise<{ priceIdr: number; changePct: number } | null> {
-  const target = "https://query2.finance.yahoo.com/v8/finance/chart/GC%3DF?interval=1d&range=1d";
+  const target = "https://empty-wind-fcef.denny-az45.workers.dev/?symbol=GC%3DF&range=1mo&interval=1d"
   let resp: Response;
   try {
-    resp = await fetchViaProxy(target);
+    resp = await fetch(target, { signal: AbortSignal.timeout(12000) });
   } catch {
     return null;
   }
@@ -354,10 +355,13 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
       const res = await syncCrypto(staleCrypto, onProgress);
       synced.push(...res.synced);
       failed.push(...res.failed);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Koneksi ke CoinGecko gagal";
       for (const a of staleCrypto) {
-        failed.push(a.symbol);
-        onProgress?.(a.symbol, "failed");
+        if (!synced.includes(a.symbol) && !failed.includes(a.symbol)) {
+          failed.push(a.symbol);
+          onProgress?.(a.symbol, "failed", msg);
+        }
       }
     }
   }
@@ -371,7 +375,7 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
       noKey = true;
       for (const a of staleUs) {
         failed.push(a.symbol);
-        onProgress?.(a.symbol, "failed");
+        onProgress?.(a.symbol, "failed", "API key Alpha Vantage belum diset di Settings");
       }
     } else {
       for (let i = 0; i < staleUs.length; i++) {
@@ -379,17 +383,17 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
         const apiKey = keys[i % keys.length]; // round-robin
         onProgress?.(staleUs[i].symbol, "syncing");
         try {
-          const ok = await syncStock(staleUs[i], apiKey);
-          if (ok) {
+          const result = await syncStock(staleUs[i], apiKey);
+          if (result.ok) {
             synced.push(staleUs[i].symbol);
             onProgress?.(staleUs[i].symbol, "done");
           } else {
             failed.push(staleUs[i].symbol);
-            onProgress?.(staleUs[i].symbol, "failed");
+            onProgress?.(staleUs[i].symbol, "failed", result.error);
           }
-        } catch {
+        } catch (e) {
           failed.push(staleUs[i].symbol);
-          onProgress?.(staleUs[i].symbol, "failed");
+          onProgress?.(staleUs[i].symbol, "failed", e instanceof Error ? e.message : "Network error");
         }
       }
     }
@@ -402,17 +406,17 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
       if (i > 0) await delay(AV_DELAY_MS);
       onProgress?.(staleIdx[i].symbol, "syncing");
       try {
-        const ok = await syncStockIdx(staleIdx[i]);
-        if (ok) {
+        const result = await syncStockIdx(staleIdx[i]);
+        if (result.ok) {
           synced.push(staleIdx[i].symbol);
           onProgress?.(staleIdx[i].symbol, "done");
         } else {
           failed.push(staleIdx[i].symbol);
-          onProgress?.(staleIdx[i].symbol, "failed");
+          onProgress?.(staleIdx[i].symbol, "failed", result.error);
         }
-      } catch {
+      } catch (e) {
         failed.push(staleIdx[i].symbol);
-        onProgress?.(staleIdx[i].symbol, "failed");
+        onProgress?.(staleIdx[i].symbol, "failed", e instanceof Error ? e.message : "Network error");
       }
     }
   }
@@ -435,7 +439,7 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
         onProgress?.(a.symbol, "done");
       } else {
         failed.push(a.symbol);
-        onProgress?.(a.symbol, "failed");
+        onProgress?.(a.symbol, "failed", "Gagal ambil harga emas dari Yahoo Finance (GC=F)");
       }
     }
   }
