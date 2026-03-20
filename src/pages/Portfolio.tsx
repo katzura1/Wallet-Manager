@@ -3,7 +3,7 @@ import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, CartesianGrid, XAxis, Re
 import { Button, Input, Modal, Spinner } from "@/components/ui";
 import { formatCurrency } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory } from "@/db/assets";
-import { syncAllPrices, searchCoins, anyPriceStale, getAlphaVantageKey, type CoinSearchResult } from "@/services/priceSync";
+import { syncAllPrices, searchCoins, anyPriceStale, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
 import { Eye, EyeOff, Clock } from "lucide-react";
@@ -685,7 +685,6 @@ export default function Portfolio() {
   const [history, setHistory] = useState<PortfolioHistory[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
-  const [noKey, setNoKey] = useState(!getAlphaVantageKey());
   const [filter, setFilter] = useState<Filter>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Asset | null>(null);
@@ -771,7 +770,6 @@ export default function Portfolio() {
       const map: Record<string, AssetPrice> = {};
       for (const p of freshPrices) map[p.symbol] = p;
       setPrices(map);
-      setNoKey(!getAlphaVantageKey());
 
       // Save daily portfolio snapshot using fresh prices
       const snap = list.reduce((sum, a) => {
@@ -805,9 +803,6 @@ export default function Portfolio() {
       }
 
       const msgs: string[] = [];
-      if (result.noKey && list.some((a) => a.type === "stock_us" || a.type === "stock")) {
-        msgs.push("⚠️ Key Alpha Vantage belum diatur — saham AS tidak disinkron");
-      }
       if (msgs.length) {
         setSyncMsg(msgs.join(" · ") + " — Buka Setelan → Portofolio.");
       } else {
@@ -860,20 +855,20 @@ export default function Portfolio() {
 
   // Pie chart data — grouped by category
   const CATEGORY_META: Record<string, { label: string; color: string }> = {
-    crypto:        { label: "Kripto",      color: "#6366f1" },
-    stock_us:      { label: "Saham US",    color: "#22c55e" },
-    stock_idx:     { label: "Saham IDX",   color: "#f97316" },
-    stock:         { label: "Saham US",    color: "#22c55e" },
-    gold_physical: { label: "Emas Fisik",  color: "#f59e0b" },
-    gold_digital:  { label: "Emas Digital",color: "#fbbf24" },
-    mutual_fund:   { label: "Reksa Dana",  color: "#14b8a6" },
+    crypto:        { label: "Kripto",       color: "#6366f1" },
+    stock_us:      { label: "Saham US",     color: "#22c55e" },
+    stock_idx:     { label: "Saham IDX",    color: "#f97316" },
+    gold_physical: { label: "Emas Fisik",   color: "#f59e0b" },
+    gold_digital:  { label: "Emas Digital", color: "#fbbf24" },
+    mutual_fund:   { label: "Reksa Dana",   color: "#14b8a6" },
     deposito:      { label: "Deposito",     color: "#3b82f6" },
   };
   const categoryTotals: Record<string, number> = {};
   for (const a of assets) {
     const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? 0;
     const val = a.quantity * p;
-    const key = a.type ?? "crypto";
+    // Normalise legacy "stock" alias → "stock_us" so they merge into one slice
+    const key = (a.type === "stock" ? "stock_us" : a.type) ?? "crypto";
     categoryTotals[key] = (categoryTotals[key] ?? 0) + val;
   }
   const pieData = Object.entries(categoryTotals)
@@ -904,17 +899,6 @@ export default function Portfolio() {
         <p className="text-xs px-3 py-2 rounded-xl bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
           {syncMsg}
         </p>
-      )}
-
-      {/* No API key warning for US stocks */}
-      {noKey && assets.some((a) => a.type === "stock_us" || a.type === "stock") && (
-        <div className="rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm space-y-1">
-          <p className="font-semibold text-amber-700 dark:text-amber-400">⚠️ API Key Saham AS Belum Diatur</p>
-          <p className="text-amber-700 dark:text-amber-400 text-xs">
-            Diperlukan API key <strong>Alpha Vantage</strong> (gratis) untuk sync harga saham AS.
-            Buka <strong>Setelan → Portofolio</strong> untuk memasukkan key.
-          </p>
-        </div>
       )}
 
       {assets.length > 0 && (

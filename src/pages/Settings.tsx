@@ -7,7 +7,6 @@ import { db, seedMissingDefaultCategories } from "@/db/db";
 import { deleteCategory } from "@/db/categories";
 import { CategoryForm } from "@/components/forms/CategoryForm";
 import { Sun, Moon, Download, Upload, Trash2, Pencil, Plus, RefreshCw, Lock } from "lucide-react";
-import { getAlphaVantageKey, setAlphaVantageKey, getAlphaVantageKey2, setAlphaVantageKey2, getTwelveDataKey, setTwelveDataKey } from "@/services/priceSync";
 import { usePinStore } from "@/stores/walletStore";
 import type { Category } from "@/types";
 
@@ -56,30 +55,6 @@ export default function Settings() {
   const [deleteCatId, setDeleteCatId] = useState<number | null>(null);
   const [restoringCats, setRestoringCats] = useState(false);
   const [restoreMsg, setRestoreMsg] = useState("");
-  const [avKey, setAvKey] = useState(getAlphaVantageKey());
-  const [avSaved, setAvSaved] = useState(false);
-  const [avKey2, setAvKey2] = useState(getAlphaVantageKey2());
-  const [avSaved2, setAvSaved2] = useState(false);
-  const [tdKey, setTdKey] = useState(getTwelveDataKey());
-  const [tdSaved, setTdSaved] = useState(false);
-
-  function handleSaveAvKey() {
-    setAlphaVantageKey(avKey);
-    setAvSaved(true);
-    setTimeout(() => setAvSaved(false), 2000);
-  }
-
-  function handleSaveAvKey2() {
-    setAlphaVantageKey2(avKey2);
-    setAvSaved2(true);
-    setTimeout(() => setAvSaved2(false), 2000);
-  }
-
-  function handleSaveTdKey() {
-    setTwelveDataKey(tdKey);
-    setTdSaved(true);
-    setTimeout(() => setTdSaved(false), 2000);
-  }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -284,92 +259,6 @@ export default function Settings() {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Danger zone */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <p className="text-sm font-semibold">Portofolio — API Key Saham</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Harga saham diambil dari <strong>Alpha Vantage</strong> (gratis, tanpa kartu kredit).
-            Daftar di{" "}
-            <a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">
-              alphavantage.co
-            </a>{" "}
-            lalu paste key di bawah. Free tier: <strong>25 req/hari per key</strong> — isi 2 key untuk 50 req/hari.
-          </p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            🇺🇸 Saham AS: simbol biasa (mis. <code className="bg-[hsl(var(--muted))] px-1 rounded">AAPL</code>, <code className="bg-[hsl(var(--muted))] px-1 rounded">TSM</code>).
-            🇮🇩 Saham IDX: tidak didukung Alpha Vantage — masukkan harga manual di halaman Portofolio.
-          </p>
-          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">API Key 1</p>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              placeholder="Masukkan Alpha Vantage API key 1"
-              value={avKey}
-              onChange={(e) => { setAvKey(e.target.value); setAvSaved(false); }}
-              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <Button size="sm" onClick={handleSaveAvKey} disabled={avSaved}>
-              {avSaved ? "✅ Tersimpan" : "Simpan"}
-            </Button>
-          </div>
-          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">API Key 2 <span className="font-normal">(opsional — untuk 50 req/hari)</span></p>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              placeholder="Masukkan Alpha Vantage API key 2 (opsional)"
-              value={avKey2}
-              onChange={(e) => { setAvKey2(e.target.value); setAvSaved2(false); }}
-              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <Button size="sm" onClick={handleSaveAvKey2} disabled={avSaved2}>
-              {avSaved2 ? "✅ Tersimpan" : "Simpan"}
-            </Button>
-          </div>
-          {(avKey || avKey2) && (
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              {avKey && avKey2 ? "2 key terpasang (50 req/hari)" : "1 key terpasang (25 req/hari)"}. Buka Portofolio → tap “Sync Harga”.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Twelve Data — IDX stocks */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <p className="text-sm font-semibold">Portofolio — API Key Saham IDX <span className="font-normal text-[hsl(var(--muted-foreground))]">(opsional)</span></p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Saham IDX disinkron otomatis via <strong>Yahoo Finance</strong> (tanpa key, gratis).
-            Jika ingin koneksi lebih stabil, daftarkan key <strong>Twelve Data</strong> plan berbayar di{" "}
-            <a href="https://twelvedata.com/pricing" target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">
-              twelvedata.com
-            </a>{" "}
-            sebagai fallback. Kosongkan saja jika tidak punya.
-          </p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            🇮🇩 Gunakan kode saham IDX tanpa suffix (mis.{" "}
-            <code className="bg-[hsl(var(--muted))] px-1 rounded">BBCA</code>,{" "}
-            <code className="bg-[hsl(var(--muted))] px-1 rounded">TLKM</code>,{" "}
-            <code className="bg-[hsl(var(--muted))] px-1 rounded">GOTO</code>).
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              placeholder="Twelve Data API key (opsional)"
-              value={tdKey}
-              onChange={(e) => { setTdKey(e.target.value); setTdSaved(false); }}
-              className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <Button size="sm" onClick={handleSaveTdKey} disabled={tdSaved}>
-              {tdSaved ? "✅ Tersimpan" : "Simpan"}
-            </Button>
-          </div>
-          {tdKey && !tdSaved && (
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Key Twelve Data terpasang — dipakai sebagai prioritas utama untuk IDX.</p>
-          )}
         </CardContent>
       </Card>
 

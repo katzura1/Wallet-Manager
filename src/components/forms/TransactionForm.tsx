@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button, Input, Select, Textarea, Modal } from "@/components/ui";
 import { todayISO } from "@/lib/utils";
 import { addTransaction, addTransfer, updateTransaction } from "@/db/transactions";
@@ -34,6 +34,17 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
   const [error, setError] = useState("");
   const [splitMode, setSplitMode] = useState(false);
   const [splits, setSplits] = useState<SplitRow[]>([{ categoryId: "", amount: "" }]);
+
+  // Load existing splits when editing a split transaction
+  useEffect(() => {
+    if (!existing?.id) return;
+    db.transactionSplits.where("transactionId").equals(existing.id).toArray().then((rows) => {
+      if (rows.length > 0) {
+        setSplitMode(true);
+        setSplits(rows.map((r) => ({ categoryId: String(r.categoryId), amount: String(r.amount) })));
+      }
+    });
+  }, [existing?.id]);
 
   const filteredCategories = categories.filter((c) => c.type === type || c.type === "both");
   const splitsTotal = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -86,6 +97,18 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
           date,
           note,
         });
+        // Update splits: delete old rows then re-insert
+        await db.transactionSplits.where("transactionId").equals(existing.id).delete();
+        if (splitMode && type !== "transfer") {
+          await db.transactionSplits.bulkAdd(
+            splits.map((r) => ({
+              transactionId: existing.id!,
+              categoryId: Number(r.categoryId),
+              amount: Number(r.amount),
+              note: "",
+            })),
+          );
+        }
       } else if (type === "transfer") {
         await addTransfer(Number(accountId), Number(toAccountId), amountNum, date, note);
       } else if (splitMode) {
@@ -185,7 +208,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
           </Select>
         )}
 
-        {type !== "transfer" && !existing && (
+        {type !== "transfer" && (
           <button
             type="button"
             onClick={() => {
