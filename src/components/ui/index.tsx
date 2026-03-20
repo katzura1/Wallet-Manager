@@ -78,7 +78,7 @@ export function Select({ label, error, className, children, ...props }: SelectPr
       {label && <label className="text-sm font-medium text-[hsl(var(--foreground))]">{label}</label>}
       <select
         className={cn(
-          "w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500",
+          "w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500",
           error && "border-red-500",
           className,
         )}
@@ -123,11 +123,18 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children }: ModalProps) {
+  React.useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = ""; };
+    }
+  }, [open]);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full sm:max-w-md bg-[hsl(var(--background))] rounded-t-3xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="relative z-10 w-full sm:max-w-md bg-[hsl(var(--background))] rounded-t-3xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <div className="flex items-center justify-between p-4 border-b border-[hsl(var(--border))]">
           <h2 className="font-semibold text-base">{title}</h2>
           <button onClick={onClose} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] text-xl leading-none">
