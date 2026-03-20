@@ -199,7 +199,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
                 value={coinSearch}
                 onChange={(e) => { setCoinSearch(e.target.value); setShowResults(true); }}
                 onFocus={() => setShowResults(true)}
-                className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-indigo-500"
               />
               {searching && (
                 <span className="absolute right-3 top-2.5 text-xs text-[hsl(var(--muted-foreground))] animate-pulse">Cari…</span>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button, Input, Modal } from "@/components/ui";
 import { addCategory, updateCategory } from "@/db/categories";
 import { ACCOUNT_COLORS } from "@/lib/utils";
@@ -26,6 +26,15 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
   const [type, setType] = useState<CatType>(existing?.type ?? "expense");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Sync form state whenever the `existing` prop changes (e.g. opening a different category for edit)
+  useEffect(() => {
+    setName(existing?.name ?? "");
+    setIcon(existing?.icon ?? "🏷️");
+    setColor(existing?.color ?? ACCOUNT_COLORS[0]);
+    setType(existing?.type ?? "expense");
+    setError("");
+  }, [existing]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -137,7 +137,7 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
         <div className="space-y-1">
           <label className="text-sm font-medium">Catatan</label>
           <input
-            className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-sm placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500"
             placeholder="mis. Gaji bulanan, Netflix, Arisan..."
             value={note}
             onChange={(e) => setNote(e.target.value)}
