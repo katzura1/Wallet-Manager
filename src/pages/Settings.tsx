@@ -1,18 +1,16 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useSettingsStore } from "@/stores/walletStore";
 import { Card, CardContent, Button, Modal } from "@/components/ui";
 import { exportJSON, exportCSV, importJSON } from "@/lib/backup";
 import { useWalletStore } from "@/stores/walletStore";
-import { db, seedMissingDefaultCategories } from "@/db/db";
-import { deleteCategory } from "@/db/categories";
-import { CategoryForm } from "@/components/forms/CategoryForm";
-import { Sun, Moon, Download, Upload, Trash2, Pencil, Plus, RefreshCw, Lock } from "lucide-react";
+import { db } from "@/db/db";
+import { Sun, Moon, Download, Upload, Trash2, Lock, Tag } from "lucide-react";
 import { usePinStore } from "@/stores/walletStore";
-import type { Category } from "@/types";
 
 export default function Settings() {
   const { theme, currency, setTheme, setCurrency } = useSettingsStore();
-  const { refreshAll, categories } = useWalletStore();
+  const { refreshAll } = useWalletStore();
   const { pin, setPin } = usePinStore();
 
   // PIN setup state
@@ -50,11 +48,6 @@ export default function Settings() {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [catFormOpen, setCatFormOpen] = useState(false);
-  const [editCat, setEditCat] = useState<Category | null>(null);
-  const [deleteCatId, setDeleteCatId] = useState<number | null>(null);
-  const [restoringCats, setRestoringCats] = useState(false);
-  const [restoreMsg, setRestoreMsg] = useState("");
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -70,18 +63,6 @@ export default function Settings() {
     } finally {
       setImporting(false);
       e.target.value = "";
-    }
-  }
-
-  async function handleRestoreDefaultCategories() {
-    setRestoringCats(true);
-    setRestoreMsg("");
-    try {
-      const added = await seedMissingDefaultCategories();
-      await refreshAll();
-      setRestoreMsg(added > 0 ? `✅ ${added} kategori default berhasil dipulihkan.` : "✅ Semua kategori default sudah ada.");
-    } finally {
-      setRestoringCats(false);
     }
   }
 
@@ -206,58 +187,18 @@ export default function Settings() {
 
       {/* Categories */}
       <Card>
-        <CardContent className="p-4 space-y-3">
+        <CardContent className="p-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">Kelola Kategori</p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleRestoreDefaultCategories}
-                disabled={restoringCats}
-                className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-indigo-500 font-medium disabled:opacity-50"
-              >
-                <RefreshCw size={13} className={restoringCats ? "animate-spin" : ""} /> Pulihkan Default
-              </button>
-              <button
-                onClick={() => setCatFormOpen(true)}
-                className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-              >
-                <Plus size={14} /> Tambah
-              </button>
+            <div>
+              <p className="text-sm font-semibold">Kategori</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Kelola kategori pengeluaran &amp; pemasukan</p>
             </div>
-          </div>
-          {restoreMsg && <p className="text-xs text-center py-1">{restoreMsg}</p>}
-          <div className="space-y-1">
-            {categories.map((cat) => (
-              <div key={cat.id} className="flex items-center gap-3 py-2 px-2 rounded-xl hover:bg-[hsl(var(--accent))]">
-                <span
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-base flex-none"
-                  style={{ background: `${cat.color}22` }}
-                >
-                  {cat.icon}
-                </span>
-                <span className="flex-1 text-sm font-medium truncate">{cat.name}</span>
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full font-medium flex-none"
-                  style={{ background: `${cat.color}22`, color: cat.color }}
-                >
-                  {cat.type === "expense" ? "Pengeluaran" : cat.type === "income" ? "Pemasukan" : "Keduanya"}
-                </span>
-                <button
-                  onClick={() => setEditCat(cat)}
-                  className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-indigo-500 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                >
-                  <Pencil size={13} />
-                </button>
-                {!cat.isDefault && (
-                  <button
-                    onClick={() => setDeleteCatId(cat.id!)}
-                    className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
-              </div>
-            ))}
+            <Link
+              to="/categories"
+              className="flex items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+            >
+              <Tag size={13} /> Kelola →
+            </Link>
           </div>
         </CardContent>
       </Card>
@@ -323,34 +264,6 @@ export default function Settings() {
       </Card>
 
       <div className="text-center text-xs text-[hsl(var(--muted-foreground))] pb-2">Wallet Manager v1.0 · Data lokal di perangkat ini</div>
-
-      {/* ── Category Management Modals ── */}
-      <CategoryForm
-        open={catFormOpen || editCat !== null}
-        onClose={() => { setCatFormOpen(false); setEditCat(null); }}
-        onSaved={() => { void refreshAll(); setCatFormOpen(false); setEditCat(null); }}
-        existing={editCat ?? undefined}
-      />
-
-      <Modal open={deleteCatId !== null} onClose={() => setDeleteCatId(null)} title="Hapus Kategori">
-        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">Yakin ingin menghapus kategori ini? Transaksi yang terkait tidak akan dihapus, hanya kategorinya yang dilepas.</p>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={() => setDeleteCatId(null)}>Batal</Button>
-          <Button
-            variant="destructive"
-            className="flex-1"
-            onClick={async () => {
-              if (deleteCatId !== null) {
-                await deleteCategory(deleteCatId);
-                await refreshAll();
-                setDeleteCatId(null);
-              }
-            }}
-          >
-            Hapus
-          </Button>
-        </div>
-      </Modal>
 
       <Modal open={clearConfirm} onClose={() => setClearConfirm(false)} title="Hapus Semua Data">
         <div className="space-y-4">

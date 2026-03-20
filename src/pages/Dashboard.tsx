@@ -5,6 +5,7 @@ import { Card, CardContent, Modal, Button } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
 import { deleteTransaction } from "@/db/transactions";
+import { db } from "@/db/db";
 import { Pencil, Trash2, Plus, Settings, CreditCard, Eye, EyeOff } from "lucide-react";
 import type { Transaction } from "@/types";
 
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [balanceHidden, setBalanceHidden] = useState(() => localStorage.getItem("balance_hidden") === "1");
+  const [splitTxIds, setSplitTxIds] = useState<Set<number>>(new Set());
 
   function toggleBalanceHidden() {
     setBalanceHidden((v) => {
@@ -28,6 +30,12 @@ export default function Dashboard() {
   useEffect(() => {
     void refreshAll();
   }, []);
+
+  useEffect(() => {
+    db.transactionSplits.toArray().then((rows) => {
+      setSplitTxIds(new Set(rows.map((r) => r.transactionId)));
+    });
+  }, [transactions]);
 
   // Handle PWA shortcut deep-links: /?type=expense|income|transfer
   useEffect(() => {
@@ -162,7 +170,7 @@ export default function Dashboard() {
                 tx={tx}
                 accountName={getAccountName(tx.accountId)}
                 toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}
-                categoryLabel={getCategoryName(tx.categoryId) ?? undefined}
+                categoryLabel={splitTxIds.has(tx.id!) ? "✂️ Split" : (getCategoryName(tx.categoryId) ?? undefined)}
                 currency={currency}
                 onDelete={() => setDeleteTargetId(tx.id!)}
                 onEdit={() => setEditTx(tx)}

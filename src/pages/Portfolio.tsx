@@ -966,20 +966,18 @@ export default function Portfolio() {
             <div className="rounded-2xl border border-[hsl(var(--border))] p-4 bg-[hsl(var(--card))]">
               <p className="text-sm font-medium text-[hsl(var(--foreground))] mb-3">Alokasi Portofolio</p>
               <div className="flex items-center gap-4">
-                <div className="w-36 h-36 shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={60} paddingAngle={2} dataKey="value">
-                        {pieData.map((d) => (
-                          <Cell key={d.name} fill={d.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(v) => [formatCurrency(Number(v), currency), ""]}
-                        contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="w-36 h-36 shrink-0 flex items-center justify-center">
+                  <PieChart width={144} height={144}>
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={60} paddingAngle={2} dataKey="value">
+                      {pieData.map((d) => (
+                        <Cell key={d.name} fill={d.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v) => [formatCurrency(Number(v), currency), ""]}
+                      contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
+                    />
+                  </PieChart>
                 </div>
                 <ul className="flex-1 space-y-1.5">
                   {pieData.map((d) => {

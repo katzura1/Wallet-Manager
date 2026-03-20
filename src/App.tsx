@@ -5,6 +5,7 @@ import Transactions from '@/pages/Transactions'
 import Accounts from '@/pages/Accounts'
 import Reports from '@/pages/Reports'
 import Settings from '@/pages/Settings'
+import Categories from '@/pages/Categories'
 import Debts from '@/pages/Debts'
 import Portfolio from '@/pages/Portfolio'
 import { LockScreen } from '@/components/LockScreen'
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/categories" element={<Categories />} />
         </Route>
       </Routes>
     </BrowserRouter>

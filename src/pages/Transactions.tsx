@@ -5,9 +5,10 @@ import { TransactionForm } from "@/components/forms/TransactionForm";
 import { RecurringForm } from "@/components/forms/RecurringForm";
 import { deleteTransaction } from "@/db/transactions";
 import { getRecurringTransactions, deleteRecurring, updateRecurring } from "@/db/recurring";
+import { db } from "@/db/db";
 import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
-import type { Transaction, RecurringTransaction } from "@/types";
-import { Plus, Search, Filter, Trash2, Pencil, RefreshCw, Pause, Play } from "lucide-react";
+import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
+import { Plus, Search, Filter, Trash2, Pencil, RefreshCw, Pause, Play, ChevronDown, ChevronUp } from "lucide-react";
 
 const INTERVAL_LABEL: Record<string, string> = {
   daily: "Harian", weekly: "Mingguan", monthly: "Bulanan", yearly: "Tahunan",
@@ -27,11 +28,27 @@ export default function Transactions() {
   const [recurringFormOpen, setRecurringFormOpen] = useState(false);
   const [editRecurring, setEditRecurring] = useState<RecurringTransaction | null>(null);
   const [deleteRecurringId, setDeleteRecurringId] = useState<number | null>(null);
+  const [splitMap, setSplitMap] = useState<Record<number, TransactionSplit[]>>({});
+  const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
 
   useEffect(() => {
     void refreshAll();
     void loadRecurring();
   }, []);
+
+  useEffect(() => {
+    void loadSplits();
+  }, [transactions]);
+
+  async function loadSplits() {
+    const rows = await db.transactionSplits.toArray();
+    const map: Record<number, TransactionSplit[]> = {};
+    for (const s of rows) {
+      if (!map[s.transactionId]) map[s.transactionId] = [];
+      map[s.transactionId].push(s);
+    }
+    setSplitMap(map);
+  }
 
   async function loadRecurring() {
     setRecurring(await getRecurringTransactions());
@@ -193,30 +210,66 @@ export default function Transactions() {
                   <div className="space-y-2">
                     {dayTxs.map((tx) => {
                       const cat = getCategory(tx.categoryId);
+                      const txSplits = splitMap[tx.id!] ?? [];
+                      const hasSplits = txSplits.length > 0;
+                      const isExpanded = expandedSplitId === tx.id;
                       return (
-                        <div key={tx.id} className="flex items-center gap-3 p-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-none ${TRANSACTION_TYPE_BG[tx.type]}`}>
-                            {cat ? cat.icon : tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️"}
+                        <div key={tx.id} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
+                          <div className="flex items-center gap-3 p-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-none ${TRANSACTION_TYPE_BG[tx.type]}`}>
+                              {hasSplits ? "✂️" : cat ? cat.icon : tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{tx.note || (hasSplits ? "Split Kategori" : cat?.name) || getAccountName(tx.accountId)}</p>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
+                                {getAccountName(tx.accountId)}
+                                {tx.toAccountId ? ` → ${getAccountName(tx.toAccountId)}` : ""}
+                                {hasSplits ? ` · ${txSplits.length} kategori` : ""}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 text-right">
+                              <p className={`font-semibold text-sm ${tx.type === "income" ? "text-emerald-500" : tx.type === "expense" ? "text-red-500" : "text-amber-500"}`}>
+                                {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
+                                {formatCurrency(tx.amount, currency)}
+                              </p>
+                              {hasSplits && (
+                                <button
+                                  onClick={() => setExpandedSplitId(isExpanded ? null : tx.id!)}
+                                  className="p-1 text-[hsl(var(--muted-foreground))] hover:text-indigo-500"
+                                >
+                                  {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                </button>
+                              )}
+                              <button onClick={() => setEditTarget(tx)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-indigo-500">
+                                <Pencil size={13} />
+                              </button>
+                              <button onClick={() => setDeleteTxId(tx.id!)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-red-500">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{tx.note || cat?.name || getAccountName(tx.accountId)}</p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
-                              {getAccountName(tx.accountId)}
-                              {tx.toAccountId ? ` → ${getAccountName(tx.toAccountId)}` : ""}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1 text-right">
-                            <p className={`font-semibold text-sm ${tx.type === "income" ? "text-emerald-500" : tx.type === "expense" ? "text-red-500" : "text-amber-500"}`}>
-                              {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
-                              {formatCurrency(tx.amount, currency)}
-                            </p>
-                            <button onClick={() => setEditTarget(tx)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-indigo-500">
-                              <Pencil size={13} />
-                            </button>
-                            <button onClick={() => setDeleteTxId(tx.id!)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-red-500">
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
+                          {hasSplits && isExpanded && (
+                            <div className="px-3 pb-3 pt-1 border-t border-[hsl(var(--border))] space-y-1.5">
+                              {txSplits.map((s, i) => {
+                                const splitCat = getCategory(s.categoryId);
+                                return (
+                                  <div key={i} className="flex items-center gap-2 text-xs">
+                                    <span
+                                      className="w-5 h-5 rounded-lg flex items-center justify-center flex-none"
+                                      style={{ background: splitCat ? `${splitCat.color}22` : undefined }}
+                                    >
+                                      {splitCat?.icon ?? "📦"}
+                                    </span>
+                                    <span className="flex-1 text-[hsl(var(--foreground))]">{splitCat?.name ?? "Kategori tidak ditemukan"}</span>
+                                    {s.note && <span className="text-[hsl(var(--muted-foreground))] italic truncate max-w-20">{s.note}</span>}
+                                    <span className={`font-semibold ${tx.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
+                                      {tx.type === "expense" ? "-" : "+"}{formatCurrency(s.amount, currency)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
