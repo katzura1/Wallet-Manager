@@ -49,6 +49,12 @@ const BudgetSchema = z.object({
   createdAt: z.string(),
 });
 
+const SettingsSchema = z.object({
+  id: z.number().optional(),
+  key: z.string(),
+  value: z.string(),
+});
+
 const RecurringSchema = z.object({
   id: z.number().optional(),
   type: z.enum(["income", "expense"]),
@@ -91,6 +97,7 @@ const DebtPaymentSchema = z.object({
   amount: z.number(),
   date: z.string(),
   note: z.string(),
+  accountId: z.number().optional(),
   createdAt: z.string(),
 });
 
@@ -112,6 +119,26 @@ const AssetPriceSchema = z.object({
   priceIdr: z.number(),
   changePercent24h: z.number(),
   lastSynced: z.string(),
+});
+
+const PortfolioHistorySchema = z.object({
+  id: z.number().optional(),
+  date: z.string(),
+  totalValue: z.number(),
+});
+
+const SyncLogAssetResultSchema = z.object({
+  symbol: z.string(),
+  name: z.string(),
+  status: z.enum(["synced", "failed", "skipped"]),
+  oldPrice: z.number().nullable(),
+  newPrice: z.number().nullable(),
+});
+
+const SyncLogEntrySchema = z.object({
+  id: z.number().optional(),
+  syncedAt: z.string(),
+  results: z.array(SyncLogAssetResultSchema),
 });
 
 const BackupSchemaV1 = z.object({
@@ -150,32 +177,35 @@ const BackupSchemaV3 = z.object({
   assetPrices: z.array(AssetPriceSchema),
 });
 
-const BackupSchema = z.union([BackupSchemaV3, BackupSchemaV2, BackupSchemaV1]);
-export type BackupData = z.infer<typeof BackupSchemaV3>;
+const BackupSchemaV4 = z.object({
+  version: z.literal(4),
+  exportedAt: z.string(),
+  accounts: z.array(AccountSchema),
+  categories: z.array(CategorySchema),
+  transactions: z.array(TransactionSchema),
+  settings: z.array(SettingsSchema),
+  budgets: z.array(BudgetSchema),
+  recurring: z.array(RecurringSchema),
+  transactionSplits: z.array(TransactionSplitSchema),
+  debts: z.array(DebtSchema),
+  debtPayments: z.array(DebtPaymentSchema),
+  assets: z.array(AssetSchema),
+  assetPrices: z.array(AssetPriceSchema),
+  portfolioHistory: z.array(PortfolioHistorySchema),
+  syncLog: z.array(SyncLogEntrySchema),
+});
+
+const BackupSchema = z.union([BackupSchemaV4, BackupSchemaV3, BackupSchemaV2, BackupSchemaV1]);
+export type BackupData = z.infer<typeof BackupSchemaV4>;
 
 // ─── Export ────────────────────────────────────────────────────────────────────
 
 export async function exportJSON(): Promise<void> {
-  const [accounts, categories, transactions, budgets, recurring, transactionSplits, debts, debtPayments, assets, assetPrices] =
-    await Promise.all([
-      db.accounts.toArray(),
-      db.categories.toArray(),
-      db.transactions.toArray(),
-      db.budgets.toArray(),
-      db.recurring.toArray(),
-      db.transactionSplits.toArray(),
-      db.debts.toArray(),
-      db.debtPayments.toArray(),
-      db.assets.toArray(),
-      db.assetPrices.toArray(),
-    ]);
-
-  const backup: BackupData = {
-    version: 3,
-    exportedAt: new Date().toISOString(),
+  const [
     accounts,
     categories,
     transactions,
+    settings,
     budgets,
     recurring,
     transactionSplits,
@@ -183,6 +213,41 @@ export async function exportJSON(): Promise<void> {
     debtPayments,
     assets,
     assetPrices,
+    portfolioHistory,
+    syncLog,
+  ] =
+    await Promise.all([
+      db.accounts.toArray(),
+      db.categories.toArray(),
+      db.transactions.toArray(),
+      db.settings.toArray(),
+      db.budgets.toArray(),
+      db.recurring.toArray(),
+      db.transactionSplits.toArray(),
+      db.debts.toArray(),
+      db.debtPayments.toArray(),
+      db.assets.toArray(),
+      db.assetPrices.toArray(),
+      db.portfolioHistory.toArray(),
+      db.syncLog.toArray(),
+    ]);
+
+  const backup: BackupData = {
+    version: 4,
+    exportedAt: new Date().toISOString(),
+    accounts,
+    categories,
+    transactions,
+    settings,
+    budgets,
+    recurring,
+    transactionSplits,
+    debts,
+    debtPayments,
+    assets,
+    assetPrices,
+    portfolioHistory,
+    syncLog,
   };
 
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -236,6 +301,8 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transactions: any[] = backup.transactions;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const settings: any[] = b.settings ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const budgets: any[] = b.budgets ?? [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recurring: any[] = b.recurring ?? [];
@@ -249,11 +316,16 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
   const assets: any[] = b.assets ?? [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const assetPrices: any[] = b.assetPrices ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const portfolioHistory: any[] = b.portfolioHistory ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const syncLog: any[] = b.syncLog ?? [];
 
   const allTables = [
-    db.accounts, db.categories, db.transactions,
+    db.accounts, db.categories, db.transactions, db.settings,
     db.budgets, db.recurring, db.transactionSplits,
     db.debts, db.debtPayments, db.assets, db.assetPrices,
+    db.portfolioHistory, db.syncLog,
   ] as const;
 
   if (mode === "replace") {
@@ -262,6 +334,7 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
       await db.accounts.bulkAdd(accounts);
       await db.categories.bulkAdd(categories);
       await db.transactions.bulkAdd(transactions);
+      await db.settings.bulkAdd(settings);
       await db.budgets.bulkAdd(budgets);
       await db.recurring.bulkAdd(recurring);
       await db.transactionSplits.bulkAdd(transactionSplits);
@@ -269,6 +342,8 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
       await db.debtPayments.bulkAdd(debtPayments);
       await db.assets.bulkAdd(assets);
       await db.assetPrices.bulkPut(assetPrices);
+      await db.portfolioHistory.bulkAdd(portfolioHistory);
+      await db.syncLog.bulkAdd(syncLog);
     });
     // Re-seed any missing default categories (so app always has full category list)
     await seedMissingDefaultCategories();
@@ -282,6 +357,15 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
           await table.add(item);
         }
       };
+      // settings: merge by unique key instead of id to avoid duplicate-key conflicts
+      for (const setting of settings) {
+        const existing = await db.settings.where("key").equals(setting.key).first();
+        if (existing?.id) {
+          await db.settings.put({ ...setting, id: existing.id });
+        } else {
+          await db.settings.add(setting);
+        }
+      }
       await mergeTable(db.accounts, accounts);
       await mergeTable(db.categories, categories);
       await mergeTable(db.transactions, transactions);
@@ -298,6 +382,16 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
       }
       // assetPrices: keyed by symbol — upsert
       await db.assetPrices.bulkPut(assetPrices);
+      // portfolioHistory: unique by date — upsert by date
+      for (const p of portfolioHistory) {
+        const existing = await db.portfolioHistory.where("date").equals(p.date).first();
+        if (existing?.id) {
+          await db.portfolioHistory.put({ ...p, id: existing.id });
+        } else {
+          await db.portfolioHistory.add(p);
+        }
+      }
+      await mergeTable(db.syncLog, syncLog);
     });
   }
 }
