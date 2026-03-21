@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Card, CardContent, Modal, Button } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
+import { AITransactionForm } from "@/components/forms/AITransactionForm";
 import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
 import { deleteTransaction } from "@/db/transactions";
 import { db } from "@/db/db";
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [balanceHidden, setBalanceHidden] = useState(() => localStorage.getItem("balance_hidden") === "1");
   const [splitTxIds, setSplitTxIds] = useState<Set<number>>(new Set());
+  const [aiOpen, setAiOpen] = useState(false);
 
   function toggleBalanceHidden() {
     setBalanceHidden((v) => {
@@ -158,6 +160,13 @@ export default function Dashboard() {
           </button>
         ))}
       </div>
+      <button
+        onClick={() => setAiOpen(true)}
+        className="w-full bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl p-3 flex items-center justify-center gap-2 transition-transform active:scale-95"
+      >
+        <span className="text-lg">✨</span>
+        <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">Catat dari Teks (AI)</span>
+      </button>
 
       {/* Recent Transactions */}
       {recentTxs.length > 0 && (
@@ -238,6 +247,14 @@ export default function Dashboard() {
         accounts={accounts.filter((a) => !a.isArchived) as typeof accounts}
         categories={categories}
         existing={editTx ?? undefined}
+      />
+
+      <AITransactionForm
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        onSaved={() => { void refreshAll(); setAiOpen(false); }}
+        accounts={accounts}
+        categories={categories}
       />
 
       <Modal open={deleteTargetId !== null} onClose={() => setDeleteTargetId(null)} title="Hapus Transaksi">

@@ -7,6 +7,7 @@ import { useWalletStore } from "@/stores/walletStore";
 import { db } from "@/db/db";
 import { Sun, Moon, Download, Upload, Trash2, Lock, Tag } from "lucide-react";
 import { usePinStore } from "@/stores/walletStore";
+import { GEMINI_MODELS } from "@/lib/geminiParser";
 
 export default function Settings() {
   const { theme, currency, setTheme, setCurrency } = useSettingsStore();
@@ -48,6 +49,17 @@ export default function Settings() {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
+  const [geminiModel, setGeminiModel] = useState(() => localStorage.getItem("gemini_model") ?? "gemini-2.5-flash-preview");
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [geminiSaved, setGeminiSaved] = useState(false);
+
+  function handleSaveGeminiKey() {
+    localStorage.setItem("gemini_api_key", geminiKey.trim());
+    localStorage.setItem("gemini_model", geminiModel);
+    setGeminiSaved(true);
+    setTimeout(() => setGeminiSaved(false), 2000);
+  }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -250,6 +262,65 @@ export default function Settings() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Gemini AI */}
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold">✨ Gemini AI — Catat dari Teks</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+              Diperlukan untuk fitur "Catat dari Teks" di Dashboard.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-[hsl(var(--foreground))]">Gemini API Key</label>
+            <div className="relative">
+              <input
+                type={showGeminiKey ? "text" : "password"}
+                value={geminiKey}
+                onChange={(e) => setGeminiKey(e.target.value)}
+                placeholder="AIza..."
+                className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-24"
+              />
+              <button
+                type="button"
+                onClick={() => setShowGeminiKey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] px-2 py-1"
+              >
+                {showGeminiKey ? "Sembunyikan" : "Lihat"}
+              </button>
+            </div>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              Dapatkan API key gratis di{" "}
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-500 underline"
+              >
+                Google AI Studio
+              </a>.
+              Key disimpan lokal di perangkatmu.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-[hsl(var(--foreground))]">Model AI</label>
+            <select
+              value={geminiModel}
+              onChange={(e) => setGeminiModel(e.target.value)}
+              className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {GEMINI_MODELS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">Jika model utama error kuota, ganti ke model lain.</p>
+          </div>
+          <Button onClick={handleSaveGeminiKey} className="w-full">
+            {geminiSaved ? "✅ Tersimpan!" : "Simpan API Key"}
+          </Button>
         </CardContent>
       </Card>
 

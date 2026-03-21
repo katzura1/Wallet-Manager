@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@rolldown/binding-darwin-arm64": "^1.0.0-rc.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
