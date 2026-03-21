@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Input, Select, Modal } from "@/components/ui";
-import { todayISO } from "@/lib/utils";
+import { todayISO, formatNumberWithSeparator } from "@/lib/utils";
 import { addRecurring, updateRecurring } from "@/db/recurring";
 import type { Account, Category, RecurringTransaction, RecurringInterval } from "@/types";
 
@@ -99,11 +99,15 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
 
         <Input
           label="Jumlah"
-          type="number"
+          type="text"
           inputMode="numeric"
           placeholder="0"
-          value={amount}
-          onChange={(e) => { setAmount(e.target.value); setError(""); }}
+          value={formatNumberWithSeparator(amount)}
+          onChange={(e) => {
+            const cleanValue = e.target.value.replace(/\D/g, "");
+            setAmount(cleanValue);
+            setError("");
+          }}
           error={error}
         />
 

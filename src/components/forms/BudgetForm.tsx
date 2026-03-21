@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button, Input, Select, Modal } from "@/components/ui";
 import { setBudget } from "@/db/budgets";
+import { formatNumberWithSeparator } from "@/lib/utils";
 import type { Category } from "@/types";
 
 interface BudgetFormProps {
@@ -67,11 +68,15 @@ export function BudgetForm({ open, onClose, onSaved, categories, month, initialC
 
         <Input
           label="Batas Anggaran"
-          type="number"
+          type="text"
           inputMode="numeric"
           placeholder="0"
-          value={amount}
-          onChange={(e) => { setAmount(e.target.value); setError(""); }}
+          value={formatNumberWithSeparator(amount)}
+          onChange={(e) => {
+            const cleanValue = e.target.value.replace(/\D/g, "");
+            setAmount(cleanValue);
+            setError("");
+          }}
           error={error}
         />
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button, Input, Select, Textarea, Modal } from "@/components/ui";
-import { todayISO } from "@/lib/utils";
+import { todayISO, formatNumberWithSeparator } from "@/lib/utils";
 import { addTransaction, addTransfer, updateTransaction } from "@/db/transactions";
 import { db } from "@/db/db";
 import type { Account, Category, Transaction } from "@/types";
@@ -175,12 +175,13 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
 
         <Input
           label="Jumlah"
-          type="number"
+          type="text"
           inputMode="numeric"
           placeholder="0"
-          value={amount}
+          value={formatNumberWithSeparator(amount)}
           onChange={(e) => {
-            setAmount(e.target.value);
+            const cleanValue = e.target.value.replace(/\D/g, "");
+            setAmount(cleanValue);
             setError("");
           }}
           error={error}
@@ -258,11 +259,14 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                 </div>
                 <div className="w-28">
                   <Input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
                     placeholder="Jumlah"
-                    value={row.amount}
-                    onChange={(e) => updateSplitRow(i, "amount", e.target.value)}
+                    value={formatNumberWithSeparator(row.amount)}
+                    onChange={(e) => {
+                      const cleanValue = e.target.value.replace(/\D/g, "");
+                      updateSplitRow(i, "amount", cleanValue);
+                    }}
                   />
                 </div>
                 {splits.length > 1 && (

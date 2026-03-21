@@ -16,6 +16,12 @@ export function formatCurrency(amount: number, currency = "IDR"): string {
   }).format(amount);
 }
 
+export function formatNumberWithSeparator(value: string): string {
+  if (!value) return "";
+  const numStr = value.replace(/\D/g, "");
+  return numStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 export function formatDate(dateStr: string, fmt = "dd MMM yyyy"): string {
   try {
     return format(parseISO(dateStr), fmt, { locale: idLocale });

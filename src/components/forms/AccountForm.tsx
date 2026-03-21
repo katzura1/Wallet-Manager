@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Input, Select, Modal } from "@/components/ui";
-import { formatCurrency, ACCOUNT_COLORS, ACCOUNT_ICONS, ACCOUNT_TYPE_LABELS } from "@/lib/utils";
+import { formatCurrency, ACCOUNT_COLORS, ACCOUNT_ICONS, ACCOUNT_TYPE_LABELS, formatNumberWithSeparator } from "@/lib/utils";
 import { addAccount, updateAccount, recalculateAccountBalance } from "@/db/accounts";
 import type { Account } from "@/types";
 
@@ -67,10 +67,14 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
         </Select>
         <Input
           label={existing ? "Saldo Awal (ubah jika perlu koreksi)" : "Saldo Awal"}
-          type="number"
+          type="text"
+          inputMode="numeric"
           placeholder="0"
-          value={initialBalance}
-          onChange={(e) => setInitialBalance(e.target.value)}
+          value={formatNumberWithSeparator(initialBalance)}
+          onChange={(e) => {
+            const cleanValue = e.target.value.replace(/\D/g, "");
+            setInitialBalance(cleanValue);
+          }}
         />
         <div className="space-y-2">
           <label className="text-sm font-medium">Warna</label>

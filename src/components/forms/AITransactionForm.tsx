@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button, Modal, Textarea, Select, Input } from "@/components/ui";
 import { parseTransactionText, type ParsedTransaction } from "@/lib/geminiParser";
 import { addTransaction, addTransfer } from "@/db/transactions";
-import { todayISO } from "@/lib/utils";
+import { todayISO, formatNumberWithSeparator } from "@/lib/utils";
 import { Sparkles, Loader2, ChevronRight, AlertCircle } from "lucide-react";
 import type { Account, Category } from "@/types";
 
@@ -238,10 +238,13 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     label="Jumlah"
-                    type="number"
-                    min={0}
-                    value={tx.amount}
-                    onChange={(e) => updateTx(i, { amount: Number(e.target.value) })}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatNumberWithSeparator(String(tx.amount))}
+                    onChange={(e) => {
+                      const cleanValue = e.target.value.replace(/\D/g, "");
+                      updateTx(i, { amount: Number(cleanValue) });
+                    }}
                   />
                   <Input
                     label="Tanggal"
