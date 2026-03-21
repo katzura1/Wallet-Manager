@@ -196,19 +196,19 @@ export default function Reports() {
       {/* Monthly summary cards */}
       <div className="grid grid-cols-3 gap-2">
         <Card>
-          <CardContent className="p-3 text-center">
+          <CardContent className="p-3 text-center flex flex-col justify-between h-full">
             <p className="text-xs text-[hsl(var(--muted-foreground))]">Pemasukan</p>
             <p className="font-bold text-sm text-emerald-500 mt-0.5">{formatCurrency(summary.income, currency)}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-3 text-center">
+          <CardContent className="p-3 text-center flex flex-col justify-between h-full">
             <p className="text-xs text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
             <p className="font-bold text-sm text-red-500 mt-0.5">{formatCurrency(summary.expense, currency)}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-3 text-center">
+          <CardContent className="p-3 text-center flex flex-col justify-between h-full">
             <p className="text-xs text-[hsl(var(--muted-foreground))]">Net</p>
             <p className={`font-bold text-sm mt-0.5 ${summary.net >= 0 ? "text-emerald-500" : "text-red-500"}`}>
               {formatCurrency(summary.net, currency)}
