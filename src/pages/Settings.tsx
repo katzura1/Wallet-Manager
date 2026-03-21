@@ -7,7 +7,6 @@ import { useWalletStore } from "@/stores/walletStore";
 import { db } from "@/db/db";
 import { Sun, Moon, Download, Upload, Trash2, Lock, Tag } from "lucide-react";
 import { usePinStore } from "@/stores/walletStore";
-import { GEMINI_MODELS } from "@/lib/geminiParser";
 
 export default function Settings() {
   const { theme, currency, setTheme, setCurrency } = useSettingsStore();
@@ -50,7 +49,7 @@ export default function Settings() {
   const [importMsg, setImportMsg] = useState("");
   const [clearConfirm, setClearConfirm] = useState(false);
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
-  const [geminiModel, setGeminiModel] = useState(() => localStorage.getItem("gemini_model") ?? "gemini-2.5-flash-preview");
+  const [geminiModel, _] = useState(() => localStorage.getItem("gemini_model") ?? "gemini-2.5-flash");
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [geminiSaved, setGeminiSaved] = useState(false);
 
@@ -304,19 +303,6 @@ export default function Settings() {
               </a>.
               Key disimpan lokal di perangkatmu.
             </p>
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-[hsl(var(--foreground))]">Model AI</label>
-            <select
-              value={geminiModel}
-              onChange={(e) => setGeminiModel(e.target.value)}
-              className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {GEMINI_MODELS.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Jika model utama error kuota, ganti ke model lain.</p>
           </div>
           <Button onClick={handleSaveGeminiKey} className="w-full">
             {geminiSaved ? "✅ Tersimpan!" : "Simpan API Key"}

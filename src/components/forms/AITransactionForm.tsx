@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Modal, Textarea, Select, Input } from "@/components/ui";
-import { parseTransactionText, GEMINI_MODELS, type ParsedTransaction } from "@/lib/geminiParser";
+import { parseTransactionText, type ParsedTransaction } from "@/lib/geminiParser";
 import { addTransaction, addTransfer } from "@/db/transactions";
 import { todayISO } from "@/lib/utils";
 import { Sparkles, Loader2, ChevronRight, AlertCircle } from "lucide-react";
