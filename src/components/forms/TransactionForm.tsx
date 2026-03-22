@@ -22,8 +22,44 @@ interface SplitRow {
   amount: string;
 }
 
-export function TransactionForm({ open, onClose, onSaved, accounts, categories, existing, defaultType = "expense" }: TransactionFormProps) {
-  const [type, setType] = useState<TxType>(existing?.type ?? defaultType);
+const QUICK_NOTE_PRESETS: Record<Exclude<TxType, "transfer">, string[]> = {
+  expense: ["Patungan", "Talang dulu", "Bayarin dulu"],
+  income: ["Reimburse", "Patungan balik", "Diganti teman"],
+};
+
+interface StoredTransactionDefaults {
+  lastType?: TxType;
+  expense?: {
+    accountId?: string;
+    categoryId?: string;
+  };
+  income?: {
+    accountId?: string;
+    categoryId?: string;
+  };
+  transfer?: {
+    accountId?: string;
+    toAccountId?: string;
+  };
+}
+
+const TX_DEFAULTS_KEY = "wallet_tx_defaults";
+
+function readTransactionDefaults(): StoredTransactionDefaults {
+  try {
+    const raw = localStorage.getItem(TX_DEFAULTS_KEY);
+    return raw ? JSON.parse(raw) as StoredTransactionDefaults : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeTransactionDefaults(data: StoredTransactionDefaults) {
+  localStorage.setItem(TX_DEFAULTS_KEY, JSON.stringify(data));
+}
+
+export function TransactionForm({ open, onClose, onSaved, accounts, categories, existing, defaultType }: TransactionFormProps) {
+  const [type, setType] = useState<TxType>(existing?.type ?? defaultType ?? "expense");
   const [amount, setAmount] = useState(String(existing?.amount ?? ""));
   const [accountId, setAccountId] = useState(String(existing?.accountId ?? accounts[0]?.id ?? ""));
   const [toAccountId, setToAccountId] = useState(String(existing?.toAccountId ?? ""));
@@ -34,6 +70,54 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
   const [error, setError] = useState("");
   const [splitMode, setSplitMode] = useState(false);
   const [splits, setSplits] = useState<SplitRow[]>([{ categoryId: "", amount: "" }]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (existing) {
+      setType(existing.type);
+      setAmount(String(existing.amount));
+      setAccountId(String(existing.accountId));
+      setToAccountId(String(existing.toAccountId ?? ""));
+      setCategoryId(String(existing.categoryId ?? ""));
+      setDate(existing.date);
+      setNote(existing.note ?? "");
+      setSplitMode(false);
+      setSplits([{ categoryId: "", amount: "" }]);
+      setError("");
+      return;
+    }
+
+    const stored = readTransactionDefaults();
+    const nextType = defaultType ?? stored.lastType ?? "expense";
+    const accountExists = (value?: string) => !!value && accounts.some((account) => String(account.id) === value);
+    const categoryExists = (value?: string) => !!value && categories.some((category) => String(category.id) === value);
+    const defaultAccountId = String(accounts[0]?.id ?? "");
+
+    if (nextType === "transfer") {
+      const fromAccount = accountExists(stored.transfer?.accountId) ? stored.transfer?.accountId! : defaultAccountId;
+      const toAccount = accountExists(stored.transfer?.toAccountId) && stored.transfer?.toAccountId !== fromAccount
+        ? stored.transfer?.toAccountId!
+        : String(accounts.find((account) => String(account.id) !== fromAccount)?.id ?? "");
+      setType("transfer");
+      setAccountId(fromAccount);
+      setToAccountId(toAccount);
+      setCategoryId("");
+    } else {
+      const defaults = stored[nextType];
+      setType(nextType);
+      setAccountId(accountExists(defaults?.accountId) ? defaults?.accountId! : defaultAccountId);
+      setToAccountId("");
+      setCategoryId(categoryExists(defaults?.categoryId) ? defaults?.categoryId! : "");
+    }
+
+    setAmount("");
+    setDate(todayISO());
+    setNote("");
+    setSplitMode(false);
+    setSplits([{ categoryId: "", amount: "" }]);
+    setError("");
+  }, [open, existing, defaultType, accounts, categories]);
 
   // Load existing splits when editing a split transaction
   useEffect(() => {
@@ -49,6 +133,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
   const filteredCategories = categories.filter((c) => c.type === type || c.type === "both");
   const splitsTotal = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const amountNum = Number(amount);
+  const notePresets = type === "transfer" ? [] : QUICK_NOTE_PRESETS[type];
 
   function addSplitRow() {
     setSplits((prev) => [...prev, { categoryId: "", amount: "" }]);
@@ -137,6 +222,29 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
           note,
         });
       }
+
+      if (!existing) {
+        const stored = readTransactionDefaults();
+        const nextStored: StoredTransactionDefaults = {
+          ...stored,
+          lastType: type,
+        };
+
+        if (type === "transfer") {
+          nextStored.transfer = {
+            accountId,
+            toAccountId,
+          };
+        } else {
+          nextStored[type] = {
+            accountId,
+            categoryId: splitMode ? undefined : categoryId,
+          };
+        }
+
+        writeTransactionDefaults(nextStored);
+      }
+
       onSaved();
       onClose();
     } finally {
@@ -227,14 +335,19 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
         )}
 
         {type !== "transfer" && !splitMode && (
-          <Select label="Kategori" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">-- Pilih Kategori --</option>
-            {filteredCategories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.icon} {c.name}
-              </option>
-            ))}
-          </Select>
+          <div className="space-y-1">
+            <Select label="Kategori" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+              <option value="">-- Pilih Kategori --</option>
+              {filteredCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.icon} {c.name}
+                </option>
+              ))}
+            </Select>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+              Untuk patungan atau reimburse, catat pemasukan pengganti dengan kategori yang sama supaya laporan menghitung pengeluaran bersih.
+            </p>
+          </div>
         )}
 
         {splitMode && type !== "transfer" && (
@@ -292,7 +405,23 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
 
         <Input label="Tanggal" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
 
-        <Textarea label="Catatan (opsional)" placeholder="Tambah catatan..." rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+        <div className="space-y-2">
+          <Textarea label="Catatan (opsional)" placeholder="Tambah catatan..." rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+          {notePresets.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {notePresets.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setNote(preset)}
+                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${note === preset ? "border-indigo-600 bg-indigo-600 text-white" : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Menyimpan..." : existing ? "Simpan Perubahan" : "Tambah Transaksi"}

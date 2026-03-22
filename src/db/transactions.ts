@@ -2,6 +2,24 @@ import { db } from "./db";
 import { recalculateAccountBalance } from "./accounts";
 import type { Transaction } from "@/types";
 
+function buildNetCategoryExpenseMap(transactions: Transaction[]) {
+  const rawMap: Record<number, number> = {};
+
+  for (const tx of transactions) {
+    if (!tx.categoryId) continue;
+    if (tx.type !== "expense" && tx.type !== "income") continue;
+
+    const delta = tx.type === "expense" ? tx.amount : -tx.amount;
+    rawMap[tx.categoryId] = (rawMap[tx.categoryId] ?? 0) + delta;
+  }
+
+  return Object.fromEntries(
+    Object.entries(rawMap)
+      .map(([categoryId, amount]) => [Number(categoryId), Math.max(amount, 0)])
+      .filter(([, amount]) => amount > 0),
+  ) as Record<number, number>;
+}
+
 export interface TransactionFilter {
   accountId?: number;
   categoryId?: number;
@@ -118,13 +136,9 @@ export async function getSummaryBetween(from: string, to: string) {
 export async function getCategoryExpenseBetween(from: string, to: string) {
   const transactions = await db.transactions
     .where("date").between(from, to, true, true)
-    .filter((t) => t.type === "expense")
+    .filter((t) => !!t.categoryId && (t.type === "expense" || t.type === "income"))
     .toArray();
-  const map: Record<number, number> = {};
-  for (const tx of transactions) {
-    if (tx.categoryId) map[tx.categoryId] = (map[tx.categoryId] ?? 0) + tx.amount;
-  }
-  return map;
+  return buildNetCategoryExpenseMap(transactions);
 }
 
 export async function getMonthlyChartData(months = 6) {
@@ -148,16 +162,10 @@ export async function getCategoryExpenseData(year: number, month: number) {
   const transactions = await db.transactions
     .where("date")
     .startsWith(prefix)
-    .filter((t) => t.type === "expense")
+    .filter((t) => !!t.categoryId && (t.type === "expense" || t.type === "income"))
     .toArray();
 
-  const map: Record<number, number> = {};
-  for (const tx of transactions) {
-    if (tx.categoryId) {
-      map[tx.categoryId] = (map[tx.categoryId] ?? 0) + tx.amount;
-    }
-  }
-  return map;
+  return buildNetCategoryExpenseMap(transactions);
 }
 
 /** Computes total balance across all non-archived accounts for the last N months. */

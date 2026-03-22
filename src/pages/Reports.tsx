@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui";
 import { getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween } from "@/db/transactions";
 import { getBudgetsForMonth } from "@/db/budgets";
 import { BudgetForm } from "@/components/forms/BudgetForm";
 import { formatCurrency } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Target } from "lucide-react";
+import { ChevronLeft, ChevronRight, Target, ChevronDown, ChevronUp } from "lucide-react";
 import type { Budget } from "@/types";
 
 interface ChartBar {
@@ -41,11 +41,15 @@ export default function Reports() {
   const [chartData, setChartData] = useState<ChartBar[]>([]);
   const [pieData, setPieData] = useState<PieEntry[]>([]);
   const [summary, setSummary] = useState({ income: 0, expense: 0, net: 0 });
+  const [previousSummary, setPreviousSummary] = useState<{ income: number; expense: number; net: number } | null>(null);
   const [balanceHistory, setBalanceHistory] = useState<{ month: string; balance: number }[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [budgetFormOpen, setBudgetFormOpen] = useState(false);
   const [budgetCategoryId, setBudgetCategoryId] = useState<number | undefined>();
   const [budgetInitialAmount, setBudgetInitialAmount] = useState<number>(0);
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [showAllBudgets, setShowAllBudgets] = useState(false);
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
 
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -79,6 +83,7 @@ export default function Reports() {
       ]);
       // Bar chart & balance history don't apply in range mode — keep stale
       setSummary(sum);
+      setPreviousSummary(null);
       const pie: PieEntry[] = mergePieEntries(
         Object.entries(catMap).map(([catId, amount]) => {
           const cat = categories.find((c) => c.id === Number(catId));
@@ -89,15 +94,20 @@ export default function Reports() {
       return;
     }
 
-    const [bars, catMapM, sumM, history, bdgtList] = await Promise.all([
+    const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+    const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+
+    const [bars, catMapM, sumM, prevSumM, history, bdgtList] = await Promise.all([
       getMonthlyChartData(6),
       getCategoryExpenseData(selectedYear, selectedMonth),
       getMonthlySummary(selectedYear, selectedMonth),
+      getMonthlySummary(prevYear, prevMonth),
       getTotalBalanceHistory(6),
       getBudgetsForMonth(monthStr),
     ]);
     setChartData(bars);
     setSummary(sumM);
+    setPreviousSummary(prevSumM);
     setBalanceHistory(history);
     setBudgets(bdgtList);
     const pie: PieEntry[] = mergePieEntries(
@@ -123,6 +133,69 @@ export default function Reports() {
 
   const currentMonth = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
 
+  function getComparisonMeta(current: number, previous: number, goodWhen: "up" | "down") {
+    if (previous === 0) {
+      if (current === 0) {
+        return {
+          label: "Sama seperti bulan lalu",
+          className: "text-[hsl(var(--muted-foreground))]",
+        };
+      }
+      return {
+        label: "Belum ada data pembanding",
+        className: "text-[hsl(var(--muted-foreground))]",
+      };
+    }
+
+    const diff = current - previous;
+    const pct = Math.round((Math.abs(diff) / Math.abs(previous)) * 100);
+    if (diff === 0) {
+      return {
+        label: "Tidak berubah dari bulan lalu",
+        className: "text-[hsl(var(--muted-foreground))]",
+      };
+    }
+
+    const improved = goodWhen === "up" ? diff > 0 : diff < 0;
+    return {
+      label: `${diff > 0 ? "+" : "-"}${pct}% vs bulan lalu`,
+      className: improved ? "text-emerald-500" : "text-red-500",
+    };
+  }
+
+  const incomeComparison = previousSummary ? getComparisonMeta(summary.income, previousSummary.income, "up") : null;
+  const expenseComparison = previousSummary ? getComparisonMeta(summary.expense, previousSummary.expense, "down") : null;
+  const netComparison = previousSummary ? getComparisonMeta(summary.net, previousSummary.net, "up") : null;
+  const totalPieValue = pieData.reduce((sum, entry) => sum + entry.value, 0);
+  const visiblePieData = showAllCategories ? pieData : pieData.slice(0, 5);
+  const visibleAccounts = showAllAccounts
+    ? accounts.filter((a) => !a.isArchived)
+    : accounts.filter((a) => !a.isArchived).slice(0, 5);
+  const budgetRows = (mode === "monthly"
+    ? categories
+        .filter((category) => category.type === "expense" || category.type === "both")
+        .map((category) => {
+          const actual = pieData.find((entry) => entry.name === category.name)?.value ?? 0;
+          const budget = budgets.find((item) => item.categoryId === category.id);
+          return {
+            category,
+            actual,
+            budget,
+            pct: budget?.amount ? Math.min(Math.round((actual / budget.amount) * 100), 100) : 0,
+          };
+        })
+        .filter((row) => row.budget || row.actual > 0)
+        .sort((a, b) => {
+          const aScore = a.budget?.amount ? a.actual / a.budget.amount : a.actual;
+          const bScore = b.budget?.amount ? b.actual / b.budget.amount : b.actual;
+          return bScore - aScore;
+        })
+    : []);
+  const activeBudgetRows = budgetRows.filter((row) => row.actual > 0 || !row.budget);
+  const unusedBudgetRows = budgetRows.filter((row) => row.budget && row.actual === 0);
+  const visibleBudgetRows = showAllBudgets ? activeBudgetRows : activeBudgetRows.slice(0, 5);
+  const visibleUnusedBudgetRows = showAllBudgets ? unusedBudgetRows : unusedBudgetRows.slice(0, 4);
+
   function prevMonth() {
     if (selectedMonth === 1) {
       setSelectedYear((y) => y - 1);
@@ -139,7 +212,7 @@ export default function Reports() {
   const monthLabel = new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" });
 
   return (
-    <div className="p-4 space-y-5">
+    <div className="p-4 space-y-4">
       <div className="pt-2">
         <h1 className="text-xl font-bold">Laporan</h1>
       </div>
@@ -162,16 +235,16 @@ export default function Reports() {
 
       {/* Month navigator — only in monthly mode */}
       {mode === "monthly" && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 py-1">
           <button onClick={prevMonth} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))]"><ChevronLeft size={18} /></button>
-          <p className="font-semibold capitalize">{monthLabel}</p>
+          <p className="font-semibold capitalize text-sm">{monthLabel}</p>
           <button onClick={nextMonth} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))]"><ChevronRight size={18} /></button>
         </div>
       )}
 
       {/* Date range picker — only in range mode */}
       {mode === "range" && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
           <div className="flex-1">
             <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Dari</p>
             <input
@@ -199,12 +272,18 @@ export default function Reports() {
           <CardContent className="p-3 text-center flex flex-col justify-between h-full">
             <p className="text-xs text-[hsl(var(--muted-foreground))]">Pemasukan</p>
             <p className="font-bold text-sm text-emerald-500 mt-0.5">{formatCurrency(summary.income, currency)}</p>
+            {mode === "monthly" && incomeComparison && (
+              <p className={`text-[11px] mt-1 ${incomeComparison.className}`}>{incomeComparison.label}</p>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 text-center flex flex-col justify-between h-full">
             <p className="text-xs text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
             <p className="font-bold text-sm text-red-500 mt-0.5">{formatCurrency(summary.expense, currency)}</p>
+            {mode === "monthly" && expenseComparison && (
+              <p className={`text-[11px] mt-1 ${expenseComparison.className}`}>{expenseComparison.label}</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -213,6 +292,9 @@ export default function Reports() {
             <p className={`font-bold text-sm mt-0.5 ${summary.net >= 0 ? "text-emerald-500" : "text-red-500"}`}>
               {formatCurrency(summary.net, currency)}
             </p>
+            {mode === "monthly" && netComparison && (
+              <p className={`text-[11px] mt-1 ${netComparison.className}`}>{netComparison.label}</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -222,9 +304,9 @@ export default function Reports() {
         <CardHeader>
           <CardTitle>Arus Kas 6 Bulan</CardTitle>
         </CardHeader>
-        <CardContent className="p-4 pt-2">
+        <CardContent className="p-3 pt-1">
           {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={160}>
               <BarChart data={chartData} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -252,10 +334,24 @@ export default function Reports() {
       {pieData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Pengeluaran per Kategori</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle>Pengeluaran Bersih per Kategori</CardTitle>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Expense dikurangi pemasukan pada kategori yang sama</p>
+              </div>
+              {pieData.length > 5 && (
+                <button
+                  onClick={() => setShowAllCategories((value) => !value)}
+                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
+                >
+                  {showAllCategories ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  {showAllCategories ? "Ringkas" : `Semua ${pieData.length}`}
+                </button>
+              )}
+            </div>
           </CardHeader>
-          <CardContent className="p-4 pt-2">
-            <ResponsiveContainer width="100%" height={220}>
+          <CardContent className="p-3 pt-1">
+            <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}>
                   {pieData.map((entry, i) => (
@@ -271,32 +367,141 @@ export default function Reports() {
                     fontSize: "12px",
                   }}
                 />
-                <Legend formatter={(val) => <span style={{ fontSize: 11 }}>{val}</span>} iconSize={8} iconType="circle" />
               </PieChart>
             </ResponsiveContainer>
 
-            {/* Category table */}
             <div className="space-y-2 mt-2">
-              {pieData.map((entry) => {
-                const total = pieData.reduce((s, e) => s + e.value, 0);
-                const pct = total ? Math.round((entry.value / total) * 100) : 0;
+              {visiblePieData.map((entry) => {
+                const pct = totalPieValue ? Math.round((entry.value / totalPieValue) * 100) : 0;
                 return (
-                  <div key={entry.name} className="flex items-center gap-3">
-                    <span className="text-base">{entry.icon}</span>
-                    <div className="flex-1">
-                      <div className="flex justify-between text-xs mb-0.5">
-                        <span>{entry.name}</span>
-                        <span className="font-medium">{formatCurrency(entry.value, currency)}</span>
+                  <div key={entry.name} className="flex items-center gap-2.5">
+                    <span className="text-sm">{entry.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between gap-2 text-xs mb-0.5">
+                        <span className="truncate">{entry.name}</span>
+                        <span className="font-medium shrink-0">{formatCurrency(entry.value, currency)}</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
                         <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: entry.color }} />
                       </div>
                     </div>
-                    <span className="text-xs text-[hsl(var(--muted-foreground))] w-8 text-right">{pct}%</span>
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
                   </div>
                 );
               })}
+              {!showAllCategories && pieData.length > visiblePieData.length && (
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                  {pieData.length - visiblePieData.length} kategori lain disembunyikan
+                </p>
+              )}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Budget vs Actuals — monthly only */}
+      {mode === "monthly" && budgetRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>Anggaran Bulan Ini</CardTitle>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Pemakaian dihitung dari pengeluaran bersih per kategori</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {activeBudgetRows.length > 5 && (
+                  <button
+                    onClick={() => setShowAllBudgets((value) => !value)}
+                    className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
+                  >
+                    {showAllBudgets ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    {showAllBudgets ? "Ringkas" : `Semua ${activeBudgetRows.length}`}
+                  </button>
+                )}
+                <button
+                  onClick={() => { setBudgetCategoryId(undefined); setBudgetInitialAmount(0); setBudgetFormOpen(true); }}
+                  className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
+                >
+                  <Target size={13} /> + Atur
+                </button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-3 pt-1 space-y-2.5">
+            {visibleBudgetRows.map(({ category, actual, budget, pct }) => {
+              const over = !!budget && actual > budget.amount;
+              return (
+                <div key={category.id} className="flex items-center gap-2.5">
+                  <span className="text-sm">{category.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between gap-2 text-xs mb-0.5">
+                      <span className="truncate">{category.name}</span>
+                      <span className="font-medium shrink-0">
+                        {formatCurrency(actual, currency)}
+                        {budget && <span className={`ml-1 ${over ? "text-red-500" : "text-[hsl(var(--muted-foreground))]"}`}>/ {formatCurrency(budget.amount, currency)}</span>}
+                      </span>
+                    </div>
+                    {budget ? (
+                      <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
+                        <div
+                          className="h-1.5 rounded-full transition-all"
+                          style={{ width: `${pct}%`, background: over ? "#ef4444" : pct > 80 ? "#f59e0b" : category.color }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-1.5 rounded-full bg-[hsl(var(--border))] relative">
+                        <div className="h-1.5 rounded-full transition-all" style={{ width: "100%", background: `${category.color}44` }} />
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => openBudgetForm(category.id!)}
+                    className="p-1.5 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                  >
+                    <Target size={12} />
+                  </button>
+                </div>
+              );
+            })}
+            {!showAllBudgets && activeBudgetRows.length > visibleBudgetRows.length && (
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                {activeBudgetRows.length - visibleBudgetRows.length} kategori budget aktif lain disembunyikan
+              </p>
+            )}
+
+            {unusedBudgetRows.length > 0 && (
+              <div className="pt-2 border-t border-[hsl(var(--border))]">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Belum terpakai bulan ini</p>
+                  <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{unusedBudgetRows.length} kategori</span>
+                </div>
+                <div className="space-y-2">
+                  {visibleUnusedBudgetRows.map(({ category, budget }) => (
+                    <div key={category.id} className="flex items-center gap-2.5">
+                      <span className="text-sm">{category.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between gap-2 text-xs mb-0.5">
+                          <span className="truncate">{category.name}</span>
+                          <span className="font-medium shrink-0">0 / {formatCurrency(budget!.amount, currency)}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-[hsl(var(--border))]" />
+                      </div>
+                      <button
+                        onClick={() => openBudgetForm(category.id!)}
+                        className="p-1.5 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                      >
+                        <Target size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {!showAllBudgets && unusedBudgetRows.length > visibleUnusedBudgetRows.length && (
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                      {unusedBudgetRows.length - visibleUnusedBudgetRows.length} budget belum terpakai disembunyikan
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -305,89 +510,41 @@ export default function Reports() {
       {accounts.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Saldo per Akun</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-2 space-y-3">
-            {accounts
-              .filter((a) => !a.isArchived)
-              .map((acc) => {
-                const totalAll = accounts.filter((a) => !a.isArchived).reduce((s, a) => s + Math.abs(a.currentBalance), 0);
-                const pct = totalAll ? Math.round((Math.abs(acc.currentBalance) / totalAll) * 100) : 0;
-                return (
-                  <div key={acc.id} className="flex items-center gap-3">
-                    <span className="text-base">{acc.icon}</span>
-                    <div className="flex-1">
-                      <div className="flex justify-between text-xs mb-0.5">
-                        <span>{acc.name}</span>
-                        <span className="font-medium">{formatCurrency(acc.currentBalance, currency)}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
-                        <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: acc.color }} />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Budget vs Actuals — monthly only */}
-      {mode === "monthly" && pieData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Anggaran Bulan Ini</CardTitle>
-              <button
-                onClick={() => { setBudgetCategoryId(undefined); setBudgetInitialAmount(0); setBudgetFormOpen(true); }}
-                className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-              >
-                <Target size={13} /> + Atur
-              </button>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Saldo per Akun</CardTitle>
+              {accounts.filter((a) => !a.isArchived).length > 5 && (
+                <button
+                  onClick={() => setShowAllAccounts((value) => !value)}
+                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
+                >
+                  {showAllAccounts ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  {showAllAccounts ? "Ringkas" : `Semua ${accounts.filter((a) => !a.isArchived).length}`}
+                </button>
+              )}
             </div>
           </CardHeader>
-          <CardContent className="p-4 pt-2 space-y-3">
-            {pieData.map((entry) => {
-              const cat = categories.find((c) => c.name === entry.name);
-              const budget = cat ? budgets.find((b) => b.categoryId === cat.id) : undefined;
-              const pct = budget ? Math.min(Math.round((entry.value / budget.amount) * 100), 100) : 0;
-              const over = budget && entry.value > budget.amount;
+          <CardContent className="p-3 pt-1 space-y-2.5">
+            {visibleAccounts.map((acc) => {
+              const totalAll = accounts.filter((a) => !a.isArchived).reduce((s, a) => s + Math.abs(a.currentBalance), 0);
+              const pct = totalAll ? Math.round((Math.abs(acc.currentBalance) / totalAll) * 100) : 0;
               return (
-                <div key={entry.name} className="flex items-center gap-3">
-                  <span className="text-base">{entry.icon}</span>
-                  <div className="flex-1">
-                    <div className="flex justify-between text-xs mb-0.5">
-                      <span>{entry.name}</span>
-                      <span className="font-medium">
-                        {formatCurrency(entry.value, currency)}
-                        {budget && <span className={`ml-1 ${over ? "text-red-500" : "text-[hsl(var(--muted-foreground))]"}`}>/ {formatCurrency(budget.amount, currency)}</span>}
-                      </span>
+                <div key={acc.id} className="flex items-center gap-2.5">
+                  <span className="text-sm">{acc.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between gap-2 text-xs mb-0.5">
+                      <span className="truncate">{acc.name}</span>
+                      <span className="font-medium shrink-0">{formatCurrency(acc.currentBalance, currency)}</span>
                     </div>
-                    {budget ? (
-                      <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
-                        <div
-                          className="h-1.5 rounded-full transition-all"
-                          style={{ width: `${pct}%`, background: over ? "#ef4444" : pct > 80 ? "#f59e0b" : entry.color }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="h-1.5 rounded-full bg-[hsl(var(--border))] relative">
-                        <div className="h-1.5 rounded-full transition-all" style={{ width: `100%`, background: `${entry.color}44` }} />
-                      </div>
-                    )}
+                    <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
+                      <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: acc.color }} />
+                    </div>
                   </div>
-                  <button
-                    onClick={() => cat && openBudgetForm(cat.id!)}
-                    className="p-1.5 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                  >
-                    <Target size={12} />
-                  </button>
                 </div>
               );
             })}
-            {budgets.length === 0 && (
-              <p className="text-xs text-[hsl(var(--muted-foreground))] text-center py-2">
-                Tap <Target size={11} className="inline" /> di setiap baris untuk mengatur batas anggaran
+            {!showAllAccounts && accounts.filter((a) => !a.isArchived).length > visibleAccounts.length && (
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                {accounts.filter((a) => !a.isArchived).length - visibleAccounts.length} akun lain disembunyikan
               </p>
             )}
           </CardContent>

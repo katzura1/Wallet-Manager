@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Button, Input, Select, EmptyState, Modal } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
@@ -17,7 +18,8 @@ const INTERVAL_LABEL: Record<string, string> = {
 export default function Transactions() {
   const { accounts, transactions, categories, filter, setFilter, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<"all" | "recurring">("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<"all" | "recurring">(() => searchParams.get("tab") === "recurring" ? "recurring" : "all");
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Transaction | null>(null);
   const [showFilter, setShowFilter] = useState(false);
@@ -32,9 +34,22 @@ export default function Transactions() {
   const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
 
   useEffect(() => {
+    setSearch(filter.search ?? "");
+  }, [filter.search]);
+
+  useEffect(() => {
     void refreshAll();
     void loadRecurring();
   }, []);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "recurring" || tab === "all") {
+      setActiveTab(tab);
+      return;
+    }
+    setActiveTab("all");
+  }, [searchParams]);
 
   useEffect(() => {
     void loadSplits();
@@ -91,14 +106,55 @@ export default function Transactions() {
   }
   const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a));
 
+  function handleTabChange(tab: "all" | "recurring") {
+    setActiveTab(tab);
+    setSearchParams(tab === "all" ? {} : { tab });
+  }
+
+  const activeFilterChips = [
+    filter.search ? {
+      key: "search",
+      label: `Cari: ${filter.search}`,
+      onRemove: () => {
+        setSearch("");
+        setFilter({ ...filter, search: undefined });
+      },
+    } : null,
+    filter.accountId !== undefined ? {
+      key: "accountId",
+      label: `Akun: ${getAccountName(filter.accountId)}`,
+      onRemove: () => setFilter({ ...filter, accountId: undefined }),
+    } : null,
+    filter.type ? {
+      key: "type",
+      label: `Tipe: ${filter.type === "income" ? "Pemasukan" : filter.type === "expense" ? "Pengeluaran" : "Transfer"}`,
+      onRemove: () => setFilter({ ...filter, type: undefined }),
+    } : null,
+    filter.dateFrom ? {
+      key: "dateFrom",
+      label: `Dari: ${formatDate(filter.dateFrom, "dd MMM")}`,
+      onRemove: () => setFilter({ ...filter, dateFrom: undefined }),
+    } : null,
+    filter.dateTo ? {
+      key: "dateTo",
+      label: `Sampai: ${formatDate(filter.dateTo, "dd MMM")}`,
+      onRemove: () => setFilter({ ...filter, dateTo: undefined }),
+    } : null,
+  ].filter((item): item is { key: string; label: string; onRemove: () => void } => item !== null);
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between pt-2">
         <h1 className="text-xl font-bold">Transaksi</h1>
         <div className="flex gap-2">
           {activeTab === "all" && (
-            <Button size="icon" variant="outline" onClick={() => setShowFilter(!showFilter)}>
+            <Button size="icon" variant="outline" onClick={() => setShowFilter(!showFilter)} className="relative">
               <Filter size={16} />
+              {activeFilterChips.length > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[10px] leading-4 font-bold">
+                  {activeFilterChips.length}
+                </span>
+              )}
             </Button>
           )}
           <Button size="sm" onClick={() => activeTab === "recurring" ? setRecurringFormOpen(true) : setAddOpen(true)}>
@@ -110,13 +166,13 @@ export default function Transactions() {
       {/* Tab toggle */}
       <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
         <button
-          onClick={() => setActiveTab("all")}
+          onClick={() => handleTabChange("all")}
           className={`flex-1 py-2 font-medium transition-colors ${activeTab === "all" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
         >
           Semua
         </button>
         <button
-          onClick={() => setActiveTab("recurring")}
+          onClick={() => handleTabChange("recurring")}
           className={`flex-1 py-2 font-medium transition-colors flex items-center justify-center gap-1.5 ${activeTab === "recurring" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
         >
           <RefreshCw size={13} /> Terjadwal
@@ -138,6 +194,30 @@ export default function Transactions() {
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
           />
+        </div>
+      )}
+
+      {activeTab === "all" && activeFilterChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {activeFilterChips.map((chip) => (
+            <button
+              key={chip.key}
+              onClick={chip.onRemove}
+              className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]"
+            >
+              <span>{chip.label}</span>
+              <span className="text-[hsl(var(--muted-foreground))]">×</span>
+            </button>
+          ))}
+          <button
+            onClick={() => {
+              setSearch("");
+              setFilter({});
+            }}
+            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            Reset semua
+          </button>
         </div>
       )}
 
