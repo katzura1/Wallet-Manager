@@ -18,6 +18,15 @@ export async function getRecurringTransactions(): Promise<RecurringTransaction[]
   return db.recurring.orderBy("nextDate").toArray();
 }
 
+// get all recurring where nextDate is next 7 days
+export async function getUpcomingRecurringTransactions(): Promise<RecurringTransaction[]> {
+  const today = todayISO();
+  const nextWeek = advanceDate(today, "weekly");
+  return db.recurring
+    .where("nextDate").between(today, nextWeek, true, true)
+    .toArray();
+}
+
 export async function addRecurring(data: Omit<RecurringTransaction, "id" | "createdAt">): Promise<void> {
   await db.recurring.add({ ...data, createdAt: new Date().toISOString() });
 }

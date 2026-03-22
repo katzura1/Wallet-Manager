@@ -6,7 +6,7 @@ import { TransactionForm } from "@/components/forms/TransactionForm";
 import { AITransactionForm } from "@/components/forms/AITransactionForm";
 import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
 import { deleteTransaction } from "@/db/transactions";
-import { getRecurringTransactions } from "@/db/recurring";
+import { getUpcomingRecurringTransactions } from "@/db/recurring";
 import { getBudgetsForMonth } from "@/db/budgets";
 import { getCategoryExpenseData } from "@/db/transactions";
 import { getCategories } from "@/db/categories";
@@ -61,7 +61,7 @@ export default function Dashboard() {
     await refreshAll();
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const [recurring, budgets, expenseByCategory, allCategories] = await Promise.all([
-      getRecurringTransactions(),
+      getUpcomingRecurringTransactions(),
       getBudgetsForMonth(monthKey),
       getCategoryExpenseData(now.getFullYear(), now.getMonth() + 1),
       getCategories(),
