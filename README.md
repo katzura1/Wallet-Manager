@@ -1,5 +1,25 @@
 # Wallet Manager PWA
 
+## Google Drive Backup Setup
+
+Fitur Cloud Backup di halaman Settings membutuhkan OAuth Client ID dari Google Cloud.
+
+1. Aktifkan Google Drive API di project Google Cloud.
+2. Buat OAuth Client type Web application.
+3. Tambahkan Authorized JavaScript origins minimal:
+	- http://localhost:5173
+	- origin production aplikasi kamu
+4. Set environment variable Vite:
+
+```bash
+VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id
+```
+
+Catatan perilaku saat ini:
+- Backup cloud menyimpan file JSON tanpa enkripsi tambahan.
+- Auto-backup hanya berjalan saat aplikasi terbuka dan perangkat online.
+- Restore dari cloud selalu meminta pilihan mode merge atau replace.
+
 ## Next Agent Backlog
 
 ### Current State

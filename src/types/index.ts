@@ -160,3 +160,22 @@ export interface TransactionWithDetails extends Transaction {
   toAccount?: Account;
   category?: Category;
 }
+
+export interface GoogleAuthState {
+  isConfigured: boolean;
+  isSignedIn: boolean;
+  expiresAt: number | null;
+}
+
+export interface GoogleDriveBackupFile {
+  id: string;
+  name: string;
+  createdTime: string;
+  modifiedTime: string;
+  size: number;
+}
+
+export interface CloudBackupSettings {
+  enabled: boolean;
+  intervalHours: number;
+}

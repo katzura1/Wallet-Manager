@@ -200,7 +200,7 @@ export type BackupData = z.infer<typeof BackupSchemaV4>;
 
 // ─── Export ────────────────────────────────────────────────────────────────────
 
-export async function exportJSON(): Promise<void> {
+export async function createBackupData(): Promise<BackupData> {
   const [
     accounts,
     categories,
@@ -232,7 +232,7 @@ export async function exportJSON(): Promise<void> {
       db.syncLog.toArray(),
     ]);
 
-  const backup: BackupData = {
+  return {
     version: 4,
     exportedAt: new Date().toISOString(),
     accounts,
@@ -249,6 +249,15 @@ export async function exportJSON(): Promise<void> {
     portfolioHistory,
     syncLog,
   };
+}
+
+export function createBackupFilename(exportedAtIso?: string): string {
+  const iso = (exportedAtIso ?? new Date().toISOString()).replace(/[:.]/g, "-");
+  return `wallet-backup-${iso}.json`;
+}
+
+export async function exportJSON(): Promise<void> {
+  const backup = await createBackupData();
 
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   downloadBlob(blob, `wallet-backup-${dateStamp()}.json`);
