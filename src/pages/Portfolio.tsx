@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, CartesianGrid, XAxis, ResponsiveContainer } from "recharts";
 import { Button, Input, Modal, Spinner } from "@/components/ui";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
@@ -346,20 +346,27 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
 
         <Input
           label={`Harga Beli Rata-rata (${currency})`}
-          type="number"
+          type="text"
           inputMode="numeric"
           placeholder="0"
-          value={avgBuyPrice}
-          onChange={(e) => { setAvgBuyPrice(e.target.value); setError(""); }}
+          value={formatNumberWithSeparator(avgBuyPrice)}
+          onChange={(e) => {
+            const cleanValue = e.target.value.replace(/\D/g, "");
+            setAvgBuyPrice(cleanValue);
+            setError("");
+          }}
         />
 
         <Input
           label={`Harga Manual (${currency}) — opsional, jika sync gagal`}
-          type="number"
+          type="text"
           inputMode="numeric"
           placeholder="0"
-          value={manualPrice}
-          onChange={(e) => setManualPrice(e.target.value)}
+          value={formatNumberWithSeparator(manualPrice)}
+          onChange={(e) => {
+            const cleanValue = e.target.value.replace(/\D/g, "");
+            setManualPrice(cleanValue);
+          }}
         />
 
         <Button type="submit" className="w-full" disabled={loading}>
