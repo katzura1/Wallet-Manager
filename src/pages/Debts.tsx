@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Select, Textarea, Modal } from "@/components/ui";
 import { getDebts, addDebt, updateDebt, deleteDebt, payDebt, getDebtPayments, updateDebtPayment, deleteDebtPayment } from "@/db/debts";
-import { formatCurrency, formatDate, todayISO } from "@/lib/utils";
+import { formatCurrency, formatDate, formatNumberWithSeparator, todayISO } from "@/lib/utils";
 import type { Debt, DebtPayment } from "@/types";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 
@@ -82,11 +82,16 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
         />
         <Input
           label="Jumlah"
-          type="number"
+          type="text"
           inputMode="numeric"
           placeholder="0"
-          value={amount}
-          onChange={(e) => { setAmount(e.target.value); setError(""); }}
+          value={formatNumberWithSeparator(amount)}
+          onChange={(e) => { 
+            const cleanValue = e.target.value.replace(/\D/g, "");
+            // console.log("Cleaned amount input:", cleanValue);
+            setAmount(cleanValue); 
+            setError(""); 
+          }}
         />
         <Select label="Akun (opsional)" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
           <option value="">-- Tidak Ada --</option>
@@ -146,10 +151,15 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
         </p>
         <Input
           label="Jumlah Pembayaran"
-          type="number"
+          type="text"
           inputMode="numeric"
-          value={amount}
-          onChange={(e) => { setAmount(e.target.value); setError(""); }}
+          value={formatNumberWithSeparator(amount)}
+          onChange={(e) => { 
+            const cleanValue = e.target.value.replace(/\D/g, "");
+            // console.log("Cleaned amount input:", cleanValue);
+            setAmount(cleanValue); 
+            setError(""); 
+          }}
           error={error}
         />
         <Select label="Akun (opsional)" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
