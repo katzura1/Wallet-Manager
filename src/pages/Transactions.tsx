@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { Button, Input, Select, EmptyState, Modal } from "@/components/ui";
+import { Button, Input, Select, EmptyState, Modal, Badge, Spinner } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { RecurringForm } from "@/components/forms/RecurringForm";
 import { deleteTransaction } from "@/db/transactions";
-import { getRecurringTransactions, deleteRecurring, updateRecurring } from "@/db/recurring";
+import { getRecurringTransactions, deleteRecurring, updateRecurring, getRecurringDueInfo, runRecurringNow, skipNextRecurring } from "@/db/recurring";
 import { db } from "@/db/db";
 import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
-import { Plus, Search, Filter, Trash2, Pencil, RefreshCw, Pause, Play, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Search, Filter, Trash2, Pencil, RefreshCw, Pause, Play, ChevronDown, ChevronUp, SkipForward } from "lucide-react";
 
 const INTERVAL_LABEL: Record<string, string> = {
   daily: "Harian", weekly: "Mingguan", monthly: "Bulanan", yearly: "Tahunan",
@@ -27,9 +27,14 @@ export default function Transactions() {
   const [deleteTxId, setDeleteTxId] = useState<number | null>(null);
   // Recurring state
   const [recurring, setRecurring] = useState<RecurringTransaction[]>([]);
+  const [recurringLoading, setRecurringLoading] = useState(true);
+  const [recurringError, setRecurringError] = useState<string | null>(null);
+  const [recurringBusyId, setRecurringBusyId] = useState<number | null>(null);
+  const [recurringFeedback, setRecurringFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [recurringFormOpen, setRecurringFormOpen] = useState(false);
   const [editRecurring, setEditRecurring] = useState<RecurringTransaction | null>(null);
   const [deleteRecurringId, setDeleteRecurringId] = useState<number | null>(null);
+  const [pendingRecurringAction, setPendingRecurringAction] = useState<{ rec: RecurringTransaction; action: "toggle" | "run" | "skip" } | null>(null);
   const [splitMap, setSplitMap] = useState<Record<number, TransactionSplit[]>>({});
   const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
 
@@ -41,6 +46,12 @@ export default function Transactions() {
     void refreshAll();
     void loadRecurring();
   }, []);
+
+  useEffect(() => {
+    if (!recurringFeedback) return;
+    const timer = window.setTimeout(() => setRecurringFeedback(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [recurringFeedback]);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -66,7 +77,15 @@ export default function Transactions() {
   }
 
   async function loadRecurring() {
-    setRecurring(await getRecurringTransactions());
+    setRecurringLoading(true);
+    setRecurringError(null);
+    try {
+      setRecurring(await getRecurringTransactions());
+    } catch {
+      setRecurringError("Gagal memuat transaksi terjadwal.");
+    } finally {
+      setRecurringLoading(false);
+    }
   }
 
   function getAccountName(id: number) {
@@ -84,14 +103,83 @@ export default function Transactions() {
   }
 
   async function handleDeleteRecurring(id: number) {
-    await deleteRecurring(id);
-    await loadRecurring();
-    setDeleteRecurringId(null);
+    setRecurringBusyId(id);
+    try {
+      await deleteRecurring(id);
+      await loadRecurring();
+      setDeleteRecurringId(null);
+      setRecurringFeedback({ type: "success", text: "Jadwal berhasil dihapus." });
+    } catch {
+      setRecurringFeedback({ type: "error", text: "Gagal menghapus jadwal." });
+    } finally {
+      setRecurringBusyId(null);
+    }
   }
 
   async function handleToggleRecurring(rec: RecurringTransaction) {
-    await updateRecurring(rec.id!, { isActive: !rec.isActive });
-    await loadRecurring();
+    setRecurringBusyId(rec.id ?? null);
+    try {
+      await updateRecurring(rec.id!, { isActive: !rec.isActive });
+      await loadRecurring();
+      setRecurringFeedback({ type: "success", text: rec.isActive ? "Jadwal dipause." : "Jadwal diaktifkan kembali." });
+    } catch {
+      setRecurringFeedback({ type: "error", text: "Gagal mengubah status jadwal." });
+    } finally {
+      setRecurringBusyId(null);
+    }
+  }
+
+  async function handleRunRecurringNow(rec: RecurringTransaction) {
+    setRecurringBusyId(rec.id ?? null);
+    try {
+      await runRecurringNow(rec.id!);
+      await refreshAll();
+      await loadRecurring();
+      setRecurringFeedback({ type: "success", text: "Jadwal dijalankan sekarang." });
+    } catch {
+      setRecurringFeedback({ type: "error", text: "Gagal menjalankan jadwal sekarang." });
+    } finally {
+      setRecurringBusyId(null);
+    }
+  }
+
+  async function handleSkipNextRecurring(rec: RecurringTransaction) {
+    setRecurringBusyId(rec.id ?? null);
+    try {
+      await skipNextRecurring(rec.id!);
+      await loadRecurring();
+      setRecurringFeedback({ type: "success", text: "Jadwal berikutnya berhasil dilewati." });
+    } catch {
+      setRecurringFeedback({ type: "error", text: "Gagal melewati jadwal berikutnya." });
+    } finally {
+      setRecurringBusyId(null);
+    }
+  }
+
+  function getDueClass(tone: "overdue" | "today" | "soon" | "upcoming") {
+    if (tone === "overdue") return "bg-red-500/10 text-red-600 dark:text-red-400";
+    if (tone === "today") return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+    if (tone === "soon") return "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400";
+    return "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]";
+  }
+
+  function requestRecurringAction(rec: RecurringTransaction, action: "toggle" | "run" | "skip") {
+    setPendingRecurringAction({ rec, action });
+  }
+
+  async function confirmRecurringAction() {
+    if (!pendingRecurringAction) return;
+
+    const { rec, action } = pendingRecurringAction;
+    if (action === "toggle") {
+      await handleToggleRecurring(rec);
+    } else if (action === "run") {
+      await handleRunRecurringNow(rec);
+    } else {
+      await handleSkipNextRecurring(rec);
+    }
+
+    setPendingRecurringAction(null);
   }
 
   function handleSearch(val: string) {
@@ -363,35 +451,109 @@ export default function Transactions() {
 
       {/* Recurring tab */}
       {activeTab === "recurring" && (
-        recurring.length === 0 ? (
+        recurringLoading ? (
+          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
+            <Spinner />
+          </div>
+        ) : recurringError ? (
+          <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 space-y-3">
+            <p className="text-sm text-red-700 dark:text-red-300">{recurringError}</p>
+            <Button size="sm" variant="outline" onClick={() => void loadRecurring()}>Coba lagi</Button>
+          </div>
+        ) : recurring.length === 0 ? (
           <EmptyState icon="🔄" title="Belum ada transaksi terjadwal" description="Tap + Tambah untuk membuat transaksi otomatis seperti gaji atau tagihan bulanan" />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
+            {recurringFeedback && (
+              <div className={`rounded-xl border px-3 py-2 text-sm ${recurringFeedback.type === "success" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"}`}>
+                {recurringFeedback.text}
+              </div>
+            )}
+
+            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2.5">
+              <p className="text-xs font-semibold">Ringkasan Jadwal</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                {recurring.filter((r) => r.isActive).length} aktif • {recurring.filter((r) => !r.isActive).length} pause
+              </p>
+            </div>
+
             {recurring.map((rec) => {
               const cat = getCategory(rec.categoryId);
+              const due = getRecurringDueInfo(rec.nextDate);
+              const isBusy = recurringBusyId === rec.id;
               return (
-                <div key={rec.id} className={`flex items-center gap-3 p-3 rounded-2xl border bg-[hsl(var(--card))] ${rec.isActive ? "border-[hsl(var(--border))]" : "border-dashed border-[hsl(var(--border))] opacity-60"}`}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-none ${rec.type === "income" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
-                    {cat ? cat.icon : rec.type === "income" ? "💰" : "💸"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{rec.note || cat?.name || "Tanpa nama"}</p>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                      {getAccountName(rec.accountId)} · {INTERVAL_LABEL[rec.interval]} · Berikutnya {formatDate(rec.nextDate)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <p className={`font-semibold text-sm ${rec.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
+                <div key={rec.id} className={`rounded-xl border bg-[hsl(var(--card))] ${rec.isActive ? "border-[hsl(var(--border))]" : "border-dashed border-[hsl(var(--border))] opacity-75"}`}>
+                  <div className="flex items-center gap-2.5 p-2.5 pb-1.5">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base flex-none ${rec.type === "income" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+                      {cat ? cat.icon : rec.type === "income" ? "💰" : "💸"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs font-medium truncate">{rec.note || cat?.name || "Tanpa nama"}</p>
+                        <Badge className={rec.isActive ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}>
+                          {rec.isActive ? "Aktif" : "Pause"}
+                        </Badge>
+                        <Badge className={getDueClass(due.tone)}>{due.label}</Badge>
+                      </div>
+                      <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                        {getAccountName(rec.accountId)} · {INTERVAL_LABEL[rec.interval]} · Berikutnya {formatDate(rec.nextDate, "dd MMM")}
+                      </p>
+                    </div>
+                    <p className={`font-semibold text-xs ${rec.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
                       {rec.type === "expense" ? "-" : "+"}{formatCurrency(rec.amount, currency)}
                     </p>
-                    <button onClick={() => handleToggleRecurring(rec)} className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-indigo-500 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1.5 px-2.5 pb-2.5 pt-0.5">
+                    <button
+                      onClick={() => requestRecurringAction(rec, "toggle")}
+                      disabled={isBusy}
+                      aria-label={rec.isActive ? "Pause jadwal" : "Aktifkan jadwal"}
+                      title={rec.isActive ? "Pause" : "Aktifkan"}
+                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+                    >
                       {rec.isActive ? <Pause size={13} /> : <Play size={13} />}
+                      <span className="sr-only">{rec.isActive ? "Pause" : "Aktifkan"}</span>
                     </button>
-                    <button onClick={() => setEditRecurring(rec)} className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-indigo-500 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
+                    <button
+                      onClick={() => requestRecurringAction(rec, "run")}
+                      disabled={isBusy}
+                      aria-label="Jalankan sekarang"
+                      title="Jalankan sekarang"
+                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10"
+                    >
+                      <Play size={13} />
+                      <span className="sr-only">Jalankan</span>
+                    </button>
+                    <button
+                      onClick={() => requestRecurringAction(rec, "skip")}
+                      disabled={isBusy}
+                      aria-label="Lewati jadwal berikutnya"
+                      title="Lewati berikutnya"
+                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+                    >
+                      <SkipForward size={13} />
+                      <span className="sr-only">Lewati</span>
+                    </button>
+                    <button
+                      onClick={() => setEditRecurring(rec)}
+                      disabled={isBusy}
+                      aria-label="Edit jadwal"
+                      title="Edit jadwal"
+                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+                    >
                       <Pencil size={13} />
+                      <span className="sr-only">Edit</span>
                     </button>
-                    <button onClick={() => setDeleteRecurringId(rec.id!)} className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30">
+                    <button
+                      onClick={() => setDeleteRecurringId(rec.id!)}
+                      disabled={isBusy}
+                      aria-label="Hapus jadwal"
+                      title="Hapus jadwal"
+                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-red-500 hover:bg-red-500/10"
+                    >
                       <Trash2 size={13} />
+                      <span className="sr-only">Hapus</span>
                     </button>
                   </div>
                 </div>
@@ -425,7 +587,12 @@ export default function Transactions() {
         key={editRecurring?.id ?? "recurring-new"}
         open={recurringFormOpen || editRecurring !== null}
         onClose={() => { setRecurringFormOpen(false); setEditRecurring(null); }}
-        onSaved={() => { void loadRecurring(); setRecurringFormOpen(false); setEditRecurring(null); }}
+        onSaved={() => {
+          void loadRecurring();
+          setRecurringFormOpen(false);
+          setEditRecurring(null);
+          setRecurringFeedback({ type: "success", text: "Jadwal tersimpan." });
+        }}
         accounts={accounts.filter((a) => !a.isArchived) as typeof accounts}
         categories={categories}
         existing={editRecurring ?? undefined}
@@ -436,6 +603,36 @@ export default function Transactions() {
         <div className="flex gap-2">
           <Button variant="outline" className="flex-1" onClick={() => setDeleteTxId(null)}>Batal</Button>
           <Button variant="destructive" className="flex-1" onClick={() => deleteTxId !== null && handleDelete(deleteTxId)}>Hapus</Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={pendingRecurringAction !== null}
+        onClose={() => setPendingRecurringAction(null)}
+        title={
+          pendingRecurringAction?.action === "run"
+            ? "Jalankan Jadwal Sekarang"
+            : pendingRecurringAction?.action === "skip"
+              ? "Lewati Jadwal Berikutnya"
+              : pendingRecurringAction?.rec.isActive
+                ? "Pause Jadwal"
+                : "Aktifkan Jadwal"
+        }
+      >
+        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
+          {pendingRecurringAction?.action === "run"
+            ? <>Transaksi <strong>{pendingRecurringAction.rec.note || "terjadwal"}</strong> akan dicatat untuk hari ini. Lanjutkan?</>
+            : pendingRecurringAction?.action === "skip"
+              ? <>Jadwal berikutnya untuk <strong>{pendingRecurringAction.rec.note || "transaksi ini"}</strong> akan dilewati. Lanjutkan?</>
+              : pendingRecurringAction?.rec.isActive
+                ? <>Jadwal <strong>{pendingRecurringAction.rec.note || "ini"}</strong> akan di-pause sampai diaktifkan lagi. Lanjutkan?</>
+                : <>Jadwal <strong>{pendingRecurringAction?.rec.note || "ini"}</strong> akan diaktifkan kembali. Lanjutkan?</>}
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => setPendingRecurringAction(null)}>Batal</Button>
+          <Button className="flex-1" onClick={() => void confirmRecurringAction()}>
+            Ya, Lanjutkan
+          </Button>
         </div>
       </Modal>
 

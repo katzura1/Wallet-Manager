@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { Button, Input, Select, Modal } from "@/components/ui";
+import { useEffect, useState } from "react";
+import { Button, Input, Select, Modal, Badge } from "@/components/ui";
 import { todayISO, formatNumberWithSeparator } from "@/lib/utils";
-import { addRecurring, updateRecurring } from "@/db/recurring";
+import { addRecurring, updateRecurring, getNextRecurringDates } from "@/db/recurring";
 import type { Account, Category, RecurringTransaction, RecurringInterval } from "@/types";
 
 interface RecurringFormProps {
@@ -33,6 +33,15 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
   const [error, setError] = useState("");
 
   const filteredCategories = categories.filter((c) => c.type === type || c.type === "both");
+  const upcomingDates = getNextRecurringDates(nextDate, interval, 3);
+
+  useEffect(() => {
+    if (!categoryId) return;
+    const stillValid = filteredCategories.some((c) => String(c.id) === categoryId);
+    if (!stillValid) {
+      setCategoryId("");
+    }
+  }, [type]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,6 +77,8 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
       }
       onSaved();
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan transaksi terjadwal");
     } finally {
       setLoading(false);
     }
@@ -80,7 +91,16 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
 
   return (
     <Modal open={open} onClose={onClose} title={existing ? "Edit Transaksi Terjadwal" : "Tambah Transaksi Terjadwal"}>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <Badge className="bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">{existing ? "Mode Edit" : "Mode Baru"}</Badge>
+          {existing && (
+            <Badge className={isActive ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}>
+              {isActive ? "Aktif" : "Pause"}
+            </Badge>
+          )}
+        </div>
+
         {/* Type toggle */}
         <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden">
           {typeButtons.map(({ t, label, cls }) => (
@@ -88,7 +108,7 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
               key={t}
               type="button"
               onClick={() => { setType(t); setError(""); }}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${
+              className={`flex-1 py-1.5 text-xs font-medium transition-colors ${
                 type === t ? cls : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
               }`}
             >
@@ -135,13 +155,27 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
           label={existing ? "Tanggal Berikutnya" : "Mulai Tanggal"}
           type="date"
           value={nextDate}
-          onChange={(e) => setNextDate(e.target.value)}
+          onChange={(e) => {
+            setNextDate(e.target.value);
+            setError("");
+          }}
         />
+
+        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-2.5">
+          <p className="text-xs font-semibold text-[hsl(var(--foreground))]">Preview Jadwal Berikutnya</p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {upcomingDates.map((date) => (
+              <Badge key={date} className="bg-[hsl(var(--card))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))] text-[11px]">
+                {date}
+              </Badge>
+            ))}
+          </div>
+        </div>
 
         <div className="space-y-1">
           <label className="text-sm font-medium">Catatan</label>
           <input
-            className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-1.5 text-sm placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500"
             placeholder="mis. Gaji bulanan, Netflix, Arisan..."
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -151,6 +185,8 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
         {existing && (
           <label className="flex items-center gap-3 cursor-pointer">
             <div
+              role="switch"
+              aria-checked={isActive}
               className={`relative w-10 h-6 rounded-full transition-colors ${isActive ? "bg-indigo-500" : "bg-[hsl(var(--border))]"}`}
               onClick={() => setIsActive(!isActive)}
             >
