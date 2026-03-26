@@ -26,7 +26,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   isLoading: false,
 
   loadAccounts: async () => {
-    const accounts = await getAccounts();
+    const accounts = await getAccounts(true);
     set({ accounts });
   },
 
