@@ -829,7 +829,7 @@ export default function Portfolio() {
         setSyncProgress({});
         setSyncErrors({});
         setSyncFinishedAt(null);
-      }, 5000);
+      }, 200);
     } finally {
       setSyncing(false);
     }

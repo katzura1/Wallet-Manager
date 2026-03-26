@@ -56,19 +56,19 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
 
   return (
     <Modal open={open} onClose={onClose} title={existing ? "Edit Hutang/Piutang" : "Tambah Hutang/Piutang"}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="flex rounded-lg border border-[hsl(var(--border))] overflow-hidden">
           <button
             type="button"
             onClick={() => setType("owe")}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "owe" ? "bg-red-500 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+            className={`flex-1 py-1.5 text-xs font-medium transition-colors ${type === "owe" ? "bg-red-500 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
           >
             💸 Kita Hutang
           </button>
           <button
             type="button"
             onClick={() => setType("owed")}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "owed" ? "bg-emerald-500 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+            className={`flex-1 py-1.5 text-xs font-medium transition-colors ${type === "owed" ? "bg-emerald-500 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
           >
             🤝 Piutang
           </button>
@@ -88,7 +88,6 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
           value={formatNumberWithSeparator(amount)}
           onChange={(e) => { 
             const cleanValue = e.target.value.replace(/\D/g, "");
-            // console.log("Cleaned amount input:", cleanValue);
             setAmount(cleanValue); 
             setError(""); 
           }}
@@ -145,8 +144,8 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
 
   return (
     <Modal open={open} onClose={onClose} title={`Bayar: ${debt.name}`}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
           Sisa: <span className="font-semibold text-[hsl(var(--foreground))]">{formatCurrency(debt.remaining, currency)}</span>
         </p>
         <Input
@@ -156,7 +155,6 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
           value={formatNumberWithSeparator(amount)}
           onChange={(e) => { 
             const cleanValue = e.target.value.replace(/\D/g, "");
-            // console.log("Cleaned amount input:", cleanValue);
             setAmount(cleanValue); 
             setError(""); 
           }}
@@ -184,9 +182,10 @@ interface PaymentsHistoryProps {
   open: boolean;
   onClose: () => void;
   debt: Debt;
+  onPaymentChanged: () => void;
 }
 
-function PaymentsHistory({ open, onClose, debt }: PaymentsHistoryProps) {
+function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHistoryProps) {
   const { currency } = useSettingsStore();
   const { accounts } = useWalletStore();
   const [payments, setPayments] = useState<DebtPayment[]>([]);
@@ -219,6 +218,7 @@ function PaymentsHistory({ open, onClose, debt }: PaymentsHistoryProps) {
       await updateDebtPayment(p.id!, { amount: amountNum, date: editDate, note: editNote });
       setEditingId(null);
       reload();
+      onPaymentChanged();
     } finally {
       setSaving(false);
     }
@@ -228,28 +228,29 @@ function PaymentsHistory({ open, onClose, debt }: PaymentsHistoryProps) {
     if (!confirm(`Hapus pembayaran ${formatCurrency(p.amount, currency)} pada ${formatDate(p.date)}?`)) return;
     await deleteDebtPayment(p.id!);
     reload();
+    onPaymentChanged();
   }
 
   return (
     <Modal open={open} onClose={onClose} title={`Riwayat: ${debt.name}`}>
       {payments.length === 0 ? (
-        <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-6">Belum ada pembayaran</p>
+        <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-4">Belum ada pembayaran</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-1">
           {payments.map((p) => (
-            <li key={p.id} className="text-sm py-2 border-b border-[hsl(var(--border))] last:border-0">
+            <li key={p.id} className="text-xs py-1.5 border-b border-[hsl(var(--border))] last:border-0">
               {editingId === p.id ? (
-                <div className="space-y-2">
-                  <div className="flex gap-2">
+                <div className="space-y-1.5">
+                  <div className="flex gap-1.5">
                     <input
                       type="number"
-                      className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                       value={editAmount}
                       onChange={(e) => setEditAmount(e.target.value)}
                     />
                     <input
                       type="date"
-                      className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
                     />
@@ -257,28 +258,28 @@ function PaymentsHistory({ open, onClose, debt }: PaymentsHistoryProps) {
                   <input
                     type="text"
                     placeholder="Catatan (opsional)"
-                    className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                     value={editNote}
                     onChange={(e) => setEditNote(e.target.value)}
                   />
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditingId(null)}>Batal</Button>
-                    <Button size="sm" className="flex-1" disabled={saving} onClick={() => saveEdit(p)}>
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => setEditingId(null)}>Batal</Button>
+                    <Button size="sm" className="flex-1 text-xs" disabled={saving} onClick={() => saveEdit(p)}>
                       {saving ? "Menyimpan…" : "Simpan"}
                     </Button>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-medium">{formatDate(p.date)}</div>
+                <div className="flex items-start justify-between gap-1.5">
+                  <div className="flex-1">
+                    <div className="font-medium text-xs">{formatDate(p.date)}</div>
                     {p.note && <div className="text-[hsl(var(--muted-foreground))] text-xs">{p.note}</div>}
                     {p.accountId && (() => { const acc = accounts.find(a => a.id === p.accountId); return acc ? <div className="text-[hsl(var(--muted-foreground))] text-xs">{acc.icon} {acc.name}</div> : null; })()}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <span className="font-semibold text-emerald-500">{formatCurrency(p.amount, currency)}</span>
-                    <button onClick={() => startEdit(p)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
-                    <button onClick={() => handleDelete(p)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
+                    <span className="font-semibold text-emerald-500 text-xs">{formatCurrency(p.amount, currency)}</span>
+                    <button onClick={() => startEdit(p)} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
+                    <button onClick={() => handleDelete(p)} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
                   </div>
                 </div>
               )}
@@ -306,10 +307,10 @@ function DebtCard({ debt, currency, onEdit, onPay, onHistory, onDelete }: DebtCa
   const isOverdue = debt.dueDate && !debt.isSettled && debt.dueDate < todayISO();
 
   return (
-    <div className="rounded-2xl border border-[hsl(var(--border))] p-4 space-y-3 bg-[hsl(var(--card))]">
-      <div className="flex items-start justify-between">
+    <div className="rounded-lg border border-[hsl(var(--border))] p-2.5 space-y-2 bg-[hsl(var(--card))]">
+      <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="font-semibold text-[hsl(var(--foreground))]">{debt.name}</p>
+          <p className="font-semibold text-sm text-[hsl(var(--foreground))]">{debt.name}</p>
           {debt.dueDate && (
             <p className={`text-xs mt-0.5 ${isOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--muted-foreground))]"}`}>
               {isOverdue ? "⚠️ Jatuh tempo " : "📅 "}{formatDate(debt.dueDate)}
@@ -317,19 +318,19 @@ function DebtCard({ debt, currency, onEdit, onPay, onHistory, onDelete }: DebtCa
           )}
           {debt.isSettled && <span className="inline-block mt-1 text-xs bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">✅ Lunas</span>}
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-0.5">
           <button onClick={onEdit} className="text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] p-1">✏️</button>
           <button onClick={onDelete} className="text-xs text-[hsl(var(--muted-foreground))] hover:text-red-500 p-1">🗑️</button>
         </div>
       </div>
 
-      <div className="space-y-1">
-        <div className="flex justify-between text-sm">
+      <div className="space-y-0.5">
+        <div className="flex justify-between text-xs">
           <span className="text-[hsl(var(--muted-foreground))]">Sisa</span>
           <span className="font-semibold">{formatCurrency(debt.remaining, currency)}</span>
         </div>
-        <div className="w-full h-2 rounded-full bg-[hsl(var(--muted))]">
-          <div className="h-2 rounded-full bg-indigo-500 transition-all" style={{ width: `${pct}%` }} />
+        <div className="w-full h-1.5 rounded-full bg-[hsl(var(--muted))]">
+          <div className="h-1.5 rounded-full bg-indigo-500 transition-all" style={{ width: `${pct}%` }} />
         </div>
         <div className="flex justify-between text-xs text-[hsl(var(--muted-foreground))]">
           <span>Terbayar {pct}%</span>
@@ -338,9 +339,9 @@ function DebtCard({ debt, currency, onEdit, onPay, onHistory, onDelete }: DebtCa
       </div>
 
       {!debt.isSettled && (
-        <div className="flex gap-2 pt-1">
-          <Button size="sm" variant="outline" className="flex-1" onClick={onHistory}>Riwayat</Button>
-          <Button size="sm" className="flex-1" onClick={onPay}>💳 Bayar</Button>
+        <div className="flex gap-1.5 pt-0.5">
+          <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={onHistory}>Riwayat</Button>
+          <Button size="sm" className="flex-1 text-xs" onClick={onPay}>💳 Bayar</Button>
         </div>
       )}
       {debt.isSettled && (
@@ -364,7 +365,7 @@ interface DeleteModalProps {
 function DeleteModal({ open, name, onClose, onConfirm }: DeleteModalProps) {
   return (
     <Modal open={open} onClose={onClose} title="Hapus Hutang/Piutang">
-      <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
+      <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
         Hapus <span className="font-semibold text-[hsl(var(--foreground))]">{name}</span>? Semua riwayat pembayaran juga akan dihapus.
       </p>
       <div className="flex gap-2">
@@ -406,27 +407,27 @@ export default function Debts() {
   const totalOwed = owedDebts.filter((d) => !d.isSettled).reduce((s, d) => s + d.remaining, 0);
 
   return (
-    <div className="p-4 pb-24 space-y-6 max-w-lg mx-auto">
+    <div className="p-3 pb-24 space-y-4 max-w-lg mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-[hsl(var(--foreground))]">Hutang & Piutang</h1>
+        <h1 className="text-lg font-bold text-[hsl(var(--foreground))]">Hutang & Piutang</h1>
         <Button size="sm" onClick={() => setAddOpen(true)}>+ Tambah</Button>
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl bg-red-50 dark:bg-red-900/20 p-4">
-          <p className="text-xs text-red-500 font-medium mb-1">💸 Hutang Saya</p>
-          <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(totalOwe, currency)}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-red-50 dark:bg-red-900/20 p-3">
+          <p className="text-xs text-red-500 font-medium mb-0.5">💸 Hutang Saya</p>
+          <p className="text-base font-bold text-red-600 dark:text-red-400">{formatCurrency(totalOwe, currency)}</p>
         </div>
-        <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 p-4">
-          <p className="text-xs text-emerald-600 font-medium mb-1">🤝 Piutang Saya</p>
-          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalOwed, currency)}</p>
+        <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 p-3">
+          <p className="text-xs text-emerald-600 font-medium mb-0.5">🤝 Piutang Saya</p>
+          <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalOwed, currency)}</p>
         </div>
       </div>
 
       {/* Show settled toggle */}
-      <label className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))] cursor-pointer">
+      <label className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))] cursor-pointer">
         <input
           type="checkbox"
           checked={showSettled}
@@ -438,8 +439,8 @@ export default function Debts() {
 
       {/* Hutang Saya */}
       {oweDebts.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-red-500 uppercase tracking-wide">💸 Hutang Saya</h2>
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold text-red-500 uppercase tracking-wide">💸 Hutang Saya</h2>
           {oweDebts.map((d) => (
             <DebtCard
               key={d.id}
@@ -456,8 +457,8 @@ export default function Debts() {
 
       {/* Piutang Saya */}
       {owedDebts.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-emerald-600 uppercase tracking-wide">🤝 Piutang Saya</h2>
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">🤝 Piutang Saya</h2>
           {owedDebts.map((d) => (
             <DebtCard
               key={d.id}
@@ -484,7 +485,7 @@ export default function Debts() {
       <DebtForm open={addOpen} onClose={() => setAddOpen(false)} onSaved={load} />
       {editDebt && <DebtForm open onClose={() => setEditDebt(null)} onSaved={load} existing={editDebt} />}
       {payDebtTarget && <PayDebtModal open onClose={() => setPayDebtTarget(null)} onSaved={load} debt={payDebtTarget} />}
-      {historyDebt && <PaymentsHistory open onClose={() => setHistoryDebt(null)} debt={historyDebt} />}
+      {historyDebt && <PaymentsHistory open onClose={() => setHistoryDebt(null)} debt={historyDebt} onPaymentChanged={load} />}
       {deleteTarget && (
         <DeleteModal
           open

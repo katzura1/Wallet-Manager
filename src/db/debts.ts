@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { addTransaction } from "./transactions";
+import { addTransaction, deleteTransaction } from "./transactions";
 import { todayISO } from "@/lib/utils";
 import type { Debt, DebtPayment } from "@/types";
 
@@ -67,10 +67,17 @@ export async function updateDebtPayment(
 
 /**
  * Delete a payment record and recalculate the parent debt's remaining balance.
+ * Also deletes any associated transaction if it exists.
  */
 export async function deleteDebtPayment(paymentId: number): Promise<void> {
   const payment = await db.debtPayments.get(paymentId);
   if (!payment) return;
+  
+  // Delete the associated transaction if it exists
+  if (payment.transactionId) {
+    await deleteTransaction(payment.transactionId);
+  }
+  
   await db.debtPayments.delete(paymentId);
   const payments = await db.debtPayments.where("debtId").equals(payment.debtId).toArray();
   const debt = await db.debts.get(payment.debtId);
@@ -98,18 +105,13 @@ export async function payDebt(
   const actualAmount = Math.min(amount, debt.remaining);
   const newRemaining = Math.max(debt.remaining - actualAmount, 0);
 
-  await db.debtPayments.add({ debtId, amount: actualAmount, date, note, accountId, createdAt: new Date().toISOString() });
-  await db.debts.update(debtId, {
-    remaining: newRemaining,
-    isSettled: newRemaining <= 0,
-    updatedAt: new Date().toISOString(),
-  });
-
-  // Optionally reflect in account balance
+  let transactionId: number | undefined;
+  
+  // Create transaction first if accountId is provided
   if (accountId) {
     // owe = kita bayar hutang = pengeluaran; owed = kita terima pembayaran = pemasukan
     const txType = debt.type === "owe" ? "expense" : "income";
-    await addTransaction({
+    transactionId = await addTransaction({
       type: txType,
       amount: actualAmount,
       accountId,
@@ -117,4 +119,21 @@ export async function payDebt(
       note: note || `Pembayaran: ${debt.name}`,
     });
   }
+
+  // Then create the payment record with the transactionId
+  await db.debtPayments.add({ 
+    debtId, 
+    amount: actualAmount, 
+    date, 
+    note, 
+    accountId,
+    transactionId,
+    createdAt: new Date().toISOString() 
+  });
+  
+  await db.debts.update(debtId, {
+    remaining: newRemaining,
+    isSettled: newRemaining <= 0,
+    updatedAt: new Date().toISOString(),
+  });
 }

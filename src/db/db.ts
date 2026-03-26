@@ -44,6 +44,9 @@ class WalletDB extends Dexie {
     this.version(6).stores({
       syncLog: "++id, syncedAt",
     });
+    this.version(7).stores({
+      debtPayments: "++id, debtId, date, transactionId",
+    });
   }
 }
 

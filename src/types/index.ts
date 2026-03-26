@@ -75,6 +75,7 @@ export interface DebtPayment {
   date: string;
   note: string;
   accountId?: number;
+  transactionId?: number;  // reference to associated transaction (if any)
   createdAt: string;
 }
 
