@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, CartesianGrid, XAxis, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, CartesianGrid, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Button, Input, Modal, Spinner } from "@/components/ui";
 import { formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory } from "@/db/assets";
@@ -410,75 +410,94 @@ function AssetCard({ asset, price, currency, onEdit, onDelete, onHistory }: Asse
   const costBasis = asset.quantity * asset.avgBuyPrice;
   const gain = currentValue !== null ? currentValue - costBasis : null;
   const gainPct = gain !== null ? (gain / costBasis) * 100 : null;
+  const roiPct = gainPct; // ROI % is same as gain %
 
   return (
-    <div className="rounded-2xl border border-[hsl(var(--border))] p-4 space-y-3 bg-[hsl(var(--card))]">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-[hsl(var(--foreground))]">{asset.symbol}</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-              {asset.type === "crypto" ? "₿" : asset.type === "stock_idx" ? "🇮🇩" : asset.type === "gold_physical" ? "🥇 Fisik" : asset.type === "gold_digital" ? "🥇 Digital" : asset.type === "mutual_fund" ? "📈 RD" : asset.type === "deposito" ? "🏦" : "🇺🇸"}
-            </span>
-          </div>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">{asset.name}</p>
+    <div className="rounded-2xl border border-[hsl(var(--border))] p-3.5 space-y-2 bg-[hsl(var(--card))]">
+      {/* Row 1: Symbol + Type badge + 24h change */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-bold text-base text-[hsl(var(--foreground))] shrink-0">{asset.symbol}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] shrink-0">
+            {asset.type === "crypto" ? "₿" : asset.type === "stock_idx" ? "🇮🇩" : asset.type === "gold_physical" ? "🥇F" : asset.type === "gold_digital" ? "🥇D" : asset.type === "mutual_fund" ? "📈" : asset.type === "deposito" ? "🏦" : "🇺🇸"}
+          </span>
         </div>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {price?.changePercent24h !== undefined && (
+            <span className={`text-xs font-semibold ${gainCls(price.changePercent24h)}`}>
+              {fmtPct(price.changePercent24h)}
+            </span>
+          )}
           {asset.type !== "mutual_fund" && asset.type !== "deposito" && (
-            <button onClick={onHistory} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-indigo-500" title="Riwayat harga">
-              <Clock size={14} />
+            <button onClick={onHistory} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-indigo-500 transition-colors" title="Riwayat harga">
+              <Clock size={13} />
             </button>
           )}
-          <button onClick={onEdit} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
-          <button onClick={onDelete} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
+          <button onClick={onEdit} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm">✏️</button>
+          <button onClick={onDelete} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-red-500 transition-colors text-sm">🗑️</button>
         </div>
       </div>
 
+      {/* Row 2: Name (muted) */}
+      <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">{asset.name}</p>
+
+      {/* Rows 3-4: 2x2 grid with Nilai | Keuntungan | Modal | Harga */}
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <div>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">Nilai Saat Ini</p>
+        <div className="space-y-0.5">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Nilai Saat Ini</p>
           <p className="font-semibold text-[hsl(var(--foreground))]">
             {currentValue !== null ? formatCurrency(currentValue, currency) : "—"}
           </p>
         </div>
-        <div>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">Modal</p>
-          <p className="font-medium">{formatCurrency(costBasis, currency)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">Keuntungan</p>
+        <div className="space-y-0.5">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Keuntungan</p>
           {gain !== null && gainPct !== null ? (
             <p className={`font-semibold ${gainCls(gain)}`}>
-              {formatCurrency(gain, currency)} <span className="text-xs">({fmtPct(gainPct)})</span>
+              {formatCurrency(gain, currency)} 
+              <span className="text-[9px] ml-1">({fmtPct(gainPct)})</span>
             </p>
           ) : (
             <p className="text-[hsl(var(--muted-foreground))]">—</p>
           )}
         </div>
-        <div>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">Harga / Unit</p>
-          <p className="font-medium">
+        <div className="space-y-0.5">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Modal</p>
+          <p className="font-medium text-[hsl(var(--foreground))]">
+            {formatCurrency(costBasis, currency)}
+          </p>
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Harga / Unit</p>
+          <p className="font-medium text-[hsl(var(--foreground))]">
             {currentPrice !== null ? formatCurrency(currentPrice, currency) : "—"}
           </p>
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-[hsl(var(--muted-foreground))]">
-        <span>{asset.quantity.toLocaleString("id-ID")} {asset.type === "gold_physical" || asset.type === "gold_digital" ? "gram" : asset.type === "deposito" ? "deposito" : "unit"}</span>
+      {/* Row 5: ROI % | Unit qty | Last sync age */}
+      <div className="flex items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]">
         <div className="flex items-center gap-2">
-          {price?.changePercent24h !== undefined && (
-            <span className={gainCls(price.changePercent24h)}>
-              {fmtPct(price.changePercent24h)} 24j
+          {roiPct !== null ? (
+            <span className={`font-semibold ${gainCls(roiPct)}`}>
+              ROI {fmtPct(roiPct)}
             </span>
+          ) : (
+            <span>ROI —</span>
           )}
+          <span className="text-[9px]">·</span>
+          <span className="truncate">
+            {asset.quantity.toLocaleString("id-ID")} {asset.type === "gold_physical" || asset.type === "gold_digital" ? "g" : asset.type === "deposito" ? "dep" : "u"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
           {price?.lastSynced && (
-            <span>· {fmtAge(price.lastSynced)}</span>
+            <span className="text-[9px]">{fmtAge(price.lastSynced)}</span>
           )}
           {!price && asset.manualPriceIdr && (
-            <span className="italic">harga manual</span>
+            <span className="text-[9px] italic">manual</span>
           )}
           {!price && !asset.manualPriceIdr && (
-            <span className="text-amber-500">belum sinkron</span>
+            <span className="text-[9px] text-amber-500">unsync</span>
           )}
         </div>
       </div>
@@ -707,6 +726,9 @@ export default function Portfolio() {
   // Per-asset price history modal
   const [historyTarget, setHistoryTarget] = useState<Asset | null>(null);
 
+  // Summary metrics tab (0=total, 1=modal vs nilai, 2=roi overall)
+  const [summaryTab, setSummaryTab] = useState(0);
+
   function togglePortfolioHidden() {
     setPortfolioHidden((v) => {
       localStorage.setItem("portfolio_hidden", v ? "0" : "1");
@@ -886,7 +908,7 @@ export default function Portfolio() {
     });
 
   return (
-    <div className="p-4 pb-24 space-y-5 max-w-lg mx-auto">
+    <div className="p-3.5 pb-24 space-y-4 max-w-lg mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-[hsl(var(--foreground))]">Portofolio</h1>
@@ -910,24 +932,141 @@ export default function Portfolio() {
 
       {assets.length > 0 && (
         <>
-          {/* Summary Card */}
-          <div className="rounded-2xl bg-linear-to-br from-indigo-600 to-purple-600 p-5 text-white space-y-1">
-            <div className="flex items-center justify-between">
-              <p className="text-xs opacity-70">Total Portofolio</p>
-              <button onClick={togglePortfolioHidden} className="opacity-70 hover:opacity-100 transition-opacity">
-                {portfolioHidden ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
+          {/* Summary Card with Metric Tabs */}
+          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
+            {/* Tab buttons */}
+            <div className="flex border-b border-[hsl(var(--border))]">
+              {(["Total Portofolio", "Modal vs Nilai", "ROI Keseluruhan"] as const).map((label, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSummaryTab(idx)}
+                  className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+                    summaryTab === idx
+                      ? "bg-indigo-600 text-white"
+                      : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <p className="text-2xl font-bold">
-              {portfolioHidden ? <span className="tracking-widest">••••••</span> : formatCurrency(totalValue, currency)}
-            </p>
-            <div className="flex items-center gap-3 pt-1 text-xs">
-              <span className="opacity-70">Modal: {portfolioHidden ? "••••••" : formatCurrency(totalCost, currency)}</span>
-              {!portfolioHidden && (
-                <span className={`font-semibold ${totalGain >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                  {totalGain >= 0 ? "▲" : "▼"} {formatCurrency(Math.abs(totalGain), currency)} ({fmtPct(totalGainPct)})
-                </span>
+
+            {/* Tab Content */}
+            <div className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-[hsl(var(--muted-foreground))]">
+                  {summaryTab === 0 ? "Total Nilai" : summaryTab === 1 ? "Perbandingan" : "Return Investasi"}
+                </div>
+                <button onClick={togglePortfolioHidden} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
+                  {portfolioHidden ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+
+              {/* Tab 0: Total Portofolio */}
+              {summaryTab === 0 && (
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-2xl font-bold text-[hsl(var(--foreground))]">
+                      {portfolioHidden ? <span className="tracking-widest">••••••</span> : formatCurrency(totalValue, currency)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-[hsl(var(--muted-foreground))]">Keuntungan:</span>
+                    {!portfolioHidden && (
+                      <span className={`font-semibold ${totalGain >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                        {totalGain >= 0 ? "▲" : "▼"} {formatCurrency(Math.abs(totalGain), currency)}
+                      </span>
+                    )}
+                    {portfolioHidden && <span className="tracking-widest">••••••</span>}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-[hsl(var(--muted-foreground))]">Return %:</span>
+                    {!portfolioHidden && (
+                      <span className={`font-semibold ${totalGainPct >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                        {fmtPct(totalGainPct)}
+                      </span>
+                    )}
+                    {portfolioHidden && <span className="tracking-widest">••••••</span>}
+                  </div>
+                </div>
               )}
+
+              {/* Tab 1: Modal vs Nilai */}
+              {summaryTab === 1 && (
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Modal Awal</p>
+                    <p className="text-2xl font-bold text-[hsl(var(--foreground))]">
+                      {portfolioHidden ? <span className="tracking-widest">••••••</span> : formatCurrency(totalCost, currency)}
+                    </p>
+                  </div>
+                  <div className="pt-2 border-t border-[hsl(var(--border))]">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Nilai Saat Ini</p>
+                    <p className="text-xl font-bold text-[hsl(var(--foreground))]">
+                      {portfolioHidden ? <span className="tracking-widest">••••••</span> : formatCurrency(totalValue, currency)}
+                    </p>
+                  </div>
+                  <div className="pt-2 border-t border-[hsl(var(--border))]">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Net Peningkatan</p>
+                    {!portfolioHidden && (
+                      <p className={`text-lg font-bold ${totalGain >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                        {totalGain >= 0 ? "+" : ""}{formatCurrency(totalGain, currency)}
+                      </p>
+                    )}
+                    {portfolioHidden && <p className="text-lg tracking-widest">••••••</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: ROI Keseluruhan */}
+              {summaryTab === 2 && (() => {
+                const bestAsset = assets.length > 0
+                  ? assets.reduce((best, a) => {
+                      const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? null;
+                      const val = p !== null ? a.quantity * p : null;
+                      const gain = val !== null ? val - a.quantity * a.avgBuyPrice : null;
+                      const pct = gain !== null ? (gain / (a.quantity * a.avgBuyPrice)) * 100 : -Infinity;
+                      const bestPct = best.pct ?? -Infinity;
+                      return pct > bestPct ? { asset: a, pct } : best;
+                    }, { asset: null as Asset | null, pct: null as number | null })
+                  : { asset: null, pct: null };
+
+                const worstAsset = assets.length > 0
+                  ? assets.reduce((worst, a) => {
+                      const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? null;
+                      const val = p !== null ? a.quantity * p : null;
+                      const gain = val !== null ? val - a.quantity * a.avgBuyPrice : null;
+                      const pct = gain !== null ? (gain / (a.quantity * a.avgBuyPrice)) * 100 : Infinity;
+                      const worstPct = worst.pct ?? Infinity;
+                      return pct < worstPct ? { asset: a, pct } : worst;
+                    }, { asset: null as Asset | null, pct: null as number | null })
+                  : { asset: null, pct: null };
+
+                return (
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">ROI Keseluruhan</p>
+                      <p className={`text-2xl font-bold ${totalGainPct >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                        {portfolioHidden ? <span className="tracking-widest">••••••</span> : fmtPct(totalGainPct)}
+                      </p>
+                    </div>
+                    {bestAsset.asset && bestAsset.pct !== null && (
+                      <div className="pt-2 border-t border-[hsl(var(--border))]">
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">🚀 Terbaik</p>
+                        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{bestAsset.asset.symbol}</p>
+                        <p className="text-xs font-semibold text-emerald-500">{fmtPct(bestAsset.pct)}</p>
+                      </div>
+                    )}
+                    {worstAsset.asset && worstAsset.pct !== null && worstAsset.pct !== Infinity && (
+                      <div className="pt-2 border-t border-[hsl(var(--border))]">
+                        <p className="text-xs text-red-600 dark:text-red-400 mb-1">📉 Terburuk</p>
+                        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{worstAsset.asset.symbol}</p>
+                        <p className="text-xs font-semibold text-red-500">{fmtPct(worstAsset.pct)}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -968,60 +1107,69 @@ export default function Portfolio() {
             </div>
           )}
 
-          {/* Allocation Pie Chart */}
+          {/* Allocation Table */}
           {pieData.length > 0 && (
-            <div className="rounded-2xl border border-[hsl(var(--border))] p-4 bg-[hsl(var(--card))]">
+            <div className="rounded-2xl border border-[hsl(var(--border))] p-3.5 bg-[hsl(var(--card))]">
               <p className="text-sm font-medium text-[hsl(var(--foreground))] mb-3">Alokasi Portofolio</p>
-              <div className="flex items-center gap-4">
-                <div className="w-36 h-36 shrink-0 flex items-center justify-center">
-                  <PieChart width={144} height={144}>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={60} paddingAngle={2} dataKey="value">
-                      {pieData.map((d) => (
-                        <Cell key={d.name} fill={d.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v) => [formatCurrency(Number(v), currency), ""]}
-                      contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
-                    />
-                  </PieChart>
-                </div>
-                <ul className="flex-1 space-y-1.5">
-                  {pieData.map((d) => {
-                    const pct = totalValue > 0 ? (d.value / totalValue) * 100 : 0;
-                    return (
-                      <li key={d.name} className="flex items-center gap-2 text-xs">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.color }} />
-                        <span className="font-medium text-[hsl(var(--foreground))]">{d.name}</span>
-                        <span className="ml-auto text-[hsl(var(--muted-foreground))]">{pct.toFixed(1)}%</span>
-                      </li>
-                    );
-                  })}
-                </ul>
+              <div className="overflow-x-auto -mx-1">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))] text-left">
+                      <th className="pb-2 font-medium px-1">Kategori</th>
+                      <th className="pb-2 font-medium text-right px-1">Nilai</th>
+                      <th className="pb-2 font-medium text-right px-1">Alokasi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[hsl(var(--border))]">
+                    {pieData.map((d) => {
+                      const pct = totalValue > 0 ? (d.value / totalValue) * 100 : 0;
+                      return (
+                        <tr key={d.name} className="hover:bg-[hsl(var(--muted))] transition-colors">
+                          <td className="py-2 px-1 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
+                            <span className="font-medium text-[hsl(var(--foreground))]">{d.name}</span>
+                          </td>
+                          <td className="py-2 px-1 text-right font-semibold text-[hsl(var(--foreground))]">
+                            {formatCurrency(d.value, currency)}
+                          </td>
+                          <td className="py-2 px-1 text-right text-[hsl(var(--muted-foreground))]">
+                            {pct.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
         </>
       )}
 
-      {/* Filter Tabs */}
+      {/* Filter Tabs — Horizontal Scroll */}
       {assets.length > 0 && (
-        <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
-          {(["all", "crypto", "stock_us", "stock_idx", "gold", "mutual_fund", "deposito"] as Filter[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`flex-1 py-1.5 font-medium transition-colors ${filter === f ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-            >
-              {f === "all" ? "Semua" : f === "crypto" ? "₿" : f === "stock_us" ? "🇺🇸" : f === "stock_idx" ? "🇮🇩" : f === "gold" ? "🥇" : f === "mutual_fund" ? "📈" : "🏦"}
-            </button>
-          ))}
+        <div className="overflow-x-auto -mx-4 px-4 scrollbar-hide">
+          <div className="flex gap-1.5 w-max">
+            {(["all", "crypto", "stock_us", "stock_idx", "gold", "mutual_fund", "deposito"] as Filter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-2 rounded-lg font-medium text-xs whitespace-nowrap transition-colors ${
+                  filter === f
+                    ? "bg-indigo-600 text-white"
+                    : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+                }`}
+              >
+                {f === "all" ? "Semua" : f === "crypto" ? "₿ Kripto" : f === "stock_us" ? "🇺🇸 US" : f === "stock_idx" ? "🇮🇩 IDX" : f === "gold" ? "🥇 Emas" : f === "mutual_fund" ? "📈 RD" : "🏦 Depo"}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Asset List */}
       {filtered.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filtered.map((asset) => (
             <AssetCard
               key={asset.id}

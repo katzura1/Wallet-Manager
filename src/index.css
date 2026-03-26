@@ -89,3 +89,12 @@
   60%       { transform: translateX(-5px); }
   80%       { transform: translateX(5px); }
 }
+
+/* Hide scrollbars while keeping scrollability */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

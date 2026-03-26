@@ -24,7 +24,13 @@ export async function deleteAsset(id: number): Promise<void> {
 
 /** Upsert today's snapshot. Called after prices are loaded. */
 export async function savePortfolioSnapshot(totalValue: number): Promise<void> {
-  const date = new Date().toISOString().slice(0, 10);
+  // Use local date (YYYY-MM-DD) not UTC, to avoid timezone issues
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const date = `${year}-${month}-${day}`;
+  
   const existing = await db.portfolioHistory.where("date").equals(date).first();
   if (existing?.id) {
     await db.portfolioHistory.update(existing.id, { totalValue });
@@ -44,9 +50,45 @@ export async function getPortfolioHistory(days = 30): Promise<PortfolioHistory[]
 
 const MAX_SYNC_LOG = 30;
 
-/** Save a sync session to history. Auto-prunes oldest entries beyond MAX_SYNC_LOG. */
+/**
+ * Save a sync session to history.
+ * If a sync already exists for the same day, merge/update the results (per-asset upsert).
+ * Auto-prunes oldest entries beyond MAX_SYNC_LOG.
+ */
 export async function saveSyncLog(entry: Omit<SyncLogEntry, "id">): Promise<void> {
-  await db.syncLog.add(entry);
+  // Extract date from syncedAt timestamp (YYYY-MM-DD)
+  const syncDate = entry.syncedAt.split("T")[0];
+
+  // Check if an entry already exists for this date
+  const existingEntry = await db.syncLog
+    .filter((log) => log.syncedAt.split("T")[0] === syncDate)
+    .first();
+
+  if (existingEntry?.id) {
+    // Merge results: for each asset in incoming entry, update or add to existing results
+    const updatedResults = [...existingEntry.results];
+    
+    for (const incomingResult of entry.results) {
+      const existingResultIdx = updatedResults.findIndex((r) => r.symbol === incomingResult.symbol);
+      if (existingResultIdx >= 0) {
+        // Replace old result for this symbol with new one (timpakan)
+        updatedResults[existingResultIdx] = incomingResult;
+      } else {
+        // Add new result for this symbol
+        updatedResults.push(incomingResult);
+      }
+    }
+
+    // Update the existing entry with merged results and latest timestamp
+    await db.syncLog.update(existingEntry.id, {
+      syncedAt: entry.syncedAt, // update to latest sync time
+      results: updatedResults,
+    });
+  } else {
+    // No existing entry for this date, add new one
+    await db.syncLog.add(entry);
+  }
+
   // Prune oldest entries if over limit
   const all = await db.syncLog.orderBy("syncedAt").primaryKeys();
   if (all.length > MAX_SYNC_LOG) {
