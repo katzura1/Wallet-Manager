@@ -16,6 +16,7 @@ import { usePinStore } from "@/stores/walletStore";
 
 export default function App() {
   const [showUpdateToast, setShowUpdateToast] = useState(false);
+  const [swUpdateState, setSwUpdateState] = useState<"ready" | "updating" | "updated">("ready");
   const updateSWRef = useRef<((reloadPage?: boolean) => Promise<void>) | null>(null);
   const { isLocked } = usePinStore();
 
@@ -23,14 +24,25 @@ export default function App() {
     updateSWRef.current = registerSW({
       immediate: true,
       onNeedRefresh() {
+        setSwUpdateState("ready");
         setShowUpdateToast(true);
       },
     });
   }, []);
 
   const applyUpdate = async () => {
-    if (!updateSWRef.current) return;
-    await updateSWRef.current(true);
+    if (!updateSWRef.current || swUpdateState === "updating") return;
+
+    setSwUpdateState("updating");
+    try {
+      await updateSWRef.current(false);
+      setSwUpdateState("updated");
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 1200);
+    } catch {
+      setSwUpdateState("ready");
+    }
   };
 
   if (isLocked) return <LockScreen />;
@@ -56,13 +68,24 @@ export default function App() {
         <div className="fixed left-4 right-4 bottom-20 z-50 sm:left-auto sm:right-6 sm:bottom-6 sm:w-[360px]">
           <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-xl">
             <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Versi baru tersedia</p>
-            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Update sekarang untuk melihat perubahan terbaru.</p>
+            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]" role="status" aria-live="polite">
+              {swUpdateState === "ready" && "Update sekarang untuk melihat perubahan terbaru."}
+              {swUpdateState === "updating" && "Sedang menerapkan update aplikasi..."}
+              {swUpdateState === "updated" && "Update berhasil. Aplikasi akan dimuat ulang."}
+            </p>
             <div className="mt-3 flex items-center justify-end gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setShowUpdateToast(false)}>
+              <Button size="sm" variant="ghost" disabled={swUpdateState !== "ready"} onClick={() => setShowUpdateToast(false)}>
                 Nanti
               </Button>
-              <Button size="sm" onClick={() => void applyUpdate()}>
-                Update
+              <Button size="sm" disabled={swUpdateState !== "ready"} onClick={() => void applyUpdate()}>
+                {swUpdateState === "ready" && "Update"}
+                {swUpdateState === "updating" && (
+                  <>
+                    <span className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden="true" />
+                    Updating...
+                  </>
+                )}
+                {swUpdateState === "updated" && "Berhasil"}
               </Button>
             </div>
           </div>
