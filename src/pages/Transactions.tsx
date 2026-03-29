@@ -8,9 +8,9 @@ import { TransactionCard } from "@/components/TransactionCard";
 import { deleteTransaction } from "@/db/transactions";
 import { getRecurringTransactions, deleteRecurring, updateRecurring, getRecurringDueInfo, runRecurringNow, skipNextRecurring } from "@/db/recurring";
 import { db } from "@/db/db";
-import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
-import { Plus, Search, Filter, Trash2, Pencil, RefreshCw, Pause, Play, ChevronDown, ChevronUp, SkipForward } from "lucide-react";
+import { Plus, Search, Filter, Pencil, Trash2, RefreshCw, Pause, Play, SkipForward } from "lucide-react";
 
 const INTERVAL_LABEL: Record<string, string> = {
   daily: "Harian", weekly: "Mingguan", monthly: "Bulanan", yearly: "Tahunan",

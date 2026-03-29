@@ -5,14 +5,14 @@ import { Card, CardContent, Modal, Button, Badge } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { AITransactionForm } from "@/components/forms/AITransactionForm";
 import { TransactionCard } from "@/components/TransactionCard";
-import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { deleteTransaction } from "@/db/transactions";
 import { getUpcomingRecurringTransactions } from "@/db/recurring";
 import { getBudgetsForMonth } from "@/db/budgets";
 import { getCategoryExpenseData } from "@/db/transactions";
 import { getCategories } from "@/db/categories";
 import { db } from "@/db/db";
-import { Pencil, Trash2, Plus, Settings, CreditCard, Eye, EyeOff, AlertTriangle, Target, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Settings, CreditCard, Eye, EyeOff, AlertTriangle, Target, ChevronDown, ChevronUp } from "lucide-react";
 import type { RecurringTransaction, Transaction } from "@/types";
 
 interface BudgetAlertItem {
