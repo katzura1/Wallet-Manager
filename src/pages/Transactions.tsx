@@ -4,6 +4,7 @@ import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Button, Input, Select, EmptyState, Modal, Badge, Spinner } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { RecurringForm } from "@/components/forms/RecurringForm";
+import { TransactionCard } from "@/components/TransactionCard";
 import { deleteTransaction } from "@/db/transactions";
 import { getRecurringTransactions, deleteRecurring, updateRecurring, getRecurringDueInfo, runRecurringNow, skipNextRecurring } from "@/db/recurring";
 import { db } from "@/db/db";
@@ -382,40 +383,20 @@ export default function Transactions() {
                       const hasSplits = txSplits.length > 0;
                       const isExpanded = expandedSplitId === tx.id;
                       return (
-                        <div key={tx.id} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
-                          <div className="flex items-center gap-3 p-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-none ${TRANSACTION_TYPE_BG[tx.type]}`}>
-                              {hasSplits ? "✂️" : cat ? cat.icon : tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️"}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{tx.note || (hasSplits ? "Split Kategori" : cat?.name) || getAccountName(tx.accountId)}</p>
-                              <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
-                                {getAccountName(tx.accountId)}
-                                {tx.toAccountId ? ` → ${getAccountName(tx.toAccountId)}` : ""}
-                                {hasSplits ? ` · ${txSplits.length} kategori` : ""}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-1 text-right">
-                              <p className={`font-semibold text-sm ${tx.type === "income" ? "text-emerald-500" : tx.type === "expense" ? "text-red-500" : "text-amber-500"}`}>
-                                {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
-                                {formatCurrency(tx.amount, currency)}
-                              </p>
-                              {hasSplits && (
-                                <button
-                                  onClick={() => setExpandedSplitId(isExpanded ? null : tx.id!)}
-                                  className="p-1 text-[hsl(var(--muted-foreground))] hover:text-indigo-500"
-                                >
-                                  {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                                </button>
-                              )}
-                              <button onClick={() => setEditTarget(tx)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-indigo-500">
-                                <Pencil size={13} />
-                              </button>
-                              <button onClick={() => setDeleteTxId(tx.id!)} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-red-500">
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </div>
+                        <div key={tx.id}>
+                          <TransactionCard
+                            transaction={tx}
+                            accountName={getAccountName(tx.accountId)}
+                            toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}
+                            categoryLabel={hasSplits ? `Split · ${txSplits.length} kategori` : cat?.name}
+                            categoryIcon={hasSplits ? "✂️" : cat?.icon}
+                            currency={currency}
+                            hasSplits={hasSplits}
+                            isExpanded={isExpanded}
+                            onExpandSplits={() => setExpandedSplitId(isExpanded ? null : tx.id!)}
+                            onEdit={() => setEditTarget(tx)}
+                            onDelete={() => setDeleteTxId(tx.id!)}
+                          />
                           {hasSplits && isExpanded && (
                             <div className="px-3 pb-3 pt-1 border-t border-[hsl(var(--border))] space-y-1.5">
                               {txSplits.map((s, i) => {
