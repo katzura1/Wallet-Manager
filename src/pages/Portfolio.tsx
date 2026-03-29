@@ -1201,7 +1201,7 @@ export default function Portfolio() {
       />
 
       {/* Floating Add button */}
-      <div className="fixed bottom-40 right-4 z-100 flex flex-col items-end gap-2">
+      <div className="fixed bottom-30 right-4 z-100 flex flex-col items-end gap-2">
         <button
           onClick={() => setAddOpen(true)}
           className="w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"

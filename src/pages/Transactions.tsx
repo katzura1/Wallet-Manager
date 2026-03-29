@@ -653,7 +653,7 @@ export default function Transactions() {
         </div>
       </Modal>
 
-      <div className="fixed bottom-40 right-4 z-40 flex flex-col items-end gap-2">
+      <div className="fixed bottom-30 right-4 z-40 flex flex-col items-end gap-2">
         {activeTab === "all" && (
           <button
             type="button"
