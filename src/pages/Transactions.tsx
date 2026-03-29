@@ -209,10 +209,10 @@ export default function Transactions() {
         setFilter({ ...filter, search: undefined });
       },
     } : null,
-    filter.accountId !== undefined ? {
-      key: "accountId",
-      label: `Akun: ${getAccountName(filter.accountId)}`,
-      onRemove: () => setFilter({ ...filter, accountId: undefined }),
+    (filter.accountIds && filter.accountIds.length > 0) ? {
+      key: "accountIds",
+      label: `Akun: ${(filter.accountIds as number[]).map(id => getAccountName(id)).join(", ")}`,
+      onRemove: () => setFilter({ ...filter, accountIds: undefined }),
     } : null,
     filter.type ? {
       key: "type",
@@ -313,19 +313,32 @@ export default function Transactions() {
       {/* Filters */}
       {activeTab === "all" && showFilter && (
         <div className="space-y-3 p-3 rounded-xl bg-[hsl(var(--muted))]">
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Akun"
-              value={String(filter.accountId ?? "")}
-              onChange={(e) => setFilter({ ...filter, accountId: e.target.value ? Number(e.target.value) : undefined })}
-            >
-              <option value="">Semua Akun</option>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Pilih Akun (Multiple):</p>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
               {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
+                <label key={a.id} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(filter.accountIds ?? []).includes(a.id!)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const current = (filter.accountIds ?? []) as number[];
+                      if (e.target.checked) {
+                        const newIds: number[] = [...current, a.id!];
+                        setFilter({ ...filter, accountIds: newIds });
+                      } else {
+                        const newIds: number[] = current.filter((id) => id !== a.id!);
+                        setFilter({ ...filter, accountIds: newIds.length > 0 ? newIds : undefined });
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <span className="text-sm">{a.name}</span>
+                </label>
               ))}
-            </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
             <Select
               label="Tipe"
               value={filter.type ?? ""}

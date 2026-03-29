@@ -21,7 +21,7 @@ function buildNetCategoryExpenseMap(transactions: Transaction[]) {
 }
 
 export interface TransactionFilter {
-  accountId?: number;
+  accountIds?: number[];
   categoryId?: number;
   type?: Transaction["type"];
   dateFrom?: string;
@@ -33,8 +33,8 @@ export async function getTransactions(filter: TransactionFilter = {}) {
   let query = db.transactions.orderBy("date").reverse();
   let results = await query.toArray();
 
-  if (filter.accountId !== undefined) {
-    results = results.filter((t) => t.accountId === filter.accountId || t.toAccountId === filter.accountId);
+  if (filter.accountIds && filter.accountIds.length > 0) {
+    results = results.filter((t) => filter.accountIds!.includes(t.accountId) || (t.toAccountId && filter.accountIds!.includes(t.toAccountId)));
   }
   if (filter.categoryId !== undefined) {
     results = results.filter((t) => t.categoryId === filter.categoryId);
