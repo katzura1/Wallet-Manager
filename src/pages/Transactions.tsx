@@ -39,6 +39,7 @@ export default function Transactions() {
   const [splitMap, setSplitMap] = useState<Record<number, TransactionSplit[]>>({});
   const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+  const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
 
   useEffect(() => {
     setSearch(filter.search ?? "");
@@ -63,6 +64,10 @@ export default function Transactions() {
     }
     setActiveTab("all");
   }, [searchParams]);
+
+  useEffect(() => {
+    setIsFabMenuOpen(false);
+  }, [activeTab]);
 
   useEffect(() => {
     void loadSplits();
@@ -652,12 +657,20 @@ export default function Transactions() {
         {activeTab === "all" && (
           <button
             type="button"
-            onClick={() => setShowFilter((v) => !v)}
-            className={`relative w-12 h-12 rounded-full border shadow-lg active:scale-95 transition ${
+            onClick={() => {
+              setShowFilter((v) => !v);
+              setIsFabMenuOpen(false);
+            }}
+            className={`relative w-11 h-11 rounded-full border shadow-lg transition ${
               showFilter
                 ? "bg-indigo-600 border-indigo-600 text-white"
                 : "bg-[hsl(var(--card))] border-[hsl(var(--border))] text-[hsl(var(--foreground))]"
             }`}
+            style={{
+              opacity: isFabMenuOpen ? 1 : 0,
+              transform: isFabMenuOpen ? "translateY(0) scale(1)" : "translateY(8px) scale(0.9)",
+              pointerEvents: isFabMenuOpen ? "auto" : "none",
+            }}
             aria-label="Buka filter transaksi"
             title="Filter"
           >
@@ -670,14 +683,40 @@ export default function Transactions() {
           </button>
         )}
 
+        {activeTab === "all" && (
+          <button
+            type="button"
+            onClick={() => {
+              setAddOpen(true);
+              setIsFabMenuOpen(false);
+            }}
+            className="w-11 h-11 rounded-full bg-[hsl(var(--card))] border border-[hsl(var(--border))] text-[hsl(var(--foreground))] shadow-lg transition"
+            style={{
+              opacity: isFabMenuOpen ? 1 : 0,
+              transform: isFabMenuOpen ? "translateY(0) scale(1)" : "translateY(8px) scale(0.9)",
+              pointerEvents: isFabMenuOpen ? "auto" : "none",
+            }}
+            aria-label="Tambah transaksi"
+            title="Tambah transaksi"
+          >
+            <Plus size={16} className="mx-auto" />
+          </button>
+        )}
+
         <button
           type="button"
-          onClick={() => activeTab === "recurring" ? setRecurringFormOpen(true) : setAddOpen(true)}
+          onClick={() => {
+            if (activeTab === "recurring") {
+              setRecurringFormOpen(true);
+              return;
+            }
+            setIsFabMenuOpen((v) => !v);
+          }}
           className="w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"
-          aria-label={activeTab === "recurring" ? "Tambah transaksi terjadwal" : "Tambah transaksi"}
-          title={activeTab === "recurring" ? "Tambah jadwal" : "Tambah transaksi"}
+          aria-label={activeTab === "recurring" ? "Tambah transaksi terjadwal" : "Aksi transaksi"}
+          title={activeTab === "recurring" ? "Tambah jadwal" : "Buka menu aksi"}
         >
-          <Plus size={18} className="mx-auto" />
+          <Plus size={18} className={`mx-auto transition-transform ${activeTab === "all" && isFabMenuOpen ? "rotate-45" : "rotate-0"}`} />
         </button>
       </div>
     </div>
