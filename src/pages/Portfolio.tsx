@@ -1126,8 +1126,7 @@ export default function Portfolio() {
 
       {/* Filter Tabs — Horizontal Scroll */}
       {assets.length > 0 && (
-        <div className="overflow-x-auto -mx-4 px-4 scrollbar-hide">
-          <div className="flex gap-1.5 w-max">
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
             {(["all", "crypto", "stock_us", "stock_idx", "gold", "mutual_fund", "deposito"] as Filter[]).map((f) => (
               <button
                 key={f}
@@ -1141,7 +1140,6 @@ export default function Portfolio() {
                 {f === "all" ? "Semua" : f === "crypto" ? "₿ Kripto" : f === "stock_us" ? "🇺🇸 US" : f === "stock_idx" ? "🇮🇩 IDX" : f === "gold" ? "🥇 Emas" : f === "mutual_fund" ? "📈 RD" : "🏦 Depo"}
               </button>
             ))}
-          </div>
         </div>
       )}
 
@@ -1203,7 +1201,7 @@ export default function Portfolio() {
       />
 
       {/* Floating Add button */}
-      <div className="fixed bottom-20 right-4 z-100 flex flex-col items-end gap-2">
+      <div className="fixed bottom-40 right-4 z-100 flex flex-col items-end gap-2">
         <button
           onClick={() => setAddOpen(true)}
           className="w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"

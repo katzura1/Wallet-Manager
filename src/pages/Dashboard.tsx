@@ -8,7 +8,7 @@ import { TransactionCard } from "@/components/TransactionCard";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { deleteTransaction } from "@/db/transactions";
 import { getUpcomingRecurringTransactions } from "@/db/recurring";
-import { getBudgetsForMonth } from "@/db/budgets";
+import { getBudgetsForMonth, predictBudgetStatus } from "@/db/budgets";
 import { getCategoryExpenseData } from "@/db/transactions";
 import { getCategories } from "@/db/categories";
 import { db } from "@/db/db";
@@ -22,6 +22,8 @@ interface BudgetAlertItem {
   spent: number;
   budget: number;
   percentage: number;
+  predictedExhaustInDays: number | null;
+  projectedOverrun: number;
   level: "warning" | "danger";
 }
 
@@ -61,6 +63,8 @@ export default function Dashboard() {
   async function loadDashboardData() {
     await refreshAll();
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const [recurring, budgets, expenseByCategory, allCategories] = await Promise.all([
       getUpcomingRecurringTransactions(),
       getBudgetsForMonth(monthKey),
@@ -71,7 +75,13 @@ export default function Dashboard() {
     const alerts = budgets
       .map((budget) => {
         const spent = expenseByCategory[budget.categoryId] ?? 0;
-        const percentage = budget.amount > 0 ? Math.round((spent / budget.amount) * 100) : 0;
+        const prediction = predictBudgetStatus({
+          budgetAmount: budget.amount,
+          spent,
+          dayOfMonth,
+          daysInMonth,
+        });
+        const percentage = prediction.percentage;
         if (percentage < 80) return null;
         const category = allCategories.find((item) => item.id === budget.categoryId);
         return {
@@ -81,6 +91,8 @@ export default function Dashboard() {
           spent,
           budget: budget.amount,
           percentage,
+          predictedExhaustInDays: prediction.predictedExhaustInDays,
+          projectedOverrun: prediction.projectedOverrun,
           level: percentage >= 100 ? "danger" : "warning",
         } satisfies BudgetAlertItem;
       })
@@ -280,6 +292,11 @@ export default function Dashboard() {
 
               {topBudgetAlert && (() => {
                 const isDanger = topBudgetAlert.level === "danger";
+                const predictionLabel = !isDanger && topBudgetAlert.predictedExhaustInDays !== null
+                  ? topBudgetAlert.predictedExhaustInDays <= 1
+                    ? "Estimasi habis hari ini"
+                    : `Estimasi habis ${topBudgetAlert.predictedExhaustInDays} hari lagi`
+                  : null;
                 return (
                   <Link
                     to="/reports"
@@ -299,6 +316,14 @@ export default function Dashboard() {
                         <p className="text-xs text-[hsl(var(--muted-foreground))] truncate mt-0.5">
                           {formatCurrency(topBudgetAlert.spent, currency)} dari {formatCurrency(topBudgetAlert.budget, currency)}
                         </p>
+                        {predictionLabel && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">{predictionLabel}</p>
+                        )}
+                        {isDanger && topBudgetAlert.projectedOverrun > 0 && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                            Proyeksi over budget {formatCurrency(topBudgetAlert.projectedOverrun, currency)} bulan ini
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 text-[hsl(var(--muted-foreground))]">
                         <AlertTriangle size={14} className={isDanger ? "text-red-500" : "text-amber-500"} />

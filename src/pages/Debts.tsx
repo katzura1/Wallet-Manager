@@ -498,7 +498,7 @@ export default function Debts() {
       <button
         type="button"
         onClick={() => setAddOpen(true)}
-        className="fixed bottom-20 right-4 z-40 w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"
+        className="fixed bottom-40 right-4 z-40 w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"
         aria-label="Tambah hutang atau piutang"
         title="Tambah hutang/piutang"
       >
