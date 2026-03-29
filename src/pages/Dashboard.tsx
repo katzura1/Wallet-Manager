@@ -4,6 +4,7 @@ import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Card, CardContent, Modal, Button, Badge } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { AITransactionForm } from "@/components/forms/AITransactionForm";
+import { TransactionCard } from "@/components/TransactionCard";
 import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
 import { deleteTransaction } from "@/db/transactions";
 import { getUpcomingRecurringTransactions } from "@/db/recurring";
@@ -198,21 +199,21 @@ export default function Dashboard() {
         <Card>
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
               <span className="text-xs text-[hsl(var(--muted-foreground))]">Pengeluaran</span>
             </div>
-            <p className="font-bold text-red-500 text-sm leading-tight">{formatCurrency(monthExpense, currency)}</p>
+            <p className="font-bold text-amber-500 text-sm leading-tight">{formatCurrency(monthExpense, currency)}</p>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">bulan ini</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`w-2 h-2 rounded-full inline-block ${monthIncome - monthExpense >= 0 ? "bg-indigo-500" : "bg-amber-500"}`} />
+              <span className={`w-2 h-2 rounded-full inline-block ${monthIncome - monthExpense >= 0 ? "bg-indigo-500" : "bg-red-500"}`} />
               <span className="text-xs text-[hsl(var(--muted-foreground))]">Net</span>
             </div>
-            <p className={`font-bold text-sm leading-tight ${monthIncome - monthExpense >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"}`}>
-              {formatCurrency(monthIncome - monthExpense, currency)}
+            <p className={`font-bold text-sm leading-tight ${monthIncome - monthExpense >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-red-600 dark:text-red-400"}`}>
+              {formatCurrency(Math.abs(monthIncome - monthExpense), currency)}
             </p>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">bulan ini</p>
           </CardContent>
@@ -412,15 +413,15 @@ export default function Dashboard() {
           </div>
           <div className="space-y-2">
             {recentTxs.map((tx) => (
-              <TransactionItem
+              <TransactionCard
                 key={tx.id}
-                tx={tx}
+                transaction={tx}
                 accountName={getAccountName(tx.accountId)}
                 toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}
-                categoryLabel={splitTxIds.has(tx.id!) ? "✂️ Split" : (getCategoryName(tx.categoryId) ?? undefined)}
+                categoryLabel={splitTxIds.has(tx.id!) ? "Split" : (getCategoryName(tx.categoryId) ?? undefined)}
                 currency={currency}
-                onDelete={() => setDeleteTargetId(tx.id!)}
                 onEdit={() => setEditTx(tx)}
+                onDelete={() => setDeleteTargetId(tx.id!)}
               />
             ))}
           </div>
@@ -506,52 +507,4 @@ export default function Dashboard() {
   );
 }
 
-function TransactionItem({
-  tx,
-  accountName,
-  toAccountName,
-  categoryLabel,
-  currency,
-  onDelete,
-  onEdit,
-}: {
-  tx: Transaction;
-  accountName: string;
-  toAccountName?: string;
-  categoryLabel?: string;
-  currency: string;
-  onDelete: () => void;
-  onEdit: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-3 p-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${TRANSACTION_TYPE_BG[tx.type]}`}>
-        {tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️"}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">
-          {tx.note || (tx.type === "transfer" ? `${accountName} → ${toAccountName}` : (categoryLabel ?? accountName))}
-        </p>
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          {categoryLabel ? `${categoryLabel} · ` : ""}
-          {accountName}
-          {toAccountName ? ` → ${toAccountName}` : ""} · {formatDate(tx.date)}
-        </p>
-      </div>
-      <div className="flex items-center gap-1 text-right">
-        <p
-          className={`font-semibold text-sm ${tx.type === "income" ? "text-emerald-500" : tx.type === "expense" ? "text-red-500" : "text-amber-500"}`}
-        >
-          {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
-          {formatCurrency(tx.amount, currency)}
-        </p>
-        <button onClick={onEdit} className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-indigo-500 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
-          <Pencil size={13} />
-        </button>
-        <button onClick={onDelete} className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30">
-          <Trash2 size={13} />
-        </button>
-      </div>
-    </div>
-  );
-}
+
