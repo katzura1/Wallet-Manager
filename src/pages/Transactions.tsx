@@ -10,7 +10,7 @@ import { getRecurringTransactions, deleteRecurring, updateRecurring, getRecurrin
 import { db } from "@/db/db";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
-import { Plus, Search, Filter, Pencil, Trash2, RefreshCw, Pause, Play, SkipForward } from "lucide-react";
+import { Plus, Search, Filter, Pencil, Trash2, RefreshCw, Pause, Play, SkipForward, ChevronDown, ChevronUp } from "lucide-react";
 
 const INTERVAL_LABEL: Record<string, string> = {
   daily: "Harian", weekly: "Mingguan", monthly: "Bulanan", yearly: "Tahunan",
@@ -38,6 +38,7 @@ export default function Transactions() {
   const [pendingRecurringAction, setPendingRecurringAction] = useState<{ rec: RecurringTransaction; action: "toggle" | "run" | "skip" } | null>(null);
   const [splitMap, setSplitMap] = useState<Record<number, TransactionSplit[]>>({});
   const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setSearch(filter.search ?? "");
@@ -195,6 +196,14 @@ export default function Transactions() {
   }
   const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a));
 
+  function expandAllDays() {
+    setExpandedDates(Object.fromEntries(sortedDates.map((date) => [date, true])) as Record<string, boolean>);
+  }
+
+  function collapseAllDays() {
+    setExpandedDates(Object.fromEntries(sortedDates.map((date) => [date, false])) as Record<string, boolean>);
+  }
+
   function handleTabChange(tab: "all" | "recurring") {
     setActiveTab(tab);
     setSearchParams(tab === "all" ? {} : { tab });
@@ -232,24 +241,10 @@ export default function Transactions() {
   ].filter((item): item is { key: string; label: string; onRemove: () => void } => item !== null);
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 pb-24 space-y-4">
       <div className="flex items-center justify-between pt-2">
         <h1 className="text-xl font-bold">Transaksi</h1>
-        <div className="flex gap-2">
-          {activeTab === "all" && (
-            <Button size="icon" variant="outline" onClick={() => setShowFilter(!showFilter)} className="relative">
-              <Filter size={16} />
-              {activeFilterChips.length > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[10px] leading-4 font-bold">
-                  {activeFilterChips.length}
-                </span>
-              )}
-            </Button>
-          )}
-          <Button size="sm" onClick={() => activeTab === "recurring" ? setRecurringFormOpen(true) : setAddOpen(true)}>
-            <Plus size={16} /> Tambah
-          </Button>
-        </div>
+        <div />
       </div>
 
       {/* Tab toggle */}
@@ -376,20 +371,34 @@ export default function Transactions() {
           <EmptyState icon="📋" title="Belum ada transaksi" description="Tap + Tambah untuk mencatat transaksi baru" />
         ) : (
           <div className="space-y-4">
+            <div className="flex items-center justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={expandAllDays}>Expand all</Button>
+              <Button size="sm" variant="outline" onClick={collapseAllDays}>Collapse all</Button>
+            </div>
             {sortedDates.map((date) => {
               const dayTxs = groupedByDate[date];
               const dayIncome = dayTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
               const dayExpense = dayTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+              const isDayExpanded = expandedDates[date] ?? true;
               return (
                 <div key={date}>
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">{formatDate(date, "EEEE, dd MMM")}</p>
+                    <button
+                      onClick={() => setExpandedDates((prev) => ({ ...prev, [date]: !isDayExpanded }))}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                    >
+                      {isDayExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      <span>{formatDate(date, "EEEE, dd MMM")}</span>
+                      <span className="text-[10px] opacity-75">({dayTxs.length})</span>
+                    </button>
                     <div className="flex gap-2 text-xs">
                       {dayIncome > 0 && <span className="text-emerald-500">+{formatCurrency(dayIncome, currency)}</span>}
                       {dayExpense > 0 && <span className="text-red-500">-{formatCurrency(dayExpense, currency)}</span>}
+                      {dayIncome > 0 || dayExpense > 0 ? (<span className="text-[hsl(var(--muted-foreground))]">= {formatCurrency(dayIncome - dayExpense, currency)}</span>) : null}
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  {isDayExpanded && (
+                    <div className="space-y-2">
                     {dayTxs.map((tx) => {
                       const cat = getCategory(tx.categoryId);
                       const txSplits = splitMap[tx.id!] ?? [];
@@ -435,7 +444,8 @@ export default function Transactions() {
                         </div>
                       );
                     })}
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -637,6 +647,39 @@ export default function Transactions() {
           <Button variant="destructive" className="flex-1" onClick={() => deleteRecurringId !== null && handleDeleteRecurring(deleteRecurringId)}>Hapus</Button>
         </div>
       </Modal>
+
+      <div className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2">
+        {activeTab === "all" && (
+          <button
+            type="button"
+            onClick={() => setShowFilter((v) => !v)}
+            className={`relative w-12 h-12 rounded-full border shadow-lg active:scale-95 transition ${
+              showFilter
+                ? "bg-indigo-600 border-indigo-600 text-white"
+                : "bg-[hsl(var(--card))] border-[hsl(var(--border))] text-[hsl(var(--foreground))]"
+            }`}
+            aria-label="Buka filter transaksi"
+            title="Filter"
+          >
+            <Filter size={18} className="mx-auto" />
+            {activeFilterChips.length > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[10px] leading-4 font-bold border border-white dark:border-[hsl(var(--card))]">
+                {activeFilterChips.length}
+              </span>
+            )}
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => activeTab === "recurring" ? setRecurringFormOpen(true) : setAddOpen(true)}
+          className="w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"
+          aria-label={activeTab === "recurring" ? "Tambah transaksi terjadwal" : "Tambah transaksi"}
+          title={activeTab === "recurring" ? "Tambah jadwal" : "Tambah transaksi"}
+        >
+          <Plus size={18} className="mx-auto" />
+        </button>
+      </div>
     </div>
   );
 }

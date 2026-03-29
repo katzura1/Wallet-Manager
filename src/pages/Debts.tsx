@@ -4,6 +4,7 @@ import { getDebts, addDebt, updateDebt, deleteDebt, payDebt, getDebtPayments, up
 import { formatCurrency, formatDate, formatNumberWithSeparator, todayISO } from "@/lib/utils";
 import type { Debt, DebtPayment } from "@/types";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
+import { Plus } from "lucide-react";
 
 // ─── Debt Form Modal ──────────────────────────────────────────────────────────
 
@@ -411,7 +412,6 @@ export default function Debts() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-[hsl(var(--foreground))]">Hutang & Piutang</h1>
-        <Button size="sm" onClick={() => setAddOpen(true)}>+ Tambah</Button>
       </div>
 
       {/* Summary */}
@@ -494,6 +494,16 @@ export default function Debts() {
           onConfirm={handleDelete}
         />
       )}
+
+      <button
+        type="button"
+        onClick={() => setAddOpen(true)}
+        className="fixed bottom-20 right-4 z-40 w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"
+        aria-label="Tambah hutang atau piutang"
+        title="Tambah hutang/piutang"
+      >
+        <Plus size={18} className="mx-auto" />
+      </button>
     </div>
   );
 }

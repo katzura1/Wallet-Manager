@@ -6,7 +6,7 @@ import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, g
 import { syncAllPrices, searchCoins, anyPriceStale, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
-import { Eye, EyeOff, Clock } from "lucide-react";
+import { Eye, EyeOff, Clock, Plus } from "lucide-react";
 import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1203,12 +1203,14 @@ export default function Portfolio() {
       />
 
       {/* Floating Add button */}
-      <button
-        onClick={() => setAddOpen(true)}
-        className="fixed bottom-25 right-4 z-40 flex items-center gap-2 rounded-full   bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-700 active:scale-95 transition-transform"
-      >
-        <span className="text-lg leading-none">+</span>
-      </button>
+      <div className="fixed bottom-20 right-4 z-100 flex flex-col items-end gap-2">
+        <button
+          onClick={() => setAddOpen(true)}
+          className="w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"
+        >
+          <Plus size={18} className="mx-auto" />
+        </button>
+      </div>
     </div>
   );
 }
