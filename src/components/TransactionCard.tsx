@@ -1,4 +1,4 @@
-import { Transaction } from "@/types";
+import type { Transaction } from "@/types";
 import { formatCurrency, formatDate, TRANSACTION_TYPE_BG } from "@/lib/utils";
 import { Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 
