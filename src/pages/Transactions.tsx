@@ -1,14 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Button, Input, Select, EmptyState, Modal, Badge, Spinner } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
-import { RecurringForm } from "@/components/forms/RecurringForm";
+import { RecurringForm, type RecurringDraftInput } from "@/components/forms/RecurringForm";
 import { TransactionCard } from "@/components/TransactionCard";
 import { deleteTransaction } from "@/db/transactions";
 import { getRecurringTransactions, deleteRecurring, updateRecurring, getRecurringDueInfo, runRecurringNow, skipNextRecurring } from "@/db/recurring";
 import { db } from "@/db/db";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { getRecurringDetectionSuggestions, type RecurringDetectionSuggestion } from "@/services/recurringDetection";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
 import { Plus, Search, Filter, Pencil, Trash2, RefreshCw, Pause, Play, SkipForward, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -34,12 +35,15 @@ export default function Transactions() {
   const [recurringFeedback, setRecurringFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [recurringFormOpen, setRecurringFormOpen] = useState(false);
   const [editRecurring, setEditRecurring] = useState<RecurringTransaction | null>(null);
+  const [recurringDraft, setRecurringDraft] = useState<RecurringDraftInput | null>(null);
+  const [recurringSuggestions, setRecurringSuggestions] = useState<RecurringDetectionSuggestion[]>([]);
   const [deleteRecurringId, setDeleteRecurringId] = useState<number | null>(null);
   const [pendingRecurringAction, setPendingRecurringAction] = useState<{ rec: RecurringTransaction; action: "toggle" | "run" | "skip" } | null>(null);
   const [splitMap, setSplitMap] = useState<Record<number, TransactionSplit[]>>({});
   const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
   const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
+  const pendingFocusTxId = useRef<number | null>(null);
 
   useEffect(() => {
     setSearch(filter.search ?? "");
@@ -60,10 +64,43 @@ export default function Transactions() {
     const tab = searchParams.get("tab");
     if (tab === "recurring" || tab === "all") {
       setActiveTab(tab);
+    } else {
+      setActiveTab("all");
+    }
+
+    const txParam = Number(searchParams.get("tx"));
+    if (!Number.isFinite(txParam) || txParam <= 0) {
+      pendingFocusTxId.current = null;
       return;
     }
-    setActiveTab("all");
+
+    pendingFocusTxId.current = txParam;
+    setShowFilter(false);
+
+    if (filter.search || filter.type || filter.dateFrom || filter.dateTo || (filter.accountIds?.length ?? 0) > 0) {
+      setSearch("");
+      setFilter({});
+    }
   }, [searchParams]);
+
+  useEffect(() => {
+    const targetId = pendingFocusTxId.current;
+    if (!targetId) return;
+
+    const target = transactions.find((item) => item.id === targetId);
+    if (!target) return;
+
+    setExpandedDates((prev) => ({ ...prev, [target.date]: true }));
+    setEditTarget(target);
+    pendingFocusTxId.current = null;
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("tx");
+    if (nextParams.get("tab") === "all") {
+      nextParams.delete("tab");
+    }
+    setSearchParams(nextParams, { replace: true });
+  }, [transactions, searchParams, setSearchParams]);
 
   useEffect(() => {
     setIsFabMenuOpen(false);
@@ -87,7 +124,12 @@ export default function Transactions() {
     setRecurringLoading(true);
     setRecurringError(null);
     try {
-      setRecurring(await getRecurringTransactions());
+      const [items, suggestions] = await Promise.all([
+        getRecurringTransactions(),
+        getRecurringDetectionSuggestions(),
+      ]);
+      setRecurring(items);
+      setRecurringSuggestions(suggestions);
     } catch {
       setRecurringError("Gagal memuat transaksi terjadwal.");
     } finally {
@@ -106,6 +148,7 @@ export default function Transactions() {
   async function handleDelete(id: number) {
     await deleteTransaction(id);
     await refreshAll();
+    await loadRecurring();
     setDeleteTxId(null);
   }
 
@@ -172,6 +215,19 @@ export default function Transactions() {
 
   function requestRecurringAction(rec: RecurringTransaction, action: "toggle" | "run" | "skip") {
     setPendingRecurringAction({ rec, action });
+  }
+
+  function buildRecurringDraft(suggestion: RecurringDetectionSuggestion): RecurringDraftInput {
+    return {
+      type: suggestion.type,
+      amount: suggestion.amount,
+      accountId: suggestion.accountId,
+      categoryId: suggestion.categoryId,
+      interval: suggestion.interval,
+      nextDate: suggestion.nextDate,
+      note: suggestion.note,
+      isActive: true,
+    };
   }
 
   async function confirmRecurringAction() {
@@ -469,13 +525,67 @@ export default function Transactions() {
             <p className="text-sm text-red-700 dark:text-red-300">{recurringError}</p>
             <Button size="sm" variant="outline" onClick={() => void loadRecurring()}>Coba lagi</Button>
           </div>
-        ) : recurring.length === 0 ? (
-          <EmptyState icon="🔄" title="Belum ada transaksi terjadwal" description="Tap + Tambah untuk membuat transaksi otomatis seperti gaji atau tagihan bulanan" />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {recurringFeedback && (
               <div className={`rounded-xl border px-3 py-2 text-sm ${recurringFeedback.type === "success" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"}`}>
                 {recurringFeedback.text}
+              </div>
+            )}
+
+            {recurringSuggestions.length > 0 && (
+              <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Deteksi Jadwal Otomatis</p>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                      AI lokal menemukan pola yang layak dijadikan transaksi terjadwal.
+                    </p>
+                  </div>
+                  <Badge className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                    {recurringSuggestions.length} saran
+                  </Badge>
+                </div>
+
+                <div className="space-y-2">
+                  {recurringSuggestions.map((suggestion) => {
+                    const category = getCategory(suggestion.categoryId);
+                    const isIncome = suggestion.type === "income";
+                    return (
+                      <div key={suggestion.key} className="rounded-xl border border-[hsl(var(--border))] px-3 py-2.5">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-none ${isIncome ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+                            <span className="text-base">{category?.icon ?? (isIncome ? "💰" : "💸")}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-medium truncate">{suggestion.note || category?.name || "Pola berulang terdeteksi"}</p>
+                              <Badge className={suggestion.confidence === "high" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}>
+                                {suggestion.confidence === "high" ? "High confidence" : "Perlu review"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                              {getAccountName(suggestion.accountId)} · {INTERVAL_LABEL[suggestion.interval]} · {suggestion.occurrences} transaksi mirip
+                            </p>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                              Rata-rata {formatCurrency(suggestion.averageAmount, currency)} · berikutnya {formatDate(suggestion.nextDate, "dd MMM yyyy")}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setEditRecurring(null);
+                              setRecurringDraft(buildRecurringDraft(suggestion));
+                              setRecurringFormOpen(true);
+                            }}
+                          >
+                            Buat jadwal
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -485,6 +595,10 @@ export default function Transactions() {
                 {recurring.filter((r) => r.isActive).length} aktif • {recurring.filter((r) => !r.isActive).length} pause
               </p>
             </div>
+
+            {recurring.length === 0 && (
+              <EmptyState icon="🔄" title="Belum ada transaksi terjadwal" description="Tap + Tambah untuk membuat transaksi otomatis seperti gaji atau tagihan bulanan" />
+            )}
 
             {recurring.map((rec) => {
               const cat = getCategory(rec.categoryId);
@@ -593,18 +707,20 @@ export default function Transactions() {
       )}
 
       <RecurringForm
-        key={editRecurring?.id ?? "recurring-new"}
+        key={editRecurring?.id ?? (recurringDraft ? `${recurringDraft.interval}-${recurringDraft.accountId}-${recurringDraft.nextDate}` : "recurring-new")}
         open={recurringFormOpen || editRecurring !== null}
-        onClose={() => { setRecurringFormOpen(false); setEditRecurring(null); }}
+        onClose={() => { setRecurringFormOpen(false); setEditRecurring(null); setRecurringDraft(null); }}
         onSaved={() => {
           void loadRecurring();
           setRecurringFormOpen(false);
           setEditRecurring(null);
+          setRecurringDraft(null);
           setRecurringFeedback({ type: "success", text: "Jadwal tersimpan." });
         }}
         accounts={accounts.filter((a) => !a.isArchived) as typeof accounts}
         categories={categories}
         existing={editRecurring ?? undefined}
+        initialValues={recurringDraft ?? undefined}
       />
 
       <Modal open={deleteTxId !== null} onClose={() => setDeleteTxId(null)} title="Hapus Transaksi">
@@ -707,6 +823,7 @@ export default function Transactions() {
           type="button"
           onClick={() => {
             if (activeTab === "recurring") {
+              setRecurringDraft(null);
               setRecurringFormOpen(true);
               return;
             }

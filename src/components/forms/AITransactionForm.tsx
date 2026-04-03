@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button, Modal, Textarea, Select, Input } from "@/components/ui";
-import { parseTransactionText, type ParsedTransaction } from "@/lib/geminiParser";
+import { parseReceiptImage, parseTransactionText, type ParsedTransaction } from "@/lib/geminiParser";
 import { addTransaction, addTransfer } from "@/db/transactions";
 import { todayISO, formatNumberWithSeparator } from "@/lib/utils";
 import { Sparkles, Loader2, ChevronRight, AlertCircle } from "lucide-react";
@@ -15,9 +15,11 @@ interface AITransactionFormProps {
 }
 
 type Step = "input" | "review";
+type InputMode = "text" | "receipt";
 
 export function AITransactionForm({ open, onClose, onSaved, accounts, categories }: AITransactionFormProps) {
   const [step, setStep] = useState<Step>("input");
+  const [inputMode, setInputMode] = useState<InputMode>("text");
   const [text, setText] = useState("");
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
   const [model, _] = useState(() => localStorage.getItem("gemini_model") ?? "gemini-2.5-flash");
@@ -26,14 +28,24 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
   const [error, setError] = useState("");
   const [parsed, setParsed] = useState<ParsedTransaction[]>([]);
   const [saving, setSaving] = useState(false);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [receiptBase64, setReceiptBase64] = useState("");
+  const [receiptMimeType, setReceiptMimeType] = useState("image/jpeg");
+  const [receiptFileName, setReceiptFileName] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeAccounts = accounts.filter((a) => !a.isArchived);
 
   function handleClose() {
     setStep("input");
+    setInputMode("text");
     setText("");
     setError("");
     setParsed([]);
+    setReceiptPreview(null);
+    setReceiptBase64("");
+    setReceiptMimeType("image/jpeg");
+    setReceiptFileName("");
     onClose();
   }
 
@@ -46,7 +58,12 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
     setError("");
     setLoading(true);
     try {
-      const result = await parseTransactionText(text, apiKey, accounts, categories, model);
+      const result = inputMode === "text"
+        ? await parseTransactionText(text, apiKey, accounts, categories, model)
+        : await parseReceiptImage({
+            mimeType: receiptMimeType,
+            base64Data: receiptBase64,
+          }, apiKey, accounts, categories, model);
       setParsed(result.transactions);
       setStep("review");
     } catch (e) {
@@ -54,6 +71,32 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError("");
+    setReceiptFileName(file.name);
+    setReceiptMimeType(file.type || "image/jpeg");
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (!result) {
+        setError("Gagal membaca file gambar. Coba pilih ulang.");
+        return;
+      }
+
+      const [meta, base64] = result.split(",");
+      const mimeMatch = meta.match(/data:(.*?);base64/);
+      setReceiptPreview(result);
+      setReceiptBase64(base64 ?? "");
+      setReceiptMimeType(mimeMatch?.[1] || file.type || "image/jpeg");
+    };
+    reader.onerror = () => setError("Gagal membaca file gambar. Coba pilih ulang.");
+    reader.readAsDataURL(file);
   }
 
   function updateTx(i: number, patch: Partial<ParsedTransaction>) {
@@ -101,26 +144,82 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title="✨ Catat dari Teks">
+    <Modal open={open} onClose={handleClose} title="✨ Catat dengan AI">
       {step === "input" && (
         <div className="space-y-4">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Ketik transaksi dalam bahasa sehari-hari. Gemini AI akan memparse-nya otomatis.
+            Pilih input teks atau scan struk. Semua hasil tetap masuk ke tahap review manual sebelum disimpan.
           </p>
 
-          <div className="bg-[hsl(var(--accent))] rounded-xl p-3 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
-            <p className="font-medium text-[hsl(var(--foreground))]">Contoh:</p>
-            <p>"Hari ini beli kopi 30rb pake gopay, terus bayar tagihan listrik 150rb pake BCA"</p>
-            <p>"Transfer 500k dari BCA ke Mandiri buat bayar cicilan"</p>
+          <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
+            <button
+              type="button"
+              onClick={() => { setInputMode("text"); setError(""); }}
+              className={`flex-1 py-2 font-medium transition-colors ${inputMode === "text" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+            >
+              Teks
+            </button>
+            <button
+              type="button"
+              onClick={() => { setInputMode("receipt"); setError(""); }}
+              className={`flex-1 py-2 font-medium transition-colors ${inputMode === "receipt" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+            >
+              Scan Struk
+            </button>
           </div>
 
-          <Textarea
-            label="Ceritakan transaksimu"
-            placeholder="Contoh: tadi beli makan siang 45rb pake OVO, trus bayar kartu kredit 300rb dari BCA..."
-            rows={4}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
+          {inputMode === "text" ? (
+            <>
+              <div className="bg-[hsl(var(--accent))] rounded-xl p-3 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
+                <p className="font-medium text-[hsl(var(--foreground))]">Contoh:</p>
+                <p>"Hari ini beli kopi 30rb pake gopay, terus bayar tagihan listrik 150rb pake BCA"</p>
+                <p>"Transfer 500k dari BCA ke Mandiri buat bayar cicilan"</p>
+              </div>
+
+              <Textarea
+                label="Ceritakan transaksimu"
+                placeholder="Contoh: tadi beli makan siang 45rb pake OVO, trus bayar kartu kredit 300rb dari BCA..."
+                rows={4}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--accent))] p-3 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
+                <p className="font-medium text-[hsl(var(--foreground))]">Tips scan struk</p>
+                <p>Pastikan total bayar, tanggal, dan nama merchant terlihat jelas.</p>
+                <p>Hasil scan tetap bisa diedit sebelum disimpan.</p>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleReceiptChange}
+              />
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full rounded-2xl border-2 border-dashed border-[hsl(var(--border))] p-4 text-left hover:bg-[hsl(var(--accent))] transition-colors"
+              >
+                <p className="text-sm font-medium">{receiptPreview ? "Ganti foto struk" : "Pilih foto struk"}</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  {receiptFileName || "Bisa dari kamera atau galeri"}
+                </p>
+              </button>
+
+              {receiptPreview && (
+                <div className="rounded-2xl border border-[hsl(var(--border))] overflow-hidden">
+                  <img src={receiptPreview} alt="Preview struk" className="w-full max-h-64 object-cover bg-[hsl(var(--muted))]" />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* API Key field */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-[hsl(var(--foreground))]">
@@ -167,7 +266,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
             <Button
               className="flex-1 gap-2"
               onClick={handleParse}
-              disabled={loading || !text.trim() || !apiKey.trim()}
+              disabled={loading || !apiKey.trim() || (inputMode === "text" ? !text.trim() : !receiptBase64)}
             >
               {loading ? (
                 <>
@@ -177,7 +276,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
               ) : (
                 <>
                   <Sparkles size={16} />
-                  Parse dengan AI
+                  {inputMode === "text" ? "Parse dengan AI" : "Scan struk"}
                 </>
               )}
             </Button>
@@ -195,7 +294,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
               onClick={() => { setStep("input"); setError(""); }}
               className="text-xs text-indigo-500 hover:underline flex items-center gap-0.5"
             >
-              ← Edit teks
+              ← Kembali ke input
             </button>
           </div>
 

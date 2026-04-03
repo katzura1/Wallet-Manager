@@ -40,21 +40,25 @@ Out of scope (phase ini):
 - [x] Plan & flow disepakati (manual tetap ada, AI sebagai asisten)
 - [x] Phase 1 - Predictive Budget Warning implemented
 - [x] Phase 1 - Anomaly Spending Detection implemented
-- [ ] Phase 2 - Recurring Transaction Detection implemented
-- [ ] Phase 2 - Monthly Insight Summary implemented
-- [ ] Phase 3 - Receipt Scan implemented
+- [x] Phase 2 - Recurring Transaction Detection implemented
+- [x] Phase 2 - Monthly Insight Summary implemented
+- [x] Phase 3 - Receipt Scan implemented
 - [ ] Hardening complete
 - [ ] QA manual + edge-case validation complete
 
 ## Current Progress
-- Status: Phase 1 complete, local-first alerts active di Dashboard
-- Overall progress: 45%
-- Next recommended step: lanjut implement Recurring Transaction Detection untuk mulai Phase 2.
+- Status: Phase 3 started, scan struk aktif ke draft review manual
+- Overall progress: 90%
+- Next recommended step: lanjut hardening untuk debounce/rate-limit, online-only indicator, dan privacy warning di Settings.
 
 ## Progress Log
 - 2026-03-29: Plan dibuat, flow tiap fitur dijelaskan, trigger background vs manual trigger dijelaskan, prioritas eksekusi ditetapkan.
 - 2026-03-29: Predictive Budget Warning diimplementasikan (local-first) dengan estimasi hari habis budget dan proyeksi over budget di dashboard alert.
 - 2026-04-03: Anomaly Spending Detection diimplementasikan secara local-first dengan membandingkan expense terbaru terhadap histori kategori yang sama, memakai minimum sampel dan threshold nominal agar alert tidak noisy. Hasil anomali ditampilkan di kartu Dashboard "Perlu Perhatian" untuk review manual user.
+- 2026-04-03: Alert anomaly di-dashboard sekarang deep-link langsung ke transaksi yang terdeteksi dan membuka flow review dari halaman Transactions.
+- 2026-04-03: Recurring Transaction Detection diimplementasikan secara local-first pada tab Transaksi Terjadwal. Sistem menganalisis pola income atau expense berulang dari histori transaksi, lalu memberi saran draft jadwal yang tetap harus direview dan disimpan manual oleh user.
+- 2026-04-03: Monthly Insight Summary diimplementasikan pada halaman Reports. Insight memakai agregat laporan bulanan sebagai sumber fakta, mencoba membentuk narasi AI bila API key tersedia dan perangkat online, lalu fallback ke ringkasan lokal jika AI tidak tersedia.
+- 2026-04-03: Receipt Scan diimplementasikan pada form AI transaction. User sekarang bisa upload atau foto struk, hasil scan Gemini vision diubah menjadi draft transaksi, lalu tetap masuk ke tahap review manual sebelum disimpan.
 
 ## Notes
 - Prinsip utama: AI tidak pernah auto-save transaksi tanpa konfirmasi user.

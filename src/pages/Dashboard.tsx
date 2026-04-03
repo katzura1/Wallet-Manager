@@ -379,9 +379,10 @@ export default function Dashboard() {
               {topAnomalyAlert && (() => {
                 const isDanger = topAnomalyAlert.severity === "danger";
                 const ratioLabel = `${topAnomalyAlert.ratioToAverage.toFixed(1)}x dari rata-rata`;
+                const anomalyHref = `/transactions?tx=${topAnomalyAlert.transactionId}`;
                 return (
                   <Link
-                    to="/transactions"
+                    to={anomalyHref}
                     className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5 hover:bg-[hsl(var(--accent))] transition-colors"
                   >
                     <div className="flex items-center gap-3">
@@ -425,7 +426,7 @@ export default function Dashboard() {
               )}
               {(upcomingBills.length > 0 || budgetAlerts.length > 0) && anomalyAlerts.length > 0 && <span>•</span>}
               {anomalyAlerts.length > 0 && (
-                <Link to="/transactions" className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline">
+                <Link to={`/transactions?tx=${topAnomalyAlert?.transactionId ?? ""}`} className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline">
                   <AlertTriangle size={12} /> Review transaksi
                 </Link>
               )}

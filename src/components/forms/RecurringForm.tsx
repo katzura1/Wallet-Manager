@@ -11,6 +11,18 @@ interface RecurringFormProps {
   accounts: Account[];
   categories: Category[];
   existing?: RecurringTransaction;
+  initialValues?: RecurringDraftInput;
+}
+
+export interface RecurringDraftInput {
+  type: "income" | "expense";
+  amount: number;
+  accountId: number;
+  categoryId?: number;
+  interval: RecurringInterval;
+  nextDate: string;
+  note: string;
+  isActive?: boolean;
 }
 
 const INTERVAL_OPTIONS: { value: RecurringInterval; label: string }[] = [
@@ -20,20 +32,62 @@ const INTERVAL_OPTIONS: { value: RecurringInterval; label: string }[] = [
   { value: "yearly",  label: "Tahunan" },
 ];
 
-export function RecurringForm({ open, onClose, onSaved, accounts, categories, existing }: RecurringFormProps) {
-  const [type, setType] = useState<"income" | "expense">(existing?.type ?? "expense");
-  const [amount, setAmount] = useState(String(existing?.amount ?? ""));
-  const [accountId, setAccountId] = useState(String(existing?.accountId ?? accounts[0]?.id ?? ""));
-  const [categoryId, setCategoryId] = useState(String(existing?.categoryId ?? ""));
-  const [interval, setIntervalVal] = useState<RecurringInterval>(existing?.interval ?? "monthly");
-  const [nextDate, setNextDate] = useState(existing?.nextDate ?? todayISO());
-  const [note, setNote] = useState(existing?.note ?? "");
-  const [isActive, setIsActive] = useState(existing?.isActive ?? true);
+function getInitialRecurringValues(accounts: Account[], existing?: RecurringTransaction, initialValues?: RecurringDraftInput) {
+  if (existing) {
+    return {
+      type: existing.type,
+      amount: String(existing.amount),
+      accountId: String(existing.accountId),
+      categoryId: String(existing.categoryId ?? ""),
+      interval: existing.interval,
+      nextDate: existing.nextDate,
+      note: existing.note,
+      isActive: existing.isActive,
+    };
+  }
+
+  return {
+    type: initialValues?.type ?? "expense",
+    amount: initialValues?.amount ? String(initialValues.amount) : "",
+    accountId: String(initialValues?.accountId ?? accounts[0]?.id ?? ""),
+    categoryId: String(initialValues?.categoryId ?? ""),
+    interval: initialValues?.interval ?? "monthly",
+    nextDate: initialValues?.nextDate ?? todayISO(),
+    note: initialValues?.note ?? "",
+    isActive: initialValues?.isActive ?? true,
+  };
+}
+
+export function RecurringForm({ open, onClose, onSaved, accounts, categories, existing, initialValues }: RecurringFormProps) {
+  const initialState = getInitialRecurringValues(accounts, existing, initialValues);
+  const [type, setType] = useState<"income" | "expense">(initialState.type);
+  const [amount, setAmount] = useState(initialState.amount);
+  const [accountId, setAccountId] = useState(initialState.accountId);
+  const [categoryId, setCategoryId] = useState(initialState.categoryId);
+  const [interval, setIntervalVal] = useState<RecurringInterval>(initialState.interval);
+  const [nextDate, setNextDate] = useState(initialState.nextDate);
+  const [note, setNote] = useState(initialState.note);
+  const [isActive, setIsActive] = useState(initialState.isActive);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const filteredCategories = categories.filter((c) => c.type === type || c.type === "both");
   const upcomingDates = getNextRecurringDates(nextDate, interval, 3);
+
+  useEffect(() => {
+    if (!open) return;
+    const nextState = getInitialRecurringValues(accounts, existing, initialValues);
+    setType(nextState.type);
+    setAmount(nextState.amount);
+    setAccountId(nextState.accountId);
+    setCategoryId(nextState.categoryId);
+    setIntervalVal(nextState.interval);
+    setNextDate(nextState.nextDate);
+    setNote(nextState.note);
+    setIsActive(nextState.isActive);
+    setLoading(false);
+    setError("");
+  }, [open, accounts, existing, initialValues]);
 
   useEffect(() => {
     if (!categoryId) return;

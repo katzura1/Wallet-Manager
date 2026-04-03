@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui";
+import { Card, CardHeader, CardTitle, CardContent, Badge } from "@/components/ui";
 import { getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween } from "@/db/transactions";
 import { getBudgetsForMonth } from "@/db/budgets";
 import { BudgetForm } from "@/components/forms/BudgetForm";
 import { formatCurrency } from "@/lib/utils";
+import { generateMonthlyInsight, type MonthlyInsightResult } from "@/lib/monthlyInsight";
 import { ChevronLeft, ChevronRight, Target, ChevronDown, ChevronUp } from "lucide-react";
 import type { Budget } from "@/types";
 
@@ -50,6 +51,8 @@ export default function Reports() {
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [showAllBudgets, setShowAllBudgets] = useState(false);
   const [showAllAccounts, setShowAllAccounts] = useState(false);
+  const [monthlyInsight, setMonthlyInsight] = useState<MonthlyInsightResult | null>(null);
+  const [monthlyInsightLoading, setMonthlyInsightLoading] = useState(false);
 
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -68,7 +71,7 @@ export default function Reports() {
 
   useEffect(() => {
     void loadChartData();
-  }, [selectedYear, selectedMonth, categories, mode, dateFrom, dateTo]);
+  }, [selectedYear, selectedMonth, categories, mode, dateFrom, dateTo, currency]);
 
   async function loadChartData() {
     const monthStr = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
@@ -84,6 +87,8 @@ export default function Reports() {
       // Bar chart & balance history don't apply in range mode — keep stale
       setSummary(sum);
       setPreviousSummary(null);
+      setMonthlyInsight(null);
+      setMonthlyInsightLoading(false);
       const pie: PieEntry[] = mergePieEntries(
         Object.entries(catMap).map(([catId, amount]) => {
           const cat = categories.find((c) => c.id === Number(catId));
@@ -122,6 +127,44 @@ export default function Reports() {
       })
     ).sort((a, b) => b.value - a.value);
     setPieData(pie);
+
+    setMonthlyInsightLoading(true);
+    try {
+      const budgetRows = categories
+        .filter((category) => category.type === "expense" || category.type === "both")
+        .map((category) => {
+          const actual = pie.find((entry) => entry.name === category.name)?.value ?? 0;
+          const budget = bdgtList.find((item) => item.categoryId === category.id);
+          return {
+            category,
+            actual,
+            budget,
+            pct: budget?.amount ? Math.round((actual / budget.amount) * 100) : 0,
+          };
+        })
+        .filter((row) => row.budget || row.actual > 0);
+
+      const insight = await generateMonthlyInsight({
+        monthLabel: new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" }),
+        currency,
+        summary: sumM,
+        previousSummary: prevSumM,
+        topCategories: pie.slice(0, 3).map((entry) => ({
+          name: entry.name,
+          value: entry.value,
+          icon: entry.icon,
+        })),
+        budget: {
+          overBudgetCount: budgetRows.filter((row) => row.budget && row.actual > row.budget.amount).length,
+          nearLimitCount: budgetRows.filter((row) => row.budget && row.actual <= row.budget.amount && row.pct >= 80).length,
+          trackedCategoryCount: budgetRows.filter((row) => !!row.budget).length,
+          unusedBudgetCount: budgetRows.filter((row) => row.budget && row.actual === 0).length,
+        },
+      });
+      setMonthlyInsight(insight);
+    } finally {
+      setMonthlyInsightLoading(false);
+    }
   }
 
   function openBudgetForm(catId: number) {
@@ -298,6 +341,49 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+
+      {mode === "monthly" && (monthlyInsightLoading || monthlyInsight) && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>Insight Bulan Ini</CardTitle>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Ringkasan cepat dari angka paling penting bulan ini</p>
+              </div>
+              {monthlyInsight && (
+                <Badge className={monthlyInsight.source === "ai" ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"}>
+                  {monthlyInsight.source === "ai" ? "AI" : "Lokal"}
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-1">
+            {monthlyInsightLoading ? (
+              <div className="space-y-2 animate-pulse">
+                <div className="h-4 rounded bg-[hsl(var(--muted))] w-2/3" />
+                <div className="h-3 rounded bg-[hsl(var(--muted))] w-full" />
+                <div className="h-3 rounded bg-[hsl(var(--muted))] w-5/6" />
+              </div>
+            ) : monthlyInsight ? (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold">{monthlyInsight.headline}</p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">{monthlyInsight.summary}</p>
+                </div>
+                <div className="space-y-2">
+                  {monthlyInsight.highlights.map((item) => (
+                    <div key={item} className="flex items-start gap-2 text-sm">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-500 flex-none" />
+                      <span className="text-[hsl(var(--foreground))]">{item}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{monthlyInsight.note}</p>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Cash Flow Bar Chart — monthly only */}
       {mode === "monthly" && <Card>

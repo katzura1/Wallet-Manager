@@ -16,6 +16,40 @@ export function formatCurrency(amount: number, currency = "IDR"): string {
   }).format(amount);
 }
 
+export function formatCompactCurrency(amount: number, currency = "IDR"): string {
+  if (currency !== "IDR") {
+    return new Intl.NumberFormat("en", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(amount);
+  }
+
+  const sign = amount < 0 ? "-" : "";
+  const absolute = Math.abs(amount);
+  const units = [
+    { value: 1_000_000_000_000, suffix: "T" },
+    { value: 1_000_000_000, suffix: "M" },
+    { value: 1_000_000, suffix: "jt" },
+    { value: 1_000, suffix: "rb" },
+  ];
+
+  for (const unit of units) {
+    if (absolute >= unit.value) {
+      const compactValue = absolute / unit.value;
+      const digits = compactValue >= 10 ? 0 : 1;
+      const formatted = compactValue
+        .toFixed(digits)
+        .replace(/\.0$/, "")
+        .replace(".", ",");
+      return `${sign}${formatted}${unit.suffix}`;
+    }
+  }
+
+  return `${sign}${Math.round(absolute).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+}
+
 export function formatNumberWithSeparator(value: string): string {
   if (!value) return "";
   const numStr = value.replace(/\D/g, "");
