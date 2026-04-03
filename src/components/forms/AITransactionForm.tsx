@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Modal, Textarea, Select, Input } from "@/components/ui";
 import { parseReceiptImage, parseTransactionText, type ParsedTransaction } from "@/lib/geminiParser";
 import { addTransaction, addTransfer } from "@/db/transactions";
 import { todayISO, formatNumberWithSeparator } from "@/lib/utils";
+import { isAIOnline } from "@/lib/aiGuard";
 import { Sparkles, Loader2, ChevronRight, AlertCircle } from "lucide-react";
 import type { Account, Category } from "@/types";
 
@@ -22,12 +23,13 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
   const [inputMode, setInputMode] = useState<InputMode>("text");
   const [text, setText] = useState("");
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
-  const [model, _] = useState(() => localStorage.getItem("gemini_model") ?? "gemini-2.5-flash");
+  const model = localStorage.getItem("gemini_model") ?? "gemini-2.5-flash";
   const [showApiKey, setShowApiKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [parsed, setParsed] = useState<ParsedTransaction[]>([]);
   const [saving, setSaving] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => isAIOnline());
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [receiptBase64, setReceiptBase64] = useState("");
   const [receiptMimeType, setReceiptMimeType] = useState("image/jpeg");
@@ -35,6 +37,17 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeAccounts = accounts.filter((a) => !a.isArchived);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   function handleClose() {
     setStep("input");
@@ -151,6 +164,10 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
             Pilih input teks atau scan struk. Semua hasil tetap masuk ke tahap review manual sebelum disimpan.
           </p>
 
+          <div className={`rounded-xl border px-3 py-2 text-xs ${isOnline ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
+            Status AI: {isOnline ? "Online" : "Offline"}. {isOnline ? "Siap memproses." : "Sambungkan internet untuk memakai fitur AI."}
+          </div>
+
           <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
             <button
               type="button"
@@ -266,7 +283,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
             <Button
               className="flex-1 gap-2"
               onClick={handleParse}
-              disabled={loading || !apiKey.trim() || (inputMode === "text" ? !text.trim() : !receiptBase64)}
+              disabled={loading || !isOnline || !apiKey.trim() || (inputMode === "text" ? !text.trim() : !receiptBase64)}
             >
               {loading ? (
                 <>

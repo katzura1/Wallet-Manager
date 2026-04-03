@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { formatCompactCurrency } from "@/lib/utils";
+import { assertAIRequestAllowed, isAIOnline } from "@/lib/aiGuard";
 
 interface InsightCategoryFact {
   name: string;
@@ -192,13 +193,14 @@ export async function generateMonthlyInsight(input: MonthlyInsightInput): Promis
       return result;
     }
 
-    if (!navigator.onLine) {
+    if (!isAIOnline()) {
       result = buildLocalInsight(input, "Mode lokal: perangkat sedang offline.");
       insightResultCache.set(requestKey, result);
       return result;
     }
 
     try {
+      assertAIRequestAllowed("ai-monthly-insight", 3000);
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: modelName });
       const response = await model.generateContent(buildPrompt(input));

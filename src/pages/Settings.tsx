@@ -11,6 +11,7 @@ import type { CloudBackupSettings, GoogleAuthState, GoogleDriveBackupFile } from
 import { getGoogleAccessToken, getGoogleAuthState, signOutGoogleDrive } from "@/services/googleDriveAuth";
 import { downloadBackupFromDrive, listBackupsFromDrive, uploadBackupToDrive } from "@/services/googleDrive";
 import { getCloudBackupSettings, saveCloudBackupSettings } from "@/services/cloudBackupScheduler";
+import { isAIOnline } from "@/lib/aiGuard";
 
 export default function Settings() {
   const { theme, currency, setTheme, setCurrency } = useSettingsStore();
@@ -53,9 +54,10 @@ export default function Settings() {
   const [importMsg, setImportMsg] = useState("");
   const [clearConfirm, setClearConfirm] = useState(false);
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
-  const [geminiModel, _] = useState(() => localStorage.getItem("gemini_model") ?? "gemini-2.5-flash");
+  const geminiModel = localStorage.getItem("gemini_model") ?? "gemini-2.5-flash";
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [geminiSaved, setGeminiSaved] = useState(false);
+  const [aiOnline, setAiOnline] = useState(() => isAIOnline());
   const [cloudAuth, setCloudAuth] = useState<GoogleAuthState>(() => getGoogleAuthState());
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudMsg, setCloudMsg] = useState("");
@@ -159,6 +161,17 @@ export default function Settings() {
 
   useEffect(() => {
     refreshCloudAuthState();
+  }, []);
+
+  useEffect(() => {
+    const handleOnline = () => setAiOnline(true);
+    const handleOffline = () => setAiOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
   function handleSaveGeminiKey() {
@@ -487,9 +500,12 @@ export default function Settings() {
           <div>
             <p className="text-sm font-semibold">✨ Gemini AI — Catat dari Teks</p>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              Diperlukan untuk fitur "Catat dari Teks" di Dashboard.
+              Diperlukan untuk fitur "Catat dari Teks", "Scan Struk", dan insight naratif.
             </p>
           </div>
+          <p className={`text-xs rounded-xl border px-3 py-2 ${aiOnline ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
+            Status AI: {aiOnline ? "Online" : "Offline"}. Fitur AI hanya aktif saat perangkat terhubung internet.
+          </p>
           <div className="space-y-1">
             <label className="text-sm font-medium text-[hsl(var(--foreground))]">Gemini API Key</label>
             <div className="relative">
@@ -520,6 +536,11 @@ export default function Settings() {
               </a>.
               Key disimpan lokal di perangkatmu.
             </p>
+          </div>
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+            <p className="font-medium">Privacy Warning</p>
+            <p>Teks atau foto struk yang kamu kirim ke fitur AI akan diproses oleh layanan Google Gemini.</p>
+            <p>Jangan kirim data sensitif (nomor kartu, PIN, OTP, atau informasi rahasia lain).</p>
           </div>
           <Button onClick={handleSaveGeminiKey} className="w-full">
             {geminiSaved ? "✅ Tersimpan!" : "Simpan API Key"}

@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { Account, Category } from "@/types";
 import { todayISO } from "@/lib/utils";
+import { assertAIRequestAllowed, isAIOnline } from "@/lib/aiGuard";
 
 export interface ParsedTransaction {
   type: "income" | "expense" | "transfer";
@@ -162,6 +163,11 @@ export async function parseTransactionText(
   if (!text.trim()) {
     throw new Error("Teks tidak boleh kosong.");
   }
+  if (!isAIOnline()) {
+    throw new Error("Perangkat sedang offline. Fitur AI butuh koneksi internet.");
+  }
+
+  assertAIRequestAllowed("ai-parse-text", 2000);
 
   const genAI = new GoogleGenerativeAI(apiKey.trim());
   const model = genAI.getGenerativeModel({ model: modelName });
@@ -193,6 +199,11 @@ export async function parseReceiptImage(
   if (!image.base64Data.trim()) {
     throw new Error("Gambar struk belum dipilih.");
   }
+  if (!isAIOnline()) {
+    throw new Error("Perangkat sedang offline. Scan struk AI butuh koneksi internet.");
+  }
+
+  assertAIRequestAllowed("ai-parse-receipt", 3000);
 
   const genAI = new GoogleGenerativeAI(apiKey.trim());
   const model = genAI.getGenerativeModel({ model: modelName });
