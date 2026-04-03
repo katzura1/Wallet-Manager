@@ -6,7 +6,7 @@ import { TransactionForm } from "@/components/forms/TransactionForm";
 import { AITransactionForm } from "@/components/forms/AITransactionForm";
 import { TransactionCard } from "@/components/TransactionCard";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { deleteTransaction } from "@/db/transactions";
+import { deleteTransaction, getRecentSpendingAnomalies } from "@/db/transactions";
 import { getUpcomingRecurringTransactions } from "@/db/recurring";
 import { getBudgetsForMonth, predictBudgetStatus } from "@/db/budgets";
 import { getCategoryExpenseData } from "@/db/transactions";
@@ -27,6 +27,20 @@ interface BudgetAlertItem {
   level: "warning" | "danger";
 }
 
+interface AnomalyAlertItem {
+  transactionId: number;
+  categoryId: number;
+  categoryName: string;
+  categoryIcon: string;
+  accountId: number;
+  amount: number;
+  date: string;
+  note: string;
+  baselineAverage: number;
+  ratioToAverage: number;
+  severity: "warning" | "danger";
+}
+
 export default function Dashboard() {
   const { accounts, transactions, categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
@@ -40,6 +54,7 @@ export default function Dashboard() {
   const [aiOpen, setAiOpen] = useState(false);
   const [recurringItems, setRecurringItems] = useState<RecurringTransaction[]>([]);
   const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlertItem[]>([]);
+  const [anomalyAlerts, setAnomalyAlerts] = useState<AnomalyAlertItem[]>([]);
   const [accountsCollapsed, setAccountsCollapsed] = useState(true);
   const [recentExpanded, setRecentExpanded] = useState(false);
 
@@ -65,11 +80,12 @@ export default function Dashboard() {
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const dayOfMonth = now.getDate();
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const [recurring, budgets, expenseByCategory, allCategories] = await Promise.all([
+    const [recurring, budgets, expenseByCategory, allCategories, anomalies] = await Promise.all([
       getUpcomingRecurringTransactions(),
       getBudgetsForMonth(monthKey),
       getCategoryExpenseData(now.getFullYear(), now.getMonth() + 1),
       getCategories(),
+      getRecentSpendingAnomalies(),
     ]);
     setRecurringItems(recurring);
     const alerts = budgets
@@ -100,6 +116,24 @@ export default function Dashboard() {
       .sort((a, b) => b.percentage - a.percentage)
       .slice(0, 3);
     setBudgetAlerts(alerts);
+    setAnomalyAlerts(
+      anomalies.map((item) => {
+        const category = allCategories.find((entry) => entry.id === item.categoryId);
+        return {
+          transactionId: item.transactionId,
+          categoryId: item.categoryId,
+          categoryName: category?.name ?? "Kategori",
+          categoryIcon: category?.icon ?? "📦",
+          accountId: item.accountId,
+          amount: item.amount,
+          date: item.date,
+          note: item.note,
+          baselineAverage: item.baselineAverage,
+          ratioToAverage: item.ratioToAverage,
+          severity: item.severity,
+        } satisfies AnomalyAlertItem;
+      }),
+    );
   }
 
   // Handle PWA shortcut deep-links: /?type=expense|income|transfer
@@ -127,6 +161,8 @@ export default function Dashboard() {
   const upcomingBillsTotal = upcomingBills.reduce((sum, item) => sum + item.amount, 0);
   const nextBill = upcomingBills[0] ?? null;
   const topBudgetAlert = budgetAlerts[0] ?? null;
+  const topAnomalyAlert = anomalyAlerts[0] ?? null;
+  const attentionItemsCount = (nextBill ? 1 : 0) + (topBudgetAlert ? 1 : 0) + (topAnomalyAlert ? 1 : 0);
 
   function getAccountName(id: number) {
     return accounts.find((a) => a.id === id)?.name ?? "?";
@@ -232,18 +268,20 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {accounts.length > 0 && (nextBill || topBudgetAlert) && (
+      {accounts.length > 0 && (nextBill || topBudgetAlert || topAnomalyAlert) && (
         <Card className="overflow-hidden">
           <CardContent className="p-3 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold">Perlu Perhatian</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                  {upcomingBills.length > 0 && budgetAlerts.length > 0
-                    ? `${upcomingBills.length} tagihan dan ${budgetAlerts.length} alert budget aktif`
-                    : upcomingBills.length > 0
+                  {attentionItemsCount >= 2
+                    ? `${attentionItemsCount} sinyal finansial perlu dicek hari ini`
+                    : nextBill
                       ? `${upcomingBills.length} tagihan terdekat senilai ${formatCurrency(upcomingBillsTotal, currency)}`
-                      : `${budgetAlerts.length} kategori mendekati limit bulan ini`}
+                      : topBudgetAlert
+                        ? `${budgetAlerts.length} kategori mendekati limit bulan ini`
+                        : `${anomalyAlerts.length} transaksi terlihat tidak biasa`}
                 </p>
               </div>
               <div className="flex flex-wrap justify-end gap-1.5">
@@ -255,6 +293,11 @@ export default function Dashboard() {
                 {budgetAlerts.length > 0 && (
                   <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400">
                     {budgetAlerts.length} budget
+                  </Badge>
+                )}
+                {anomalyAlerts.length > 0 && (
+                  <Badge className="bg-red-500/10 text-red-600 dark:text-red-400">
+                    {anomalyAlerts.length} anomali
                   </Badge>
                 )}
               </div>
@@ -332,6 +375,40 @@ export default function Dashboard() {
                   </Link>
                 );
               })()}
+
+              {topAnomalyAlert && (() => {
+                const isDanger = topAnomalyAlert.severity === "danger";
+                const ratioLabel = `${topAnomalyAlert.ratioToAverage.toFixed(1)}x dari rata-rata`;
+                return (
+                  <Link
+                    to="/transactions"
+                    className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5 hover:bg-[hsl(var(--accent))] transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-none ${isDanger ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
+                        <span className="text-base">{topAnomalyAlert.categoryIcon}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium truncate">Lonjakan {topAnomalyAlert.categoryName}</p>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${isDanger ? "text-red-600 dark:text-red-400 bg-red-500/10" : "text-amber-600 dark:text-amber-400 bg-amber-500/10"}`}>
+                            {ratioLabel}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] truncate mt-0.5">
+                          {topAnomalyAlert.note || `${topAnomalyAlert.categoryName} di ${getAccountName(topAnomalyAlert.accountId)}`}
+                        </p>
+                        <p className={`text-xs mt-0.5 ${isDanger ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>
+                          {formatCurrency(topAnomalyAlert.amount, currency)} vs rata-rata {formatCurrency(topAnomalyAlert.baselineAverage, currency)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 text-[hsl(var(--muted-foreground))]">
+                        <AlertTriangle size={14} className={isDanger ? "text-red-500" : "text-amber-500"} />
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })()}
             </div>
 
             <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
@@ -344,6 +421,12 @@ export default function Dashboard() {
               {budgetAlerts.length > 0 && (
                 <Link to="/reports" className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline">
                   <Target size={12} /> Lihat budget
+                </Link>
+              )}
+              {(upcomingBills.length > 0 || budgetAlerts.length > 0) && anomalyAlerts.length > 0 && <span>•</span>}
+              {anomalyAlerts.length > 0 && (
+                <Link to="/transactions" className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline">
+                  <AlertTriangle size={12} /> Review transaksi
                 </Link>
               )}
             </div>

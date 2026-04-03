@@ -2,6 +2,51 @@ import { db } from "./db";
 import { recalculateAccountBalance } from "./accounts";
 import type { Transaction } from "@/types";
 
+const ANOMALY_LOOKBACK_DAYS = 180;
+const ANOMALY_RECENT_WINDOW_DAYS = 21;
+const ANOMALY_MIN_SAMPLES = 3;
+const ANOMALY_MIN_AMOUNT = 50000;
+
+export interface SpendingAnomaly {
+  transactionId: number;
+  categoryId: number;
+  amount: number;
+  date: string;
+  note: string;
+  accountId: number;
+  baselineAverage: number;
+  baselineMedian: number;
+  ratioToAverage: number;
+  deviationAmount: number;
+  sampleSize: number;
+  severity: "warning" | "danger";
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function toDateKey(date: Date) {
+  return date.toISOString().split("T")[0];
+}
+
+function calculateMedian(values: number[]) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
 function buildNetCategoryExpenseMap(transactions: Transaction[]) {
   const rawMap: Record<number, number> = {};
 
@@ -166,6 +211,87 @@ export async function getCategoryExpenseData(year: number, month: number) {
     .toArray();
 
   return buildNetCategoryExpenseMap(transactions);
+}
+
+export async function getRecentSpendingAnomalies(limit = 3, referenceDate = new Date()): Promise<SpendingAnomaly[]> {
+  const windowEnd = startOfDay(referenceDate);
+  const recentFrom = toDateKey(addDays(windowEnd, -ANOMALY_RECENT_WINDOW_DAYS));
+  const lookbackFrom = toDateKey(addDays(windowEnd, -(ANOMALY_LOOKBACK_DAYS + ANOMALY_RECENT_WINDOW_DAYS)));
+  const windowEndKey = toDateKey(windowEnd);
+
+  const expenses = await db.transactions
+    .where("date")
+    .between(lookbackFrom, windowEndKey, true, true)
+    .filter((tx) => tx.type === "expense" && !!tx.categoryId)
+    .toArray();
+
+  const byCategory = new Map<number, Transaction[]>();
+  for (const expense of expenses) {
+    if (!expense.categoryId) continue;
+    const items = byCategory.get(expense.categoryId) ?? [];
+    items.push(expense);
+    byCategory.set(expense.categoryId, items);
+  }
+
+  const anomalies: SpendingAnomaly[] = [];
+
+  for (const expense of expenses) {
+    if (!expense.id || !expense.categoryId || expense.date < recentFrom || expense.amount < ANOMALY_MIN_AMOUNT) {
+      continue;
+    }
+
+    const categoryHistory = byCategory.get(expense.categoryId) ?? [];
+    const history = categoryHistory.filter((item) => {
+      if (item.id === expense.id) return false;
+      if (item.date >= expense.date) return false;
+      return item.date >= toDateKey(addDays(new Date(`${expense.date}T00:00:00`), -ANOMALY_LOOKBACK_DAYS));
+    });
+
+    if (history.length < ANOMALY_MIN_SAMPLES) {
+      continue;
+    }
+
+    const amounts = history.map((item) => item.amount);
+    const average = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length;
+    const median = calculateMedian(amounts);
+    const ratioToAverage = average > 0 ? expense.amount / average : 0;
+    const ratioToMedian = median > 0 ? expense.amount / median : ratioToAverage;
+    const deviationAmount = expense.amount - average;
+    const thresholdAmount = Math.max(ANOMALY_MIN_AMOUNT, average * 0.75);
+
+    if (ratioToAverage < 1.8 || ratioToMedian < 1.6 || deviationAmount < thresholdAmount) {
+      continue;
+    }
+
+    anomalies.push({
+      transactionId: expense.id,
+      categoryId: expense.categoryId,
+      amount: expense.amount,
+      date: expense.date,
+      note: expense.note,
+      accountId: expense.accountId,
+      baselineAverage: average,
+      baselineMedian: median,
+      ratioToAverage,
+      deviationAmount,
+      sampleSize: history.length,
+      severity: ratioToAverage >= 2.5 || deviationAmount >= Math.max(250000, average)
+        ? "danger"
+        : "warning",
+    });
+  }
+
+  return anomalies
+    .sort((a, b) => {
+      if (b.severity !== a.severity) {
+        return b.severity === "danger" ? 1 : -1;
+      }
+      if (b.ratioToAverage !== a.ratioToAverage) {
+        return b.ratioToAverage - a.ratioToAverage;
+      }
+      return b.date.localeCompare(a.date);
+    })
+    .slice(0, limit);
 }
 
 /** Computes total balance across all non-archived accounts for the last N months. */

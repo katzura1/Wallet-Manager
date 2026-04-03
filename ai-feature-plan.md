@@ -1,6 +1,6 @@
 # AI Feature Plan - Wallet
 
-Updated: 2026-03-29
+Updated: 2026-04-03
 Owner: Product/Dev
 
 ## Goal
@@ -39,7 +39,7 @@ Out of scope (phase ini):
 ## Progress Tracker
 - [x] Plan & flow disepakati (manual tetap ada, AI sebagai asisten)
 - [x] Phase 1 - Predictive Budget Warning implemented
-- [ ] Phase 1 - Anomaly Spending Detection implemented
+- [x] Phase 1 - Anomaly Spending Detection implemented
 - [ ] Phase 2 - Recurring Transaction Detection implemented
 - [ ] Phase 2 - Monthly Insight Summary implemented
 - [ ] Phase 3 - Receipt Scan implemented
@@ -47,13 +47,14 @@ Out of scope (phase ini):
 - [ ] QA manual + edge-case validation complete
 
 ## Current Progress
-- Status: Phase 1 started, Predictive Budget Warning implemented
-- Overall progress: 30%
-- Next recommended step: lanjut implement Anomaly Spending Detection agar Phase 1 selesai.
+- Status: Phase 1 complete, local-first alerts active di Dashboard
+- Overall progress: 45%
+- Next recommended step: lanjut implement Recurring Transaction Detection untuk mulai Phase 2.
 
 ## Progress Log
 - 2026-03-29: Plan dibuat, flow tiap fitur dijelaskan, trigger background vs manual trigger dijelaskan, prioritas eksekusi ditetapkan.
 - 2026-03-29: Predictive Budget Warning diimplementasikan (local-first) dengan estimasi hari habis budget dan proyeksi over budget di dashboard alert.
+- 2026-04-03: Anomaly Spending Detection diimplementasikan secara local-first dengan membandingkan expense terbaru terhadap histori kategori yang sama, memakai minimum sampel dan threshold nominal agar alert tidak noisy. Hasil anomali ditampilkan di kartu Dashboard "Perlu Perhatian" untuk review manual user.
 
 ## Notes
 - Prinsip utama: AI tidak pernah auto-save transaksi tanpa konfirmasi user.
