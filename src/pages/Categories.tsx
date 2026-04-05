@@ -34,39 +34,40 @@ export default function Categories() {
   ];
 
   return (
-    <div className="p-4 pb-24 space-y-4">
+    <div className="px-4 pt-5 pb-24 space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-2 pt-2">
-        <Link to="/settings" className="p-1.5 rounded-xl hover:bg-[hsl(var(--accent))] transition-colors">
-          <ChevronLeft size={20} />
-        </Link>
-        <h1 className="text-xl font-bold flex-1">Kategori</h1>
-        <button
-          onClick={handleRestoreDefault}
-          disabled={restoring}
-          className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-indigo-500 font-medium disabled:opacity-50"
-        >
-          <RefreshCw size={13} className={restoring ? "animate-spin" : ""} /> Pulihkan Default
-        </button>
-        <button
-          onClick={() => setCatFormOpen(true)}
-          className="flex items-center gap-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-xl font-medium transition-colors"
-        >
-          <Plus size={14} /> Tambah
-        </button>
+      <div className="rounded-[32px] border border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)] p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)]">
+        <div className="flex items-start gap-3">
+          <Link to="/settings" className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--card))]/75 hover:bg-[hsl(var(--surface-2))] transition-colors">
+            <ChevronLeft size={18} />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Categories</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight">Kategori</h1>
+            <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Kelola kategori pemasukan dan pengeluaran dengan struktur yang lebih rapi.</p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={handleRestoreDefault} disabled={restoring} className="gap-1.5">
+            <RefreshCw size={13} className={restoring ? "animate-spin" : ""} /> Pulihkan Default
+          </Button>
+          <Button size="sm" onClick={() => setCatFormOpen(true)} className="gap-1.5">
+            <Plus size={14} /> Tambah
+          </Button>
+        </div>
       </div>
 
       {restoreMsg && <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">{restoreMsg}</p>}
 
       {grouped.map(({ label, color, items }) => (
         <Card key={label}>
-          <CardContent className="p-4 space-y-0.5">
-            <p className={`text-xs font-semibold mb-2 ${color}`}>{label} ({items.length})</p>
+          <CardContent className="p-5 space-y-1">
+            <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-2 ${color}`}>{label} ({items.length})</p>
             {items.length === 0 && (
               <p className="text-xs text-[hsl(var(--muted-foreground))] py-2 text-center">Tidak ada kategori</p>
             )}
             {items.map((cat) => (
-              <div key={cat.id} className="flex items-center gap-3 py-2 px-2 rounded-xl hover:bg-[hsl(var(--accent))]">
+              <div key={cat.id} className="flex items-center gap-3 py-3 px-3 rounded-2xl hover:bg-[hsl(var(--surface-2))]">
                 <span
                   className="w-8 h-8 rounded-xl flex items-center justify-center text-base flex-none"
                   style={{ background: `${cat.color}22` }}
@@ -84,14 +85,14 @@ export default function Categories() {
                 )}
                 <button
                   onClick={() => setEditCat(cat)}
-                  className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-indigo-500 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                  className="p-2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] rounded-xl hover:bg-[hsl(var(--surface-2))]"
                 >
                   <Pencil size={13} />
                 </button>
                 {!cat.isDefault && (
                   <button
                     onClick={() => setDeleteCatId(cat.id!)}
-                    className="p-1.5 text-[hsl(var(--muted-foreground))] hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30"
+                    className="p-2 text-[hsl(var(--muted-foreground))] hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30"
                   >
                     <Trash2 size={13} />
                   </button>

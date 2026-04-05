@@ -65,9 +65,10 @@ export default function App() {
       </BrowserRouter>
 
       {showUpdateToast && (
-        <div className="fixed left-4 right-4 bottom-20 z-50 sm:left-auto sm:right-6 sm:bottom-6 sm:w-[360px]">
-          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-xl">
-            <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Versi baru tersedia</p>
+        <div className="fixed left-4 right-4 bottom-20 z-50 sm:left-auto sm:right-6 sm:bottom-6 sm:w-80">
+          <div className="rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/95 p-5 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.65)] backdrop-blur-xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Pembaruan App</p>
+            <p className="mt-1 text-base font-semibold text-[hsl(var(--foreground))]">Versi baru tersedia</p>
             <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]" role="status" aria-live="polite">
               {swUpdateState === "ready" && "Update sekarang untuk melihat perubahan terbaru."}
               {swUpdateState === "updating" && "Sedang menerapkan update aplikasi..."}

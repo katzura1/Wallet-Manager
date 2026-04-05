@@ -145,7 +145,7 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
 
   return (
     <Modal open={open} onClose={onClose} title={existing ? "Edit Transaksi Terjadwal" : "Tambah Transaksi Terjadwal"}>
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="flex flex-wrap gap-2">
           <Badge className="bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">{existing ? "Mode Edit" : "Mode Baru"}</Badge>
           {existing && (
@@ -156,66 +156,76 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
         </div>
 
         {/* Type toggle */}
-        <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden">
+        <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4 space-y-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Recurring Setup</p>
+            <p className="mt-1 text-sm text-[hsl(var(--foreground))]">Buat pola transaksi rutin dengan preview tanggal berikutnya.</p>
+          </div>
+        <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 overflow-hidden">
           {typeButtons.map(({ t, label, cls }) => (
             <button
               key={t}
               type="button"
               onClick={() => { setType(t); setError(""); }}
-              className={`flex-1 py-1.5 text-xs font-medium transition-colors ${
-                type === t ? cls : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+              className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-colors ${
+                type === t ? cls : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"
               }`}
             >
               {label}
             </button>
           ))}
         </div>
+        </div>
 
-        <Input
-          label="Jumlah"
-          type="text"
-          inputMode="numeric"
-          placeholder="0"
-          value={formatNumberWithSeparator(amount)}
-          onChange={(e) => {
-            const cleanValue = e.target.value.replace(/\D/g, "");
-            setAmount(cleanValue);
-            setError("");
-          }}
-          error={error}
-        />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input
+            label="Jumlah"
+            type="text"
+            inputMode="numeric"
+            placeholder="0"
+            value={formatNumberWithSeparator(amount)}
+            onChange={(e) => {
+              const cleanValue = e.target.value.replace(/\D/g, "");
+              setAmount(cleanValue);
+              setError("");
+            }}
+            error={error}
+          />
 
-        <Select label="Akun" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-          <option value="">-- Pilih Akun --</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
-          ))}
-        </Select>
+          <Input
+            label={existing ? "Tanggal Berikutnya" : "Mulai Tanggal"}
+            type="date"
+            value={nextDate}
+            onChange={(e) => {
+              setNextDate(e.target.value);
+              setError("");
+            }}
+          />
+        </div>
 
-        <Select label="Kategori" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-          <option value="">-- Tanpa Kategori --</option>
-          {filteredCategories.map((c) => (
-            <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
-          ))}
-        </Select>
+        <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-4 space-y-4">
+          <Select label="Akun" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <option value="">-- Pilih Akun --</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+            ))}
+          </Select>
 
-        <Select label="Frekuensi" value={interval} onChange={(e) => setIntervalVal(e.target.value as RecurringInterval)}>
-          {INTERVAL_OPTIONS.map(({ value, label }) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </Select>
+          <Select label="Kategori" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <option value="">-- Tanpa Kategori --</option>
+            {filteredCategories.map((c) => (
+              <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+            ))}
+          </Select>
 
-        <Input
-          label={existing ? "Tanggal Berikutnya" : "Mulai Tanggal"}
-          type="date"
-          value={nextDate}
-          onChange={(e) => {
-            setNextDate(e.target.value);
-            setError("");
-          }}
-        />
+          <Select label="Frekuensi" value={interval} onChange={(e) => setIntervalVal(e.target.value as RecurringInterval)}>
+            {INTERVAL_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </Select>
+        </div>
 
-        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-2.5">
+        <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4">
           <p className="text-xs font-semibold text-[hsl(var(--foreground))]">Preview Jadwal Berikutnya</p>
           <div className="mt-1.5 flex flex-wrap gap-1">
             {upcomingDates.map((date) => (
@@ -226,22 +236,19 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Catatan</label>
-          <input
-            className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-1.5 text-sm placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="mis. Gaji bulanan, Netflix, Arisan..."
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </div>
+        <Input
+          label="Catatan"
+          placeholder="mis. Gaji bulanan, Netflix, Arisan..."
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
 
         {existing && (
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="flex items-center gap-3 cursor-pointer rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 px-4 py-3">
             <div
               role="switch"
               aria-checked={isActive}
-              className={`relative w-10 h-6 rounded-full transition-colors ${isActive ? "bg-indigo-500" : "bg-[hsl(var(--border))]"}`}
+              className={`relative w-10 h-6 rounded-full transition-colors ${isActive ? "bg-[hsl(var(--primary))]" : "bg-[hsl(var(--border))]"}`}
               onClick={() => setIsActive(!isActive)}
             >
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${isActive ? "translate-x-5" : "translate-x-1"}`} />

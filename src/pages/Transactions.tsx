@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { Button, Input, Select, EmptyState, Modal, Badge, Spinner } from "@/components/ui";
+import { Button, Input, Select, EmptyState, Modal, Badge, Spinner, Card, CardContent } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { RecurringForm, type RecurringDraftInput } from "@/components/forms/RecurringForm";
 import { TransactionCard } from "@/components/TransactionCard";
@@ -16,6 +16,20 @@ import { Plus, Search, Filter, Pencil, Trash2, RefreshCw, Pause, Play, SkipForwa
 const INTERVAL_LABEL: Record<string, string> = {
   daily: "Harian", weekly: "Mingguan", monthly: "Bulanan", yearly: "Tahunan",
 };
+
+function formatCompactRupiah(value: number) {
+  if (value === 0) return "Rp 0";
+  return `Rp ${new Intl.NumberFormat("id-ID", {
+    notation: "compact",
+    maximumFractionDigits: value >= 1_000_000 ? 1 : 0,
+  }).format(value)}`;
+}
+
+function getNetTone(value: number) {
+  if (value > 0) return "text-emerald-500";
+  if (value < 0) return "text-red-500";
+  return "text-[hsl(var(--foreground))]";
+}
 
 export default function Transactions() {
   const { accounts, transactions, categories, filter, setFilter, refreshAll } = useWalletStore();
@@ -302,45 +316,66 @@ export default function Transactions() {
   ].filter((item): item is { key: string; label: string; onRemove: () => void } => item !== null);
 
   return (
-    <div className="p-4 pb-24 space-y-4">
-      <div className="flex items-center justify-between pt-2">
-        <h1 className="text-xl font-bold">Transaksi</h1>
-        <div />
-      </div>
+    <div className="px-4 pt-5 pb-24 space-y-5">
+      <Card className="overflow-hidden rounded-3xl border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
+        <CardContent className="p-5 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Ledger</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight">Transaksi</h1>
+              <p className="mt-2 max-w-xs text-sm leading-6 text-[hsl(var(--muted-foreground))]">Cari cepat, cek ringkasan harian, dan kelola jadwal berulang.</p>
+            </div>
+            <div className="rounded-[26px] bg-[hsl(var(--card))]/78 px-4 py-3 text-right flex-none">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Terfilter</p>
+              <p className="mt-1 text-2xl font-bold leading-none">{transactions.length}</p>
+            </div>
+          </div>
 
-      {/* Tab toggle */}
-      <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
-        <button
-          onClick={() => handleTabChange("all")}
-          className={`flex-1 py-2 font-medium transition-colors ${activeTab === "all" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-        >
-          Semua
-        </button>
-        <button
-          onClick={() => handleTabChange("recurring")}
-          className={`flex-1 py-2 font-medium transition-colors flex items-center justify-center gap-1.5 ${activeTab === "recurring" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-        >
-          <RefreshCw size={13} /> Terjadwal
-          {recurring.length > 0 && (
-            <span className={`text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold ${activeTab === "recurring" ? "bg-white/30 text-white" : "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400"}`}>
-              {recurring.length}
-            </span>
-          )}
-        </button>
-      </div>
+          <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1.5 space-y-2">
+            <div className="flex rounded-[20px] bg-[hsl(var(--surface-2))] p-1 text-sm">
+              <button
+                onClick={() => handleTabChange("all")}
+                className={`flex-1 rounded-2xl py-2.5 font-medium transition-colors ${activeTab === "all" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-[0_12px_24px_-18px_hsl(var(--primary))]" : "text-[hsl(var(--muted-foreground))] hover:bg-white/70 dark:hover:bg-white/5"}`}
+              >
+                Semua
+              </button>
+              <button
+                onClick={() => handleTabChange("recurring")}
+                className={`flex-1 rounded-2xl py-2.5 font-medium transition-colors flex items-center justify-center gap-1.5 ${activeTab === "recurring" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-[0_12px_24px_-18px_hsl(var(--primary))]" : "text-[hsl(var(--muted-foreground))] hover:bg-white/70 dark:hover:bg-white/5"}`}
+              >
+                <RefreshCw size={13} /> Terjadwal
+                {recurring.length > 0 && (
+                  <span className={`text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold ${activeTab === "recurring" ? "bg-white/30 text-white" : "bg-[hsl(var(--card))] text-[hsl(var(--primary))]"}`}>
+                    {recurring.length}
+                  </span>
+                )}
+              </button>
+            </div>
 
-      {/* Search — only on "all" tab */}
-      {activeTab === "all" && (
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
-          <input
-            className="w-full pl-9 pr-4 py-2 rounded-xl border border-[hsl(var(--border))] bg-transparent text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="Cari transaksi..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-          />
-        </div>
-      )}
+            {activeTab === "all" && (
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+                  <input
+                    className="w-full rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                    placeholder="Cari transaksi..."
+                    value={search}
+                    onChange={(e) => handleSearch(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFilter((v) => !v)}
+                  className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border px-3.5 text-sm font-medium transition-colors ${showFilter || activeFilterChips.length > 0 ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]" : "border-[hsl(var(--border))] bg-[hsl(var(--card))]/75 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
+                >
+                  <Filter size={15} />
+                  {activeFilterChips.length > 0 ? `Filter ${activeFilterChips.length}` : "Filter"}
+                </button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {activeTab === "all" && activeFilterChips.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
@@ -348,7 +383,7 @@ export default function Transactions() {
             <button
               key={chip.key}
               onClick={chip.onRemove}
-              className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]"
+              className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))]"
             >
               <span>{chip.label}</span>
               <span className="text-[hsl(var(--muted-foreground))]">×</span>
@@ -368,10 +403,10 @@ export default function Transactions() {
 
       {/* Filters */}
       {activeTab === "all" && showFilter && (
-        <div className="space-y-3 p-3 rounded-xl bg-[hsl(var(--muted))]">
+        <div className="space-y-3 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4">
           <div className="space-y-2">
             <p className="text-sm font-medium">Pilih Akun (Multiple):</p>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
+            <div className="space-y-2 max-h-40 overflow-y-auto rounded-2xl bg-[hsl(var(--card))]/70 p-3">
               {accounts.map((a) => (
                 <label key={a.id} className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -432,9 +467,15 @@ export default function Transactions() {
           <EmptyState icon="📋" title="Belum ada transaksi" description="Tap + Tambah untuk mencatat transaksi baru" />
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-end gap-2">
-              <Button size="sm" variant="outline" onClick={expandAllDays}>Expand all</Button>
-              <Button size="sm" variant="outline" onClick={collapseAllDays}>Collapse all</Button>
+            <div className="flex items-center justify-between gap-3 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/75 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Tampilan Hari</p>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Buka semua grup atau rapikan list.</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button size="sm" variant="outline" className="px-3" onClick={expandAllDays}>Expand</Button>
+                <Button size="sm" variant="outline" className="px-3" onClick={collapseAllDays}>Collapse</Button>
+              </div>
             </div>
             {sortedDates.map((date) => {
               const dayTxs = groupedByDate[date];
@@ -442,24 +483,36 @@ export default function Transactions() {
               const dayExpense = dayTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
               const isDayExpanded = expandedDates[date] ?? true;
               return (
-                <div key={date}>
-                  <div className="flex items-center justify-between mb-2">
-                    <button
-                      onClick={() => setExpandedDates((prev) => ({ ...prev, [date]: !isDayExpanded }))}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                    >
-                      {isDayExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      <span>{formatDate(date, "EEEE, dd MMM")}</span>
-                      <span className="text-[10px] opacity-75">({dayTxs.length})</span>
-                    </button>
-                    <div className="flex gap-2 text-xs">
-                      {dayIncome > 0 && <span className="text-emerald-500">+{formatCurrency(dayIncome, currency)}</span>}
-                      {dayExpense > 0 && <span className="text-red-500">-{formatCurrency(dayExpense, currency)}</span>}
-                      {dayIncome > 0 || dayExpense > 0 ? (<span className="text-[hsl(var(--muted-foreground))]">= {formatCurrency(dayIncome - dayExpense, currency)}</span>) : null}
+                <Card key={date} className="overflow-hidden">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <button
+                        onClick={() => setExpandedDates((prev) => ({ ...prev, [date]: !isDayExpanded }))}
+                        className="inline-flex items-start gap-2 text-left hover:text-[hsl(var(--foreground))]"
+                      >
+                        <span className="mt-0.5 text-[hsl(var(--muted-foreground))]">{isDayExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
+                        <span>
+                          <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{formatDate(date, "EEEE, dd MMM")}</span>
+                          <span className="mt-1 block text-[11px] text-[hsl(var(--muted-foreground))]">{dayTxs.length} transaksi</span>
+                        </span>
+                      </button>
+                      <div className="grid grid-cols-3 gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-2.5 py-2 text-right">
+                        <div className="min-w-12">
+                          <p className="text-[10px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Masuk</p>
+                          <p className="mt-1 text-[11px] font-semibold text-emerald-500">{formatCompactRupiah(dayIncome)}</p>
+                        </div>
+                        <div className="min-w-12">
+                          <p className="text-[10px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Keluar</p>
+                          <p className="mt-1 text-[11px] font-semibold text-red-500">{formatCompactRupiah(dayExpense)}</p>
+                        </div>
+                        <div className="min-w-12">
+                          <p className="text-[10px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Net</p>
+                          <p className={`mt-1 text-[11px] font-semibold ${getNetTone(dayIncome - dayExpense)}`}>{formatCompactRupiah(Math.abs(dayIncome - dayExpense))}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  {isDayExpanded && (
-                    <div className="space-y-2">
+                    {isDayExpanded && (
+                    <div className="space-y-2 pt-1">
                     {dayTxs.map((tx) => {
                       const cat = getCategory(tx.categoryId);
                       const txSplits = splitMap[tx.id!] ?? [];
@@ -481,7 +534,7 @@ export default function Transactions() {
                             onDelete={() => setDeleteTxId(tx.id!)}
                           />
                           {hasSplits && isExpanded && (
-                            <div className="px-3 pb-3 pt-1 border-t border-[hsl(var(--border))] space-y-1.5">
+                            <div className="mt-2 rounded-[20px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-3 pb-3 pt-3 space-y-1.5">
                               {txSplits.map((s, i) => {
                                 const splitCat = getCategory(s.categoryId);
                                 return (
@@ -507,7 +560,8 @@ export default function Transactions() {
                     })}
                     </div>
                   )}
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -534,7 +588,7 @@ export default function Transactions() {
             )}
 
             {recurringSuggestions.length > 0 && (
-              <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 space-y-2.5">
+              <div className="rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold">Deteksi Jadwal Otomatis</p>
@@ -552,7 +606,7 @@ export default function Transactions() {
                     const category = getCategory(suggestion.categoryId);
                     const isIncome = suggestion.type === "income";
                     return (
-                      <div key={suggestion.key} className="rounded-xl border border-[hsl(var(--border))] px-3 py-2.5">
+                      <div key={suggestion.key} className="rounded-[22px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-3 py-3">
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-none ${isIncome ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
                             <span className="text-base">{category?.icon ?? (isIncome ? "💰" : "💸")}</span>
@@ -589,11 +643,17 @@ export default function Transactions() {
               </div>
             )}
 
-            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2.5">
-              <p className="text-xs font-semibold">Ringkasan Jadwal</p>
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                {recurring.filter((r) => r.isActive).length} aktif • {recurring.filter((r) => !r.isActive).length} pause
-              </p>
+            <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-[hsl(var(--foreground))]">Ringkasan Jadwal</p>
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Jadwal aktif dan pause dalam satu pandangan.</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{recurring.filter((r) => r.isActive).length} aktif</p>
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{recurring.filter((r) => !r.isActive).length} pause</p>
+                </div>
+              </div>
             </div>
 
             {recurring.length === 0 && (
@@ -605,35 +665,37 @@ export default function Transactions() {
               const due = getRecurringDueInfo(rec.nextDate);
               const isBusy = recurringBusyId === rec.id;
               return (
-                <div key={rec.id} className={`rounded-xl border bg-[hsl(var(--card))] ${rec.isActive ? "border-[hsl(var(--border))]" : "border-dashed border-[hsl(var(--border))] opacity-75"}`}>
-                  <div className="flex items-center gap-2.5 p-2.5 pb-1.5">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base flex-none ${rec.type === "income" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+                <div key={rec.id} className={`rounded-3xl border bg-[hsl(var(--card))] ${rec.isActive ? "border-[hsl(var(--border))]" : "border-dashed border-[hsl(var(--border))] opacity-75"}`}>
+                  <div className="flex items-start gap-3 px-4 pt-4 pb-3">
+                    <div className={`mt-0.5 w-10 h-10 rounded-2xl flex items-center justify-center text-base flex-none ${rec.type === "income" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
                       {cat ? cat.icon : rec.type === "income" ? "💰" : "💸"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-xs font-medium truncate">{rec.note || cat?.name || "Tanpa nama"}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 flex-1 text-sm font-semibold truncate text-[hsl(var(--foreground))]">{rec.note || cat?.name || "Tanpa nama"}</p>
+                        <p className={`shrink-0 pt-0.5 text-sm font-bold ${rec.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
+                          {rec.type === "expense" ? "-" : "+"}{formatCurrency(rec.amount, currency)}
+                        </p>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
                         <Badge className={rec.isActive ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}>
                           {rec.isActive ? "Aktif" : "Pause"}
                         </Badge>
                         <Badge className={getDueClass(due.tone)}>{due.label}</Badge>
                       </div>
-                      <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      <p className="mt-2 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">
                         {getAccountName(rec.accountId)} · {INTERVAL_LABEL[rec.interval]} · Berikutnya {formatDate(rec.nextDate, "dd MMM")}
                       </p>
                     </div>
-                    <p className={`font-semibold text-xs ${rec.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
-                      {rec.type === "expense" ? "-" : "+"}{formatCurrency(rec.amount, currency)}
-                    </p>
                   </div>
 
-                  <div className="flex items-center justify-end gap-1.5 px-2.5 pb-2.5 pt-0.5">
+                  <div className="flex items-center justify-end gap-1 border-t border-[hsl(var(--border))] px-4 py-2.5 bg-[hsl(var(--surface-2))]/55">
                     <button
                       onClick={() => requestRecurringAction(rec, "toggle")}
                       disabled={isBusy}
                       aria-label={rec.isActive ? "Pause jadwal" : "Aktifkan jadwal"}
                       title={rec.isActive ? "Pause" : "Aktifkan"}
-                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
                     >
                       {rec.isActive ? <Pause size={13} /> : <Play size={13} />}
                       <span className="sr-only">{rec.isActive ? "Pause" : "Aktifkan"}</span>
@@ -643,7 +705,7 @@ export default function Transactions() {
                       disabled={isBusy}
                       aria-label="Jalankan sekarang"
                       title="Jalankan sekarang"
-                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10"
+                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
                     >
                       <Play size={13} />
                       <span className="sr-only">Jalankan</span>
@@ -653,7 +715,7 @@ export default function Transactions() {
                       disabled={isBusy}
                       aria-label="Lewati jadwal berikutnya"
                       title="Lewati berikutnya"
-                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
                     >
                       <SkipForward size={13} />
                       <span className="sr-only">Lewati</span>
@@ -663,7 +725,7 @@ export default function Transactions() {
                       disabled={isBusy}
                       aria-label="Edit jadwal"
                       title="Edit jadwal"
-                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
                     >
                       <Pencil size={13} />
                       <span className="sr-only">Edit</span>
@@ -673,7 +735,7 @@ export default function Transactions() {
                       disabled={isBusy}
                       aria-label="Hapus jadwal"
                       title="Hapus jadwal"
-                      className="w-8 h-8 rounded-lg border border-[hsl(var(--border))] inline-flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-red-500 hover:bg-red-500/10"
+                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:text-red-500 hover:bg-red-500/10"
                     >
                       <Trash2 size={13} />
                       <span className="sr-only">Hapus</span>
@@ -769,7 +831,7 @@ export default function Transactions() {
         </div>
       </Modal>
 
-      <div className="fixed bottom-30 right-4 z-40 flex flex-col items-end gap-2">
+      <div className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-40 flex flex-col items-end gap-2">
         {activeTab === "all" && (
           <button
             type="button"
@@ -779,7 +841,7 @@ export default function Transactions() {
             }}
             className={`relative w-11 h-11 rounded-full border shadow-lg transition ${
               showFilter
-                ? "bg-indigo-600 border-indigo-600 text-white"
+                ? "bg-[hsl(var(--primary))] border-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
                 : "bg-[hsl(var(--card))] border-[hsl(var(--border))] text-[hsl(var(--foreground))]"
             }`}
             style={{
@@ -792,7 +854,7 @@ export default function Transactions() {
           >
             <Filter size={18} className="mx-auto" />
             {activeFilterChips.length > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[10px] leading-4 font-bold border border-white dark:border-[hsl(var(--card))]">
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] text-[10px] leading-4 font-bold border border-white dark:border-[hsl(var(--card))]">
                 {activeFilterChips.length}
               </span>
             )}
@@ -829,7 +891,7 @@ export default function Transactions() {
             }
             setIsFabMenuOpen((v) => !v);
           }}
-          className="w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"
+          className="w-12 h-12 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-lg hover:brightness-[1.06] active:scale-95 transition"
           aria-label={activeTab === "recurring" ? "Tambah transaksi terjadwal" : "Aksi transaksi"}
           title={activeTab === "recurring" ? "Tambah jadwal" : "Buka menu aksi"}
         >

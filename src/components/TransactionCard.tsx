@@ -41,50 +41,47 @@ export function TransactionCard({
         : "text-amber-500";
 
   return (
-    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
-      {/* Row 1: Icon + Category/Date | Amount */}
-      <div className="flex gap-2 p-3 border-b border-[hsl(var(--border))]">
-        {/* Icon + Category/Date */}
+    <div className="overflow-hidden rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] backdrop-blur-sm">
+      <div className="flex gap-3 border-b border-[hsl(var(--border))] px-4 py-3">
         <div className="flex gap-2 flex-1 min-w-0">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base flex-none ${TRANSACTION_TYPE_BG[tx.type as TransactionType]}`}>
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-base flex-none ${TRANSACTION_TYPE_BG[tx.type as TransactionType]}`}>
             {displayIcon}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-[hsl(var(--foreground))] truncate leading-tight">
+            <p className="text-sm font-semibold text-[hsl(var(--foreground))] truncate leading-tight">
               {hasSplits ? `Split · ${categoryLabel?.split(" · ").pop() ?? ""}` : categoryLabel || accountName}
             </p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
-              {formatDate(tx.date, "dd MMM")}
+            <p className="text-[11px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))] truncate mt-1">
+              {formatDate(tx.date, "dd MMM")} {tx.type === "transfer" ? "· Transfer" : ""}
             </p>
           </div>
         </div>
-        <div className={`font-bold text-sm flex-none ${amountColor}`}>
+        <div className={`font-bold text-sm flex-none self-center pl-2 ${amountColor}`}>
           {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
           {formatCurrency(tx.amount, currency)}
         </div>
       </div>
 
-      {/* Row 2: Note/Account | Buttons */}
-      <div className="flex items-center gap-2 p-3">
+      <div className="flex items-center gap-3 px-4 py-2.5">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-[hsl(var(--foreground))] truncate">
+          <p className="text-sm font-medium text-[hsl(var(--foreground))] truncate">
             {displayLabel}
           </p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
+          <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate mt-1">
             {accountName}{toAccountName ? ` → ${toAccountName}` : ""}
           </p>
         </div>
         
         <div className="flex items-center gap-1 flex-none">
           {hasSplits && onExpandSplits && (
-            <button onClick={onExpandSplits} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-indigo-500 rounded transition-colors" title="Detail">
+            <button onClick={onExpandSplits} className="flex h-7 w-7 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors" title="Detail">
               {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
           )}
-          <button onClick={onEdit} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-indigo-500 rounded transition-colors" title="Edit">
+          <button onClick={onEdit} className="flex h-7 w-7 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors" title="Edit">
             <Pencil size={14} />
           </button>
-          <button onClick={onDelete} className="p-1 text-[hsl(var(--muted-foreground))] hover:text-red-500 rounded transition-colors" title="Hapus">
+          <button onClick={onDelete} className="flex h-7 w-7 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-red-500 transition-colors" title="Hapus">
             <Trash2 size={14} />
           </button>
         </div>

@@ -260,9 +260,16 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
 
   return (
     <Modal open={open} onClose={onClose} title={existing ? "Edit Transaksi" : "Tambah Transaksi"}>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4 space-y-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Transaction Setup</p>
+            <p className="mt-1 text-sm text-[hsl(var(--foreground))]">
+              Pilih tipe, akun, dan kategori. Semua perubahan tetap mengikuti flow transaksi yang sama.
+            </p>
+          </div>
         {/* Type Toggle */}
-        <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden">
+        <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 overflow-hidden">
           {typeButtons.map(({ t, label, cls }) => (
             <button
               key={t}
@@ -272,70 +279,88 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                 setSplitMode(false);
                 setError("");
               }}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                type === t ? cls : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+              className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-colors ${
+                type === t ? cls : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"
               }`}
             >
               {label}
             </button>
           ))}
         </div>
+        </div>
 
-        <Input
-          label="Jumlah"
-          type="text"
-          inputMode="numeric"
-          placeholder="0"
-          value={formatNumberWithSeparator(amount)}
-          onChange={(e) => {
-            const cleanValue = e.target.value.replace(/\D/g, "");
-            setAmount(cleanValue);
-            setError("");
-          }}
-          error={error}
-        />
-
-        <Select label={type === "transfer" ? "Dari Akun" : "Akun"} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-          <option value="">-- Pilih Akun --</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.icon} {a.name}
-            </option>
-          ))}
-        </Select>
-
-        {type === "transfer" && (
-          <Select label="Ke Akun" value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
-            <option value="">-- Pilih Akun Tujuan --</option>
-            {accounts
-              .filter((a) => String(a.id) !== accountId)
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.icon} {a.name}
-                </option>
-              ))}
-          </Select>
-        )}
-
-        {type !== "transfer" && (
-          <button
-            type="button"
-            onClick={() => {
-              setSplitMode((v) => !v);
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input
+            label="Jumlah"
+            type="text"
+            inputMode="numeric"
+            placeholder="0"
+            value={formatNumberWithSeparator(amount)}
+            onChange={(e) => {
+              const cleanValue = e.target.value.replace(/\D/g, "");
+              setAmount(cleanValue);
               setError("");
             }}
-            className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors ${
-              splitMode
-                ? "bg-indigo-600 text-white border-indigo-600"
-                : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
-            }`}
-          >
-            ✂️ Split Kategori
-          </button>
+            error={error}
+          />
+
+          <Input label="Tanggal" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+
+        <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-4 space-y-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Account Flow</p>
+            <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Tentukan akun sumber dan tujuan transaksi.</p>
+          </div>
+
+          <Select label={type === "transfer" ? "Dari Akun" : "Akun"} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <option value="">-- Pilih Akun --</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </Select>
+
+          {type === "transfer" && (
+            <Select label="Ke Akun" value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
+              <option value="">-- Pilih Akun Tujuan --</option>
+              {accounts
+                .filter((a) => String(a.id) !== accountId)
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.icon} {a.name}
+                  </option>
+                ))}
+            </Select>
+          )}
+        </div>
+
+        {type !== "transfer" && (
+          <div className="flex items-center justify-between gap-3 rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold">Kategori</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Aktifkan split jika satu transaksi dibagi ke beberapa kategori.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSplitMode((v) => !v);
+                setError("");
+              }}
+              className={`text-xs font-medium px-3 py-2 rounded-full border transition-colors ${
+                splitMode
+                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] border-[hsl(var(--primary))]"
+                  : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+              }`}
+            >
+              ✂️ Split Kategori
+            </button>
+          </div>
         )}
 
         {type !== "transfer" && !splitMode && (
-          <div className="space-y-1">
+          <div className="space-y-2">
             <Select label="Kategori" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               <option value="">-- Pilih Kategori --</option>
               {filteredCategories.map((c) => (
@@ -351,7 +376,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
         )}
 
         {splitMode && type !== "transfer" && (
-          <div className="space-y-2">
+          <div className="space-y-3 rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-[hsl(var(--foreground))]">Split Kategori</span>
               <span className={`text-xs font-medium ${Math.abs(splitsTotal - amountNum) < 0.01 ? "text-emerald-500" : "text-red-500"}`}>
@@ -359,7 +384,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
               </span>
             </div>
             {splits.map((row, i) => (
-              <div key={i} className="flex gap-2 items-start">
+              <div key={i} className="flex gap-2 items-start rounded-2xl bg-[hsl(var(--surface-2))] p-3">
                 <div className="flex-1">
                   <Select value={row.categoryId} onChange={(e) => updateSplitRow(i, "categoryId", e.target.value)}>
                     <option value="">-- Kategori --</option>
@@ -386,7 +411,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                   <button
                     type="button"
                     onClick={() => removeSplitRow(i)}
-                    className="mt-1 text-red-400 hover:text-red-600 text-lg leading-none"
+                    className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl bg-white/70 text-red-400 hover:text-red-600 text-lg leading-none"
                   >
                     ×
                   </button>
@@ -396,14 +421,12 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
             <button
               type="button"
               onClick={addSplitRow}
-              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="text-xs font-medium text-[hsl(var(--primary))] hover:underline"
             >
               + Tambah Baris
             </button>
           </div>
         )}
-
-        <Input label="Tanggal" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
 
         <div className="space-y-2">
           <Textarea label="Catatan (opsional)" placeholder="Tambah catatan..." rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
@@ -414,7 +437,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                   key={preset}
                   type="button"
                   onClick={() => setNote(preset)}
-                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${note === preset ? "border-indigo-600 bg-indigo-600 text-white" : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${note === preset ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
                 >
                   {preset}
                 </button>

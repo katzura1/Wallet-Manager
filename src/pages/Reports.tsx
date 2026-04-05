@@ -255,39 +255,50 @@ export default function Reports() {
   const monthLabel = new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" });
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="pt-2">
-        <h1 className="text-xl font-bold">Laporan</h1>
-      </div>
+    <div className="px-4 pt-5 pb-4 space-y-5">
+      <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Analytics</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight">Laporan</h1>
+              <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Baca pola cashflow, kategori, budget, dan perubahan performa bulanan.</p>
+            </div>
+            <div className="rounded-[24px] bg-[hsl(var(--card))]/75 px-4 py-3 text-right">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Mode</p>
+              <p className="mt-2 text-sm font-semibold capitalize">{mode === "monthly" ? "Bulanan" : "Rentang"}</p>
+            </div>
+          </div>
 
-      {/* Mode toggle */}
-      <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
+          <div className="flex rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 text-sm">
         <button
           onClick={() => setMode("monthly")}
-          className={`flex-1 py-2 font-medium transition-colors ${mode === "monthly" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+          className={`flex-1 rounded-[18px] py-2.5 font-medium transition-colors ${mode === "monthly" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
         >
           📅 Bulanan
         </button>
         <button
           onClick={() => setMode("range")}
-          className={`flex-1 py-2 font-medium transition-colors ${mode === "range" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+          className={`flex-1 rounded-[18px] py-2.5 font-medium transition-colors ${mode === "range" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
         >
           📆 Rentang
         </button>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Month navigator — only in monthly mode */}
       {mode === "monthly" && (
-        <div className="flex items-center justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 py-1">
-          <button onClick={prevMonth} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))]"><ChevronLeft size={18} /></button>
+        <div className="flex items-center justify-between rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2">
+          <button onClick={prevMonth} className="p-2 rounded-2xl hover:bg-[hsl(var(--surface-2))]"><ChevronLeft size={18} /></button>
           <p className="font-semibold capitalize text-sm">{monthLabel}</p>
-          <button onClick={nextMonth} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))]"><ChevronRight size={18} /></button>
+          <button onClick={nextMonth} className="p-2 rounded-2xl hover:bg-[hsl(var(--surface-2))]"><ChevronRight size={18} /></button>
         </div>
       )}
 
       {/* Date range picker — only in range mode */}
       {mode === "range" && (
-        <div className="flex items-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+        <div className="flex items-center gap-2 rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
           <div className="flex-1">
             <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Dari</p>
             <input
@@ -310,33 +321,33 @@ export default function Reports() {
       )}
 
       {/* Monthly summary cards */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card>
-          <CardContent className="p-3 text-center flex flex-col justify-between h-full">
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Pemasukan</p>
-            <p className="font-bold text-sm text-emerald-500 mt-0.5">{formatCurrency(summary.income, currency)}</p>
+          <CardContent className="p-4 flex flex-col justify-between h-full">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Pemasukan</p>
+            <p className="font-bold text-lg text-emerald-500 mt-3">{formatCurrency(summary.income, currency)}</p>
             {mode === "monthly" && incomeComparison && (
-              <p className={`text-[11px] mt-1 ${incomeComparison.className}`}>{incomeComparison.label}</p>
+              <p className={`text-[11px] mt-2 ${incomeComparison.className}`}>{incomeComparison.label}</p>
             )}
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-3 text-center flex flex-col justify-between h-full">
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
-            <p className="font-bold text-sm text-red-500 mt-0.5">{formatCurrency(summary.expense, currency)}</p>
+          <CardContent className="p-4 flex flex-col justify-between h-full">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
+            <p className="font-bold text-lg text-red-500 mt-3">{formatCurrency(summary.expense, currency)}</p>
             {mode === "monthly" && expenseComparison && (
-              <p className={`text-[11px] mt-1 ${expenseComparison.className}`}>{expenseComparison.label}</p>
+              <p className={`text-[11px] mt-2 ${expenseComparison.className}`}>{expenseComparison.label}</p>
             )}
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-3 text-center flex flex-col justify-between h-full">
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Net</p>
-            <p className={`font-bold text-sm mt-0.5 ${summary.net >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+          <CardContent className="p-4 flex flex-col justify-between h-full">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Net</p>
+            <p className={`font-bold text-lg mt-3 ${summary.net >= 0 ? "text-emerald-500" : "text-red-500"}`}>
               {formatCurrency(summary.net, currency)}
             </p>
             {mode === "monthly" && netComparison && (
-              <p className={`text-[11px] mt-1 ${netComparison.className}`}>{netComparison.label}</p>
+              <p className={`text-[11px] mt-2 ${netComparison.className}`}>{netComparison.label}</p>
             )}
           </CardContent>
         </Card>

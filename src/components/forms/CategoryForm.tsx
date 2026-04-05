@@ -61,21 +61,21 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Type toggle */}
         <div>
-          <p className="text-sm font-medium mb-2">Tipe</p>
-          <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] mb-2">Tipe</p>
+          <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 overflow-hidden">
             {TYPE_OPTIONS.map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setType(value)}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-colors ${
                   type === value
                     ? value === "expense"
                       ? "bg-red-500 text-white"
                       : value === "income"
                       ? "bg-emerald-500 text-white"
-                      : "bg-indigo-500 text-white"
-                    : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
+                      : "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"
                 }`}
               >
                 {label}
@@ -87,13 +87,13 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
         {/* Icon + Name row */}
         <div className="flex gap-3 items-end">
           <div className="space-y-1">
-            <p className="text-sm font-medium">Ikon</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Ikon</p>
             <input
               type="text"
               value={icon}
               onChange={(e) => setIcon(e.target.value)}
               maxLength={2}
-              className="w-14 h-10 text-2xl text-center rounded-xl border border-[hsl(var(--border))] bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-14 h-12 text-2xl text-center rounded-2xl border border-[hsl(var(--border))] bg-transparent focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
             />
           </div>
           <div className="flex-1">
@@ -109,7 +109,7 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
 
         {/* Color */}
         <div>
-          <p className="text-sm font-medium mb-2">Warna</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] mb-2">Warna</p>
           <div className="flex flex-wrap gap-2">
             {ACCOUNT_COLORS.map((c) => (
               <button
@@ -124,7 +124,7 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
         </div>
 
         {/* Preview */}
-        <div className="flex items-center gap-3 p-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--accent))]">
+        <div className="flex items-center gap-3 p-4 rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]">
           <span
             className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
             style={{ background: `${color}22` }}

@@ -77,7 +77,7 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
           }}
         />
         <div className="space-y-2">
-          <label className="text-sm font-medium">Warna</label>
+          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Warna</label>
           <div className="flex flex-wrap gap-2">
             {ACCOUNT_COLORS.map((c) => (
               <button
@@ -96,7 +96,7 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
           </div>
         </div>
         {/* Preview */}
-        <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: color + "20", border: `1px solid ${color}40` }}>
+        <div className="rounded-3xl p-4 flex items-center gap-3" style={{ background: color + "20", border: `1px solid ${color}40` }}>
           <span className="text-2xl">{icon}</span>
           <div>
             <p className="font-semibold text-sm" style={{ color }}>

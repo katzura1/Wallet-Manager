@@ -222,9 +222,11 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-4 space-y-5">
-      <div className="pt-2">
-        <h1 className="text-xl font-bold">Pengaturan</h1>
+    <div className="px-4 pt-5 pb-4 space-y-5">
+      <div className="rounded-[32px] border border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)] p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Preferences</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight">Pengaturan</h1>
+        <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Atur tampilan, backup, keamanan, AI, dan sinkronisasi cloud tanpa mengubah data inti.</p>
       </div>
 
       {/* Theme */}
@@ -235,7 +237,7 @@ export default function Settings() {
             <button
               onClick={() => setTheme("light")}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
-                theme === "light" ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600" : "border-[hsl(var(--border))]"
+                theme === "light" ? "border-[hsl(var(--primary))] bg-[hsl(var(--surface-2))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
               }`}
             >
               <Sun size={16} /> Light
@@ -243,7 +245,7 @@ export default function Settings() {
             <button
               onClick={() => setTheme("dark")}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
-                theme === "dark" ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600" : "border-[hsl(var(--border))]"
+                theme === "dark" ? "border-[hsl(var(--primary))] bg-[hsl(var(--surface-2))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
               }`}
             >
               <Moon size={16} /> Dark
@@ -267,7 +269,7 @@ export default function Settings() {
                 key={code}
                 onClick={() => setCurrency(code)}
                 className={`px-3 py-1.5 rounded-xl border-2 text-sm font-medium transition-colors ${
-                  currency === code ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600" : "border-[hsl(var(--border))]"
+                  currency === code ? "border-[hsl(var(--primary))] bg-[hsl(var(--surface-2))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
                 }`}
               >
                 {label}
@@ -300,7 +302,7 @@ export default function Settings() {
               <button
                 onClick={() => setImportMode("merge")}
                 className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-colors ${
-                  importMode === "merge" ? "border-indigo-500 text-indigo-600" : "border-[hsl(var(--border))]"
+                  importMode === "merge" ? "border-[hsl(var(--primary))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
                 }`}
               >
                 Merge (gabungkan)
@@ -318,7 +320,7 @@ export default function Settings() {
             <label className="block">
               <div
                 className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed text-sm font-medium cursor-pointer transition-colors ${
-                  importing ? "opacity-50 pointer-events-none" : "hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                  importing ? "opacity-50 pointer-events-none" : "hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--surface-2))]"
                 } border-[hsl(var(--border))]`}
               >
                 <Upload size={15} /> {importing ? "Mengimport..." : "Import JSON"}
@@ -385,7 +387,7 @@ export default function Settings() {
                 value={cloudSettings.intervalHours}
                 onChange={(e) => saveCloudConfig({ ...cloudSettings, intervalHours: Number(e.target.value) })}
                 disabled={!cloudAuth.isConfigured}
-                className="w-36 rounded-xl border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-xs"
+                className="w-36 rounded-2xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-xs"
               >
                 <option value={1}>Per 1 jam</option>
                 <option value={3}>Per 3 jam</option>
@@ -530,7 +532,7 @@ export default function Settings() {
                 href="https://aistudio.google.com/app/apikey"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-indigo-500 underline"
+                className="text-[hsl(var(--primary))] underline"
               >
                 Google AI Studio
               </a>.
@@ -569,8 +571,8 @@ export default function Settings() {
           <div className="flex gap-2">
             <button
               onClick={() => setCloudImportMode("merge")}
-              className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-colors ${
-                cloudImportMode === "merge" ? "border-indigo-500 text-indigo-600" : "border-[hsl(var(--border))]"
+                className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-colors ${
+                  cloudImportMode === "merge" ? "border-[hsl(var(--primary))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
               }`}
             >
               Merge (gabungkan)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { Button, EmptyState, Badge, Modal, Spinner } from "@/components/ui";
+import { Button, EmptyState, Badge, Modal, Spinner, Card, CardContent } from "@/components/ui";
 import { AccountForm } from "@/components/forms/AccountForm";
 import { archiveAccount, deleteAccount, updateAccount } from "@/db/accounts";
 import { formatCurrency, ACCOUNT_TYPE_LABELS } from "@/lib/utils";
@@ -87,29 +87,32 @@ export default function Accounts() {
   const visibleAccounts = view === "active" ? activeAccounts : archivedAccounts;
 
   return (
-    <div className="p-3 space-y-3.5">
-      <div className="pt-1 space-y-2">
+    <div className="px-4 pt-5 pb-4 space-y-5">
+      <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
+        <CardContent className="p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-lg font-bold">Akun Saya</h1>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Kelola akun aktif dan arsip dengan cepat</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Accounts</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight">Akun Saya</h1>
+            <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Kelola akun aktif, arsip, dan ringkasan saldo dengan cepat.</p>
           </div>
           <Button size="sm" onClick={() => setAddOpen(true)} disabled={loading}>
             <Plus size={16} /> Tambah
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5">
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2.5">
-            <p className="text-xs text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Wallet size={13} /> Total Saldo Aktif</p>
-            <p className="text-sm font-bold mt-0.5 truncate">{formatCurrency(totalBalance, currency)}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-3xl bg-[hsl(var(--card))]/75 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Wallet size={13} /> Total Saldo Aktif</p>
+            <p className="text-lg font-bold mt-3 truncate">{formatCurrency(totalBalance, currency)}</p>
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2.5">
-            <p className="text-xs text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Layers3 size={13} /> Jumlah Akun</p>
-            <p className="text-sm font-bold mt-0.5">{activeAccounts.length} aktif • {archivedAccounts.length} arsip</p>
+          <div className="rounded-3xl bg-[hsl(var(--card))]/75 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Layers3 size={13} /> Jumlah Akun</p>
+            <p className="text-lg font-bold mt-3">{activeAccounts.length} aktif • {archivedAccounts.length} arsip</p>
           </div>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {feedback && (
         <div className={`rounded-xl border px-3 py-2 text-sm ${feedback.type === "success" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"}`}>
@@ -117,16 +120,16 @@ export default function Accounts() {
         </div>
       )}
 
-      <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-xs">
+      <div className="flex rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 p-1 text-xs">
         <button
           onClick={() => setView("active")}
-          className={`flex-1 py-1.5 font-medium transition-colors ${view === "active" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+          className={`flex-1 rounded-[18px] py-2 font-medium transition-colors ${view === "active" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
         >
           Aktif ({activeAccounts.length})
         </button>
         <button
           onClick={() => setView("archived")}
-          className={`flex-1 py-1.5 font-medium transition-colors ${view === "archived" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+          className={`flex-1 rounded-[18px] py-2 font-medium transition-colors ${view === "archived" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
         >
           Arsip ({archivedAccounts.length})
         </button>
@@ -239,9 +242,9 @@ function AccountCard({
   busy: boolean;
 }) {
   return (
-    <div className={`rounded-2xl border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))] ${account.isArchived ? "opacity-80" : ""}`}>
+    <div className={`rounded-[28px] border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] ${account.isArchived ? "opacity-80" : ""}`}>
       <div className="flex items-center gap-3 p-3 pb-2">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-none" style={{ background: account.color + "25" }}>
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl flex-none" style={{ background: account.color + "25" }}>
           {account.icon}
         </div>
         <div className="flex-1 min-w-0">

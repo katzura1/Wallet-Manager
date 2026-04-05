@@ -49,10 +49,12 @@ export function BudgetForm({ open, onClose, onSaved, categories, month, initialC
 
   return (
     <Modal open={open} onClose={onClose} title="Atur Budget">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Periode: <span className="font-medium capitalize">{monthLabel}</span>
-        </p>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Budget Period</p>
+          <p className="mt-1 text-sm text-[hsl(var(--foreground))] capitalize">{monthLabel}</p>
+          <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">Atur limit kategori untuk menjaga pengeluaran tetap terkendali.</p>
+        </div>
 
         <Select
           label="Kategori"
@@ -80,9 +82,9 @@ export function BudgetForm({ open, onClose, onSaved, categories, month, initialC
           error={error}
         />
 
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+        <div className="rounded-[20px] border border-dashed border-[hsl(var(--border))] px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">
           Set 0 untuk menghapus budget pada kategori ini.
-        </p>
+        </div>
 
         <div className="flex gap-2 pt-1">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Batal</Button>

@@ -308,7 +308,7 @@ function DebtCard({ debt, currency, onEdit, onPay, onHistory, onDelete }: DebtCa
   const isOverdue = debt.dueDate && !debt.isSettled && debt.dueDate < todayISO();
 
   return (
-    <div className="rounded-lg border border-[hsl(var(--border))] p-2.5 space-y-2 bg-[hsl(var(--card))]">
+    <div className="rounded-[28px] border border-[hsl(var(--border))] p-4 space-y-3 bg-[hsl(var(--card))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)]">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-semibold text-sm text-[hsl(var(--foreground))]">{debt.name}</p>
@@ -319,9 +319,9 @@ function DebtCard({ debt, currency, onEdit, onPay, onHistory, onDelete }: DebtCa
           )}
           {debt.isSettled && <span className="inline-block mt-1 text-xs bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">✅ Lunas</span>}
         </div>
-        <div className="flex gap-0.5">
-          <button onClick={onEdit} className="text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] p-1">✏️</button>
-          <button onClick={onDelete} className="text-xs text-[hsl(var(--muted-foreground))] hover:text-red-500 p-1">🗑️</button>
+        <div className="flex gap-1">
+          <button onClick={onEdit} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
+          <button onClick={onDelete} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-xs text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
         </div>
       </div>
 
@@ -330,8 +330,8 @@ function DebtCard({ debt, currency, onEdit, onPay, onHistory, onDelete }: DebtCa
           <span className="text-[hsl(var(--muted-foreground))]">Sisa</span>
           <span className="font-semibold">{formatCurrency(debt.remaining, currency)}</span>
         </div>
-        <div className="w-full h-1.5 rounded-full bg-[hsl(var(--muted))]">
-          <div className="h-1.5 rounded-full bg-indigo-500 transition-all" style={{ width: `${pct}%` }} />
+        <div className="w-full h-1.5 rounded-full bg-[hsl(var(--surface-2))]">
+          <div className="h-1.5 rounded-full bg-[hsl(var(--primary))] transition-all" style={{ width: `${pct}%` }} />
         </div>
         <div className="flex justify-between text-xs text-[hsl(var(--muted-foreground))]">
           <span>Terbayar {pct}%</span>
@@ -408,26 +408,28 @@ export default function Debts() {
   const totalOwed = owedDebts.filter((d) => !d.isSettled).reduce((s, d) => s + d.remaining, 0);
 
   return (
-    <div className="p-3 pb-24 space-y-4 max-w-lg mx-auto">
+    <div className="px-4 pt-5 pb-24 space-y-5 max-w-xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-[hsl(var(--foreground))]">Hutang & Piutang</h1>
+      <div className="rounded-[32px] border border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)] p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Debt Tracking</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-[hsl(var(--foreground))]">Hutang & Piutang</h1>
+        <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Pantau kewajiban dan piutang, termasuk progres pembayaran dan jatuh tempo.</p>
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-xl bg-red-50 dark:bg-red-900/20 p-3">
-          <p className="text-xs text-red-500 font-medium mb-0.5">💸 Hutang Saya</p>
-          <p className="text-base font-bold text-red-600 dark:text-red-400">{formatCurrency(totalOwe, currency)}</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-[28px] bg-red-50 dark:bg-red-900/20 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-red-500 mb-1">Hutang Saya</p>
+          <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(totalOwe, currency)}</p>
         </div>
-        <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 p-3">
-          <p className="text-xs text-emerald-600 font-medium mb-0.5">🤝 Piutang Saya</p>
-          <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalOwed, currency)}</p>
+        <div className="rounded-[28px] bg-emerald-50 dark:bg-emerald-900/20 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-600 mb-1">Piutang Saya</p>
+          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalOwed, currency)}</p>
         </div>
       </div>
 
       {/* Show settled toggle */}
-      <label className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))] cursor-pointer">
+      <label className="flex items-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3 text-xs text-[hsl(var(--muted-foreground))] cursor-pointer">
         <input
           type="checkbox"
           checked={showSettled}
@@ -474,7 +476,7 @@ export default function Debts() {
       )}
 
       {debts.length === 0 && (
-        <div className="text-center py-16 text-[hsl(var(--muted-foreground))]">
+        <div className="rounded-[28px] border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 text-center py-16 text-[hsl(var(--muted-foreground))]">
           <div className="text-5xl mb-3">🤝</div>
           <p className="font-medium">Belum ada hutang/piutang</p>
           <p className="text-sm mt-1">Tap + Tambah untuk mencatat</p>
@@ -498,7 +500,7 @@ export default function Debts() {
       <button
         type="button"
         onClick={() => setAddOpen(true)}
-        className="fixed bottom-30 right-4 z-40 w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 active:scale-95 transition"
+        className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-40 w-12 h-12 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-lg hover:brightness-[1.06] active:scale-95 transition"
         aria-label="Tambah hutang atau piutang"
         title="Tambah hutang/piutang"
       >

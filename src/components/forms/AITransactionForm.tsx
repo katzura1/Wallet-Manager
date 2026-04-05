@@ -159,27 +159,30 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
   return (
     <Modal open={open} onClose={handleClose} title="✨ Catat dengan AI">
       {step === "input" && (
-        <div className="space-y-4">
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Pilih input teks atau scan struk. Semua hasil tetap masuk ke tahap review manual sebelum disimpan.
-          </p>
+        <div className="space-y-5">
+          <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4 space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">AI Assistant</p>
+            <p className="text-sm text-[hsl(var(--foreground))]">
+              Pilih input teks atau scan struk. Semua hasil tetap masuk ke tahap review manual sebelum disimpan.
+            </p>
+          </div>
 
           <div className={`rounded-xl border px-3 py-2 text-xs ${isOnline ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
             Status AI: {isOnline ? "Online" : "Offline"}. {isOnline ? "Siap memproses." : "Sambungkan internet untuk memakai fitur AI."}
           </div>
 
-          <div className="flex rounded-xl border border-[hsl(var(--border))] overflow-hidden text-sm">
+          <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 overflow-hidden text-sm">
             <button
               type="button"
               onClick={() => { setInputMode("text"); setError(""); }}
-              className={`flex-1 py-2 font-medium transition-colors ${inputMode === "text" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              className={`flex-1 rounded-xl py-2.5 font-medium transition-colors ${inputMode === "text" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
             >
               Teks
             </button>
             <button
               type="button"
               onClick={() => { setInputMode("receipt"); setError(""); }}
-              className={`flex-1 py-2 font-medium transition-colors ${inputMode === "receipt" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+              className={`flex-1 rounded-xl py-2.5 font-medium transition-colors ${inputMode === "receipt" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
             >
               Scan Struk
             </button>
@@ -187,7 +190,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
 
           {inputMode === "text" ? (
             <>
-              <div className="bg-[hsl(var(--accent))] rounded-xl p-3 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
+              <div className="bg-[hsl(var(--surface-2))] rounded-[24px] p-4 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
                 <p className="font-medium text-[hsl(var(--foreground))]">Contoh:</p>
                 <p>"Hari ini beli kopi 30rb pake gopay, terus bayar tagihan listrik 150rb pake BCA"</p>
                 <p>"Transfer 500k dari BCA ke Mandiri buat bayar cicilan"</p>
@@ -203,7 +206,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
             </>
           ) : (
             <div className="space-y-3">
-              <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--accent))] p-3 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
+              <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
                 <p className="font-medium text-[hsl(var(--foreground))]">Tips scan struk</p>
                 <p>Pastikan total bayar, tanggal, dan nama merchant terlihat jelas.</p>
                 <p>Hasil scan tetap bisa diedit sebelum disimpan.</p>
@@ -221,7 +224,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full rounded-2xl border-2 border-dashed border-[hsl(var(--border))] p-4 text-left hover:bg-[hsl(var(--accent))] transition-colors"
+                className="w-full rounded-[24px] border-2 border-dashed border-[hsl(var(--border))] p-4 text-left hover:bg-[hsl(var(--accent))] transition-colors"
               >
                 <p className="text-sm font-medium">{receiptPreview ? "Ganti foto struk" : "Pilih foto struk"}</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
@@ -239,13 +242,13 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
 
           {/* API Key field */}
           <div className="space-y-1">
-            <label className="text-sm font-medium text-[hsl(var(--foreground))]">
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
               Gemini API Key{" "}
               <a
                 href="https://aistudio.google.com/app/apikey"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-indigo-500 text-xs font-normal underline"
+                className="text-[hsl(var(--primary))] text-xs font-normal underline"
               >
                 Dapatkan gratis di sini
               </a>
@@ -256,7 +259,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
                 value={apiKey}
                 onChange={(e) => saveApiKey(e.target.value)}
                 placeholder="AIza..."
-                className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-16"
+                className="w-full rounded-2xl border border-[hsl(var(--border))] bg-transparent px-4 py-3 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] pr-24"
               />
               <button
                 type="button"
@@ -302,7 +305,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
       )}
 
       {step === "review" && (
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="flex items-center justify-between">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
               Ditemukan <span className="font-semibold text-[hsl(var(--foreground))]">{parsed.length}</span> transaksi. Review sebelum disimpan:
@@ -317,7 +320,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
 
           <div className="space-y-3">
             {parsed.map((tx, i) => (
-              <div key={i} className="border border-[hsl(var(--border))] rounded-2xl p-3 space-y-3">
+              <div key={i} className="border border-[hsl(var(--border))] rounded-[28px] bg-[hsl(var(--card))]/70 p-4 space-y-4">
                 {/* Header row */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -328,7 +331,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
                   </div>
                   <button
                     onClick={() => removeTx(i)}
-                    className="text-xs text-red-400 hover:text-red-600"
+                    className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-400 hover:text-red-600"
                   >
                     Hapus
                   </button>
@@ -351,7 +354,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
                 </Select>
 
                 {/* Amount + Date row */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <Input
                     label="Jumlah"
                     type="text"

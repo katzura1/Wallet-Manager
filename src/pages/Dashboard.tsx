@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Card, CardContent, Modal, Button, Badge } from "@/components/ui";
@@ -12,8 +12,16 @@ import { getBudgetsForMonth, predictBudgetStatus } from "@/db/budgets";
 import { getCategoryExpenseData } from "@/db/transactions";
 import { getCategories } from "@/db/categories";
 import { db } from "@/db/db";
-import { Plus, Settings, CreditCard, Eye, EyeOff, AlertTriangle, Target, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Settings, CreditCard, Eye, EyeOff, AlertTriangle, Target, ChevronDown, ChevronUp, MoreHorizontal, TrendingDown, TrendingUp, ArrowRightLeft, Sparkles } from "lucide-react";
 import type { RecurringTransaction, Transaction } from "@/types";
+
+function formatCompactRupiah(value: number) {
+  if (value === 0) return "Rp 0";
+  return `Rp ${new Intl.NumberFormat("id-ID", {
+    notation: "compact",
+    maximumFractionDigits: value >= 1_000_000 ? 1 : 0,
+  }).format(value)}`;
+}
 
 interface BudgetAlertItem {
   categoryId: number;
@@ -57,6 +65,9 @@ export default function Dashboard() {
   const [anomalyAlerts, setAnomalyAlerts] = useState<AnomalyAlertItem[]>([]);
   const [accountsCollapsed, setAccountsCollapsed] = useState(true);
   const [recentExpanded, setRecentExpanded] = useState(false);
+  const [heroMenuOpen, setHeroMenuOpen] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
+  const heroMenuRef = useRef<HTMLDivElement | null>(null);
 
   function toggleBalanceHidden() {
     setBalanceHidden((v) => {
@@ -146,6 +157,19 @@ export default function Dashboard() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!heroMenuRef.current?.contains(event.target as Node)) {
+        setHeroMenuOpen(false);
+      }
+    }
+
+    if (heroMenuOpen) {
+      document.addEventListener("mousedown", handlePointerDown);
+      return () => document.removeEventListener("mousedown", handlePointerDown);
+    }
+  }, [heroMenuOpen]);
+
   const totalBalance = accounts.reduce((sum, a) => sum + a.currentBalance, 0);
   const now = new Date();
   const todayKey = now.toISOString().split("T")[0];
@@ -208,73 +232,125 @@ export default function Dashboard() {
     setDeleteTargetId(null);
   }
 
-  return (
-    <div className="p-4 space-y-4">
-      {/* Header */}
-      <div className="pt-2 pb-1 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Total Saldo</p>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {balanceHidden ? <span className="tracking-widest text-2xl">••••••</span> : formatCurrency(totalBalance, currency)}
-          </h1>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{formatDate(now.toISOString(), "EEEE, dd MMMM yyyy")}</p>
-        </div>
-        <div className="flex items-center gap-1 pt-1">
-          <button onClick={toggleBalanceHidden} className="p-2 rounded-xl hover:bg-[hsl(var(--accent))] transition-colors text-[hsl(var(--muted-foreground))]">
-            {balanceHidden ? <EyeOff size={20} /> : <Eye size={20} />}
-          </button>
-          <Link to="/accounts" className="p-2 rounded-xl hover:bg-[hsl(var(--accent))] transition-colors text-[hsl(var(--muted-foreground))]">
-            <CreditCard size={20} />
-          </Link>
-          <Link to="/settings" className="p-2 rounded-xl hover:bg-[hsl(var(--accent))] transition-colors text-[hsl(var(--muted-foreground))]">
-            <Settings size={20} />
-          </Link>
-        </div>
-      </div>
+  function openTransaction(type: Transaction["type"]) {
+    setFabOpen(false);
+    setHeroMenuOpen(false);
+    setDefaultType(type);
+    setAddOpen(true);
+  }
 
-      {/* Monthly Summary */}
-      <div className="grid grid-cols-3 gap-2">
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-              <span className="text-xs text-[hsl(var(--muted-foreground))]">Pemasukan</span>
+  function openAiTransaction() {
+    setFabOpen(false);
+    setHeroMenuOpen(false);
+    setAiOpen(true);
+  }
+
+  const fabActions = [
+    {
+      label: "Pengeluaran",
+      helper: "Catat belanja dan biaya",
+      icon: TrendingDown,
+      className: "text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-300",
+      onClick: () => openTransaction("expense"),
+    },
+    {
+      label: "Pemasukan",
+      helper: "Gaji, bonus, pemasukan lain",
+      icon: TrendingUp,
+      className: "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300",
+      onClick: () => openTransaction("income"),
+    },
+    {
+      label: "Transfer",
+      helper: "Pindah saldo antar akun",
+      icon: ArrowRightLeft,
+      className: "text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-300",
+      onClick: () => openTransaction("transfer"),
+    },
+    {
+      label: "AI Assistant",
+      helper: "Input cepat dari teks atau struk",
+      icon: Sparkles,
+      className: "text-[hsl(var(--primary))] bg-[hsl(var(--surface-2))]",
+      onClick: openAiTransaction,
+    },
+  ];
+
+  return (
+    <div className="px-4 pt-5 pb-28 space-y-5">
+      <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
+        <CardContent className="p-5 space-y-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Ringkasan Hari Ini</p>
+              <p className="mt-4 text-xs font-medium text-[hsl(var(--muted-foreground))]">Total saldo</p>
+              <h1 className="mt-1 text-[2.15rem] font-bold tracking-tight leading-[1.05] sm:text-4xl">
+                {balanceHidden ? <span className="tracking-[0.35em] text-2xl">••••••</span> : formatCurrency(totalBalance, currency)}
+              </h1>
+              <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">{formatDate(now.toISOString(), "EEEE, dd MMMM yyyy")}</p>
             </div>
-            <p className="font-bold text-emerald-500 text-sm leading-tight">{formatCurrency(monthIncome, currency)}</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">bulan ini</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
-              <span className="text-xs text-[hsl(var(--muted-foreground))]">Pengeluaran</span>
+            <div className="flex items-center gap-2 pt-1 flex-none">
+              <button onClick={toggleBalanceHidden} className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[hsl(var(--card))]/80 text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]">
+                {balanceHidden ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+              <div ref={heroMenuRef} className="relative">
+                <button
+                  onClick={() => setHeroMenuOpen((value) => !value)}
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[hsl(var(--card))]/80 text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+                {heroMenuOpen && (
+                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-44 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/98 p-2 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.55)] backdrop-blur-xl">
+                    <Link
+                      to="/accounts"
+                      onClick={() => setHeroMenuOpen(false)}
+                      className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))]"
+                    >
+                      <CreditCard size={16} /> Akun
+                    </Link>
+                    <Link
+                      to="/settings"
+                      onClick={() => setHeroMenuOpen(false)}
+                      className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))]"
+                    >
+                      <Settings size={16} /> Pengaturan
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
-            <p className="font-bold text-amber-500 text-sm leading-tight">{formatCurrency(monthExpense, currency)}</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">bulan ini</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`w-2 h-2 rounded-full inline-block ${monthIncome - monthExpense >= 0 ? "bg-indigo-500" : "bg-red-500"}`} />
-              <span className="text-xs text-[hsl(var(--muted-foreground))]">Net</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-[22px] bg-[hsl(var(--card))]/82 p-3 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] leading-tight text-[hsl(var(--muted-foreground))]">Pemasukan</p>
+              <p className="mt-2 text-sm font-bold text-emerald-500 leading-tight">{formatCompactRupiah(monthIncome)}</p>
+              <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">bulan ini</p>
             </div>
-            <p className={`font-bold text-sm leading-tight ${monthIncome - monthExpense >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-red-600 dark:text-red-400"}`}>
-              {formatCurrency(Math.abs(monthIncome - monthExpense), currency)}
-            </p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">bulan ini</p>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="rounded-[22px] bg-[hsl(var(--card))]/82 p-3 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] leading-tight text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
+              <p className="mt-2 text-sm font-bold text-amber-500 leading-tight">{formatCompactRupiah(monthExpense)}</p>
+              <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">bulan ini</p>
+            </div>
+            <div className="rounded-[22px] bg-[hsl(var(--card))]/82 p-3 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] leading-tight text-[hsl(var(--muted-foreground))]">Net</p>
+              <p className={`mt-2 text-sm font-bold leading-tight ${monthIncome - monthExpense >= 0 ? "text-[hsl(var(--primary))]" : "text-red-600 dark:text-red-400"}`}>
+                {formatCompactRupiah(Math.abs(monthIncome - monthExpense))}
+              </p>
+              <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">bulan ini</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {accounts.length > 0 && (nextBill || topBudgetAlert || topAnomalyAlert) && (
         <Card className="overflow-hidden">
-          <CardContent className="p-3 space-y-3">
-            <div className="flex items-start justify-between gap-3">
+          <CardContent className="p-5 space-y-4">
+            <div className="space-y-3">
               <div>
                 <p className="text-sm font-semibold">Perlu Perhatian</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                <p className="mt-1 text-xs leading-5 text-[hsl(var(--muted-foreground))]">
                   {attentionItemsCount >= 2
                     ? `${attentionItemsCount} sinyal finansial perlu dicek hari ini`
                     : nextBill
@@ -284,7 +360,7 @@ export default function Dashboard() {
                         : `${anomalyAlerts.length} transaksi terlihat tidak biasa`}
                 </p>
               </div>
-              <div className="flex flex-wrap justify-end gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {upcomingBills.length > 0 && (
                   <Badge className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                     {upcomingBills.length} tagihan
@@ -303,14 +379,14 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-3">
               {nextBill && (() => {
                 const dueStatus = getDueStatus(nextBill.nextDate);
                 const categoryLabel = getCategoryName(nextBill.categoryId);
                 return (
                   <Link
                     to="/transactions?tab=recurring"
-                    className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5 hover:bg-[hsl(var(--accent))] transition-colors"
+                    className="rounded-[26px] border border-[hsl(var(--border))] px-4 py-4 hover:bg-[hsl(var(--accent))] transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-base flex-none">
@@ -343,7 +419,7 @@ export default function Dashboard() {
                 return (
                   <Link
                     to="/reports"
-                    className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5 hover:bg-[hsl(var(--accent))] transition-colors"
+                    className="rounded-[26px] border border-[hsl(var(--border))] px-4 py-4 hover:bg-[hsl(var(--accent))] transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-none ${isDanger ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
@@ -383,7 +459,7 @@ export default function Dashboard() {
                 return (
                   <Link
                     to={anomalyHref}
-                    className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5 hover:bg-[hsl(var(--accent))] transition-colors"
+                    className="rounded-[26px] border border-[hsl(var(--border))] px-4 py-4 hover:bg-[hsl(var(--accent))] transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-none ${isDanger ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
@@ -437,14 +513,14 @@ export default function Dashboard() {
 
       {/* Account Cards */}
       {accounts.length > 0 && (
-        <div>
+        <div className="space-y-3">
           <button
             onClick={() => setAccountsCollapsed((value) => !value)}
-            className="w-full flex items-center justify-between gap-3 mb-2"
+            className="w-full flex items-center justify-between gap-3"
           >
             <div>
-              <p className="text-sm font-semibold text-left">Akun Kamu</p>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] text-left">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))] text-left">Akun Kamu</p>
+              <p className="text-sm font-semibold text-left mt-1">
                 {accounts.length} akun aktif
               </p>
             </div>
@@ -455,19 +531,19 @@ export default function Dashboard() {
           </button>
 
           {!accountsCollapsed && (
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 pl-4 pr-16 scrollbar-hide">
               {accounts.map((account) => (
                 <div
                   key={account.id}
-                  className="flex-none w-36 rounded-2xl p-3 text-white relative overflow-hidden"
+                  className="flex-none w-40 rounded-[28px] p-4 text-white relative overflow-hidden shadow-[0_20px_55px_-28px_rgba(15,23,42,0.7)]"
                   style={{ background: `linear-gradient(135deg, ${account.color}, ${account.color}cc)` }}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xl">{account.icon}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/15 uppercase tracking-wide">{account.type}</span>
+                    <span className="text-[10px] px-2 py-1 rounded-full bg-white/15 uppercase tracking-[0.16em]">{account.type}</span>
                   </div>
-                  <p className="text-xs opacity-80 mt-3 truncate">{account.name}</p>
-                  <p className="font-bold text-sm mt-0.5 leading-tight">{formatCurrency(account.currentBalance, currency)}</p>
+                  <p className="text-xs opacity-80 mt-6 truncate">{account.name}</p>
+                  <p className="font-bold text-base mt-1 leading-tight">{formatCurrency(account.currentBalance, currency)}</p>
                 </div>
               ))}
             </div>
@@ -475,37 +551,14 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "Pengeluaran", type: "expense" as const, emoji: "💸", bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-600" },
-          { label: "Pemasukan", type: "income" as const, emoji: "💰", bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600" },
-          { label: "Transfer", type: "transfer" as const, emoji: "↔️", bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-600" },
-          { label: "AI", type: "ai" as const, emoji: "✨", bg: "bg-indigo-50 dark:bg-indigo-900/20", text: "text-indigo-600 dark:text-indigo-400" },
-        ].map(({ label, type, emoji, bg, text }) => (
-          <button
-            key={type}
-            onClick={() => {
-              if (type === "ai") {
-                setAiOpen(true);
-                return;
-              }
-              setDefaultType(type);
-              setAddOpen(true);
-            }}
-            className={`${bg} rounded-2xl p-2.5 flex flex-col items-center gap-1 transition-transform active:scale-95 min-h-20 justify-center`}
-          >
-            <span className="text-xl">{emoji}</span>
-            <span className={`text-xs font-medium ${text}`}>{label}</span>
-          </button>
-        ))}
-      </div>
-
       {/* Recent Transactions */}
       {recentTxs.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <p className="text-sm font-semibold">Transaksi Terbaru</p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Activity</p>
+              <p className="mt-1 text-sm font-semibold">Transaksi terbaru</p>
+            </div>
             <div className="flex items-center gap-3">
               {transactions.length > 3 && (
                 <button
@@ -575,6 +628,41 @@ export default function Dashboard() {
               <Plus size={18} /> Tambah Akun Sekarang
             </Button>
           </Link>
+        </div>
+      )}
+
+      {accounts.length > 0 && (
+        <div className="fixed bottom-[calc(6.3rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-3 sm:right-[max(1rem,calc((100vw-36rem)/2+1rem))]">
+          {fabOpen && (
+            <div className="w-[min(19rem,calc(100vw-2rem))] rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/97 p-2 shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">
+              <p className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Quick Actions</p>
+              <div className="mt-2 space-y-1">
+                {fabActions.map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={item.onClick}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-[hsl(var(--surface-2))]"
+                  >
+                    <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${item.className}`}>
+                      <item.icon size={17} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-[hsl(var(--foreground))]">{item.label}</span>
+                      <span className="mt-0.5 block text-xs text-[hsl(var(--muted-foreground))]">{item.helper}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={() => setFabOpen((value) => !value)}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-[0_24px_50px_-24px_hsl(var(--primary))] transition-transform active:scale-95"
+            aria-label="Buka quick actions"
+          >
+            <Plus size={18} className={`transition-transform ${fabOpen ? "rotate-45" : "rotate-0"}`} />
+          </button>
         </div>
       )}
 
