@@ -154,7 +154,7 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
   }
 
   return (
-    <div className={embedded ? "space-y-5" : "px-4 pt-5 pb-24 space-y-5"}>
+    <div className={embedded ? "px-4 pt-5 pb-4 space-y-5" : "px-4 pt-5 pb-24 space-y-5"}>
       <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
         <CardContent className="p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
@@ -204,7 +204,7 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
       ) : ledger && selectedAccount ? (
         <>
           <Card>
-            <CardContent className="p-4 space-y-4">
+            <CardContent className="p-5 space-y-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Ringkasan Saldo</p>
@@ -242,7 +242,7 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
           </Card>
 
           <Card>
-            <CardContent className="p-4 space-y-4">
+            <CardContent className="p-5 space-y-5">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold break-words">{selectedAccount.name}</p>
@@ -255,26 +255,81 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-3xl border border-[hsl(var(--border))]">
+              <div className="space-y-4 sm:hidden">
                 {groupedRows.length === 0 ? (
-                  <div className="bg-[hsl(var(--card))] p-4 text-sm text-[hsl(var(--muted-foreground))]">
+                  <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-sm text-[hsl(var(--muted-foreground))]">
                     Belum ada transaksi pada rentang ini.
                   </div>
                 ) : (
-                  <table className="min-w-full divide-y divide-[hsl(var(--border))] text-sm">
-                    <thead className="bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))]">
+                  groupedRows.map(([date, rows]) => (
+                    <section key={date} className="space-y-3">
+                      <div className="flex items-center gap-2 px-1">
+                        <div className="h-px flex-1 bg-[hsl(var(--border))]" />
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">{formatPlainDate(date)}</p>
+                        <div className="h-px flex-1 bg-[hsl(var(--border))]" />
+                      </div>
+
+                      <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-[0_12px_28px_-24px_rgba(15,23,42,0.32)]">
+                        {rows.map((row, index) => {
+                          const category = categories.find((item) => item.id === row.transaction.categoryId);
+                          const sourceAccount = accounts.find((item) => item.id === row.transaction.accountId);
+                          const targetAccount = accounts.find((item) => item.id === row.transaction.toAccountId);
+                          const description = row.transaction.type === "transfer"
+                            ? row.signedAmount > 0
+                              ? `Transfer masuk dari ${sourceAccount?.name ?? "akun lain"}`
+                              : `Transfer keluar ke ${targetAccount?.name ?? "akun lain"}`
+                            : row.transaction.note || "Tanpa catatan";
+                          const mutationAmount = row.debit > 0 ? row.debit : row.credit;
+                          const mutationLabel = row.debit > 0 ? "db" : "cr";
+                          const mutationTone = row.debit > 0 ? "text-red-500" : "text-emerald-500";
+
+                          return (
+                            <div
+                              key={row.transaction.id}
+                              className={`px-4 py-4 ${index !== rows.length - 1 ? "border-b border-[hsl(var(--border))]" : ""}`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <p className="text-sm font-semibold leading-6 break-words">{category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-")}</p>
+                                  <p className="text-xs text-[hsl(var(--muted-foreground))] break-words">{description}</p>
+                                </div>
+                                <div className="text-right shrink-0 space-y-1">
+                                  <p className={`text-sm font-bold ${mutationTone}`}>
+                                    {mutationAmount > 0 ? `${formatCurrency(mutationAmount, currency)} ${mutationLabel}` : "-"}
+                                  </p>
+                                  <p className={`text-sm font-bold ${row.balanceAfter >= 0 ? "text-[hsl(var(--foreground))]" : "text-red-500"}`}>
+                                    {formatCurrency(row.balanceAfter, currency)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))
+                )}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto rounded-3xl border border-[hsl(var(--border))] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[hsl(var(--muted-foreground))] [&::-webkit-scrollbar-thumb]:rounded-full">
+                {groupedRows.length === 0 ? (
+                  <div className="bg-[hsl(var(--card))] p-5 text-sm text-[hsl(var(--muted-foreground))]">
+                    Belum ada transaksi pada rentang ini.
+                  </div>
+                ) : (
+                  <table className="w-full divide-y divide-[hsl(var(--border))] text-xs lg:text-sm">
+                    <thead className="bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] sticky top-0">
                       <tr>
-                        <th className="w-20 px-3 py-3 text-left font-semibold">Tanggal</th>
-                        <th className="px-3 py-3 text-left font-semibold">Keterangan</th>
-                        <th className="w-32 px-3 py-3 text-right font-semibold">Mutasi</th>
-                        <th className="w-32 px-3 py-3 text-right font-semibold">Saldo</th>
+                        <th className="px-2 sm:px-2.5 py-2 sm:py-2.5 text-left font-semibold">Keterangan</th>
+                        <th className="w-24 sm:w-28 px-2 sm:px-2.5 py-2 sm:py-2.5 text-right font-semibold">Mutasi</th>
+                        <th className="w-24 sm:w-28 px-2 sm:px-2.5 py-2 sm:py-2.5 text-right font-semibold">Saldo</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[hsl(var(--border))] bg-[hsl(var(--card))]">
                       {groupedRows.map(([date, rows]) => (
                         <Fragment key={date}>
                           <tr key={`${date}-group`} className="bg-[hsl(var(--surface-2))]/70">
-                            <td className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]" colSpan={4}>
+                            <td className="px-2 sm:px-2.5 py-2 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]" colSpan={3}>
                               {formatPlainDate(date)}
                             </td>
                           </tr>
@@ -293,19 +348,16 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
 
                             return (
                               <tr key={row.transaction.id} className="align-top">
-                                <td className="px-3 py-3 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
-                                  {formatDate(row.transaction.date, "dd/MM")}
-                                </td>
-                                <td className="px-3 py-3 whitespace-normal break-words">
+                                <td className="px-2 sm:px-2.5 py-2 sm:py-2.5 whitespace-normal break-words">
                                   <div className="space-y-1">
-                                    <p className="font-medium leading-6 break-words">{category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-")}</p>
-                                    <p className="text-xs text-[hsl(var(--muted-foreground))] break-words">{description}</p>
+                                    <p className="font-medium leading-5 break-words text-xs sm:text-sm">{category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-")}</p>
+                                    <p className="text-[10px] sm:text-xs text-[hsl(var(--muted-foreground))] break-words">{description}</p>
                                   </div>
                                 </td>
-                                <td className={`px-3 py-3 text-right whitespace-nowrap font-semibold ${mutationTone}`}>
+                                <td className={`px-2 sm:px-2.5 py-2 sm:py-2.5 text-right whitespace-nowrap font-semibold text-xs sm:text-sm ${mutationTone}`}>
                                   {mutationAmount > 0 ? `${formatCurrency(mutationAmount, currency)} ${mutationLabel}` : "-"}
                                 </td>
-                                <td className={`px-3 py-3 text-right whitespace-nowrap font-semibold ${row.balanceAfter >= 0 ? "text-[hsl(var(--foreground))]" : "text-red-500"}`}>
+                                <td className={`px-2 sm:px-2.5 py-2 sm:py-2.5 text-right whitespace-nowrap font-semibold text-xs sm:text-sm ${row.balanceAfter >= 0 ? "text-[hsl(var(--foreground))]" : "text-red-500"}`}>
                                   {formatCurrency(row.balanceAfter, currency)}
                                 </td>
                               </tr>
