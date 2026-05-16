@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent, Badge } from "@/components/ui";
 import { getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween } from "@/db/transactions";
-import { getBudgetsForMonth } from "@/db/budgets";
+import { getBudgetsForMonth, getBudgetsForCategoriesWithInheritance } from "@/db/budgets";
 import { BudgetForm } from "@/components/forms/BudgetForm";
 import { formatCurrency } from "@/lib/utils";
 import { generateMonthlyInsight, type MonthlyInsightResult } from "@/lib/monthlyInsight";
+import { LedgerContent } from "@/pages/Ledger";
 import { ChevronLeft, ChevronRight, Target, ChevronDown, ChevronUp } from "lucide-react";
 import type { Budget } from "@/types";
 
@@ -39,12 +41,14 @@ function mergePieEntries(entries: PieEntry[]): PieEntry[] {
 export default function Reports() {
   const { accounts, categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [chartData, setChartData] = useState<ChartBar[]>([]);
   const [pieData, setPieData] = useState<PieEntry[]>([]);
   const [summary, setSummary] = useState({ income: 0, expense: 0, net: 0 });
   const [previousSummary, setPreviousSummary] = useState<{ income: number; expense: number; net: number } | null>(null);
   const [balanceHistory, setBalanceHistory] = useState<{ month: string; balance: number }[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [inheritedBudgetIds, setInheritedBudgetIds] = useState<Set<number>>(new Set());
   const [budgetFormOpen, setBudgetFormOpen] = useState(false);
   const [budgetCategoryId, setBudgetCategoryId] = useState<number | undefined>();
   const [budgetInitialAmount, setBudgetInitialAmount] = useState<number>(0);
@@ -64,6 +68,7 @@ export default function Reports() {
   const firstOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
   const [dateFrom, setDateFrom] = useState(firstOfMonth);
   const [dateTo, setDateTo] = useState(todayStr);
+  const isLedgerTab = searchParams.get("tab") === "ledger";
 
   useEffect(() => {
     void refreshAll();
@@ -102,14 +107,32 @@ export default function Reports() {
     const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
     const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
 
-    const [bars, catMapM, sumM, prevSumM, history, bdgtList] = await Promise.all([
+    // Get category IDs for budget enrichment
+    const expenseCategoryIds = categories
+      .filter((c) => c.type === "expense" || c.type === "both")
+      .map((c) => c.id)
+      .filter((id): id is number => id !== undefined);
+
+    const [bars, catMapM, sumM, prevSumM, history, bdgtList, explicitBdgts] = await Promise.all([
       getMonthlyChartData(6),
       getCategoryExpenseData(selectedYear, selectedMonth),
       getMonthlySummary(selectedYear, selectedMonth),
       getMonthlySummary(prevYear, prevMonth),
       getTotalBalanceHistory(6),
+      getBudgetsForCategoriesWithInheritance(monthStr, expenseCategoryIds),
       getBudgetsForMonth(monthStr),
     ]);
+    
+    // Track which budgets are inherited (not explicitly set for this month)
+    const explicitCategoryIds = new Set(explicitBdgts.map((b) => b.categoryId));
+    const inheritedIds = new Set<number>();
+    for (const budget of bdgtList) {
+      if (!explicitCategoryIds.has(budget.categoryId)) {
+        inheritedIds.add(budget.id ?? 0);
+      }
+    }
+    setInheritedBudgetIds(inheritedIds);
+    
     setChartData(bars);
     setSummary(sumM);
     setPreviousSummary(prevSumM);
@@ -220,10 +243,12 @@ export default function Reports() {
         .map((category) => {
           const actual = pieData.find((entry) => entry.name === category.name)?.value ?? 0;
           const budget = budgets.find((item) => item.categoryId === category.id);
+          const isInherited = budget ? inheritedBudgetIds.has(budget.id ?? 0) : false;
           return {
             category,
             actual,
             budget,
+            isInherited,
             pct: budget?.amount ? Math.min(Math.round((actual / budget.amount) * 100), 100) : 0,
           };
         })
@@ -254,19 +279,48 @@ export default function Reports() {
 
   const monthLabel = new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" });
 
+  function handleReportTabChange(tab: "overview" | "ledger") {
+    const nextParams = new URLSearchParams(searchParams);
+    if (tab === "ledger") nextParams.set("tab", "ledger");
+    else nextParams.delete("tab");
+    setSearchParams(nextParams, { replace: true });
+  }
+
+  if (isLedgerTab) {
+    return <LedgerContent embedded />;
+  }
+
   return (
     <div className="px-4 pt-5 pb-4 space-y-5">
       <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
         <CardContent className="p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Analytics</p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight">Laporan</h1>
               <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Baca pola cashflow, kategori, budget, dan perubahan performa bulanan.</p>
             </div>
-            <div className="rounded-[24px] bg-[hsl(var(--card))]/75 px-4 py-3 text-right">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Mode</p>
-              <p className="mt-2 text-sm font-semibold capitalize">{mode === "monthly" ? "Bulanan" : "Rentang"}</p>
+            <div className="flex flex-col items-end gap-2">
+              <div className="inline-flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 p-1 text-xs no-print">
+                <button
+                  type="button"
+                  onClick={() => handleReportTabChange("overview")}
+                  className="rounded-xl bg-[hsl(var(--primary))] px-3 py-2 font-medium text-[hsl(var(--primary-foreground))] transition-colors"
+                >
+                  Ikhtisar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReportTabChange("ledger")}
+                  className="rounded-xl px-3 py-2 font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--surface-2))]"
+                >
+                  Ledger
+                </button>
+              </div>
+              <div className="rounded-[24px] bg-[hsl(var(--card))]/75 px-4 py-3 text-right">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Mode</p>
+                <p className="mt-2 text-sm font-semibold capitalize">{mode === "monthly" ? "Bulanan" : "Rentang"}</p>
+              </div>
             </div>
           </div>
 
@@ -525,7 +579,7 @@ export default function Reports() {
             </div>
           </CardHeader>
           <CardContent className="p-3 pt-1 space-y-2.5">
-            {visibleBudgetRows.map(({ category, actual, budget, pct }) => {
+            {visibleBudgetRows.map(({ category, actual, budget, isInherited, pct }) => {
               const over = !!budget && actual > budget.amount;
               return (
                 <div key={category.id} className="flex items-center gap-2.5">
@@ -538,18 +592,25 @@ export default function Reports() {
                         {budget && <span className={`ml-1 ${over ? "text-red-500" : "text-[hsl(var(--muted-foreground))]"}`}>/ {formatCurrency(budget.amount, currency)}</span>}
                       </span>
                     </div>
-                    {budget ? (
-                      <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
-                        <div
-                          className="h-1.5 rounded-full transition-all"
-                          style={{ width: `${pct}%`, background: over ? "#ef4444" : pct > 80 ? "#f59e0b" : category.color }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="h-1.5 rounded-full bg-[hsl(var(--border))] relative">
-                        <div className="h-1.5 rounded-full transition-all" style={{ width: "100%", background: `${category.color}44` }} />
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {budget ? (
+                        <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))]">
+                          <div
+                            className="h-1.5 rounded-full transition-all"
+                            style={{ width: `${pct}%`, background: over ? "#ef4444" : pct > 80 ? "#f59e0b" : category.color }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))] relative">
+                          <div className="h-1.5 rounded-full transition-all" style={{ width: "100%", background: `${category.color}44` }} />
+                        </div>
+                      )}
+                      {isInherited && budget && (
+                        <Badge className="text-[9px] px-2 py-0.5 h-fit shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                          Inherited
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <button
                     onClick={() => openBudgetForm(category.id!)}
@@ -573,7 +634,7 @@ export default function Reports() {
                   <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{unusedBudgetRows.length} kategori</span>
                 </div>
                 <div className="space-y-2">
-                  {visibleUnusedBudgetRows.map(({ category, budget }) => (
+                  {visibleUnusedBudgetRows.map(({ category, budget, isInherited }) => (
                     <div key={category.id} className="flex items-center gap-2.5">
                       <span className="text-sm">{category.icon}</span>
                       <div className="flex-1 min-w-0">
@@ -581,7 +642,14 @@ export default function Reports() {
                           <span className="truncate">{category.name}</span>
                           <span className="font-medium shrink-0">0 / {formatCurrency(budget!.amount, currency)}</span>
                         </div>
-                        <div className="h-1.5 rounded-full bg-[hsl(var(--border))]" />
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))]" />
+                          {isInherited && (
+                            <Badge className="text-[9px] px-2 py-0.5 h-fit shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                              Inherited
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <button
                         onClick={() => openBudgetForm(category.id!)}

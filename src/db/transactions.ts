@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { recalculateAccountBalance } from "./accounts";
+import { getAccountById, recalculateAccountBalance } from "./accounts";
 import type { Transaction } from "@/types";
 
 const ANOMALY_LOOKBACK_DAYS = 180;
@@ -99,6 +99,95 @@ export async function getTransactions(filter: TransactionFilter = {}) {
   }
 
   return results;
+}
+
+export interface AccountLedgerRow {
+  transaction: Transaction;
+  debit: number;
+  credit: number;
+  signedAmount: number;
+  balanceAfter: number;
+}
+
+export interface AccountLedgerResult {
+  account: NonNullable<Awaited<ReturnType<typeof getAccountById>>>;
+  openingBalance: number;
+  closingBalance: number;
+  totalDebit: number;
+  totalCredit: number;
+  rows: AccountLedgerRow[];
+}
+
+function getLedgerEffect(tx: Transaction, accountId: number) {
+  if (tx.type === "income" && tx.accountId === accountId) return tx.amount;
+  if (tx.type === "expense" && tx.accountId === accountId) return -tx.amount;
+  if (tx.type === "transfer") {
+    if (tx.accountId === accountId) return -tx.amount;
+    if (tx.toAccountId === accountId) return tx.amount;
+  }
+  return 0;
+}
+
+export async function getAccountLedger(accountId: number, dateFrom?: string, dateTo?: string): Promise<AccountLedgerResult | null> {
+  const account = await getAccountById(accountId);
+  if (!account) return null;
+
+  const transactions = await db.transactions
+    .where("accountId")
+    .equals(accountId)
+    .or("toAccountId")
+    .equals(accountId)
+    .toArray();
+
+  transactions.sort((a, b) => {
+    const dateDiff = a.date.localeCompare(b.date);
+    if (dateDiff !== 0) return dateDiff;
+    const createdDiff = a.createdAt.localeCompare(b.createdAt);
+    if (createdDiff !== 0) return createdDiff;
+    return (a.id ?? 0) - (b.id ?? 0);
+  });
+
+  let openingBalance = account.initialBalance;
+  for (const tx of transactions) {
+    if (dateFrom && tx.date >= dateFrom) continue;
+    openingBalance += getLedgerEffect(tx, accountId);
+  }
+
+  let runningBalance = openingBalance;
+  let totalDebit = 0;
+  let totalCredit = 0;
+  const rows: AccountLedgerRow[] = [];
+
+  for (const tx of transactions) {
+    if (dateFrom && tx.date < dateFrom) continue;
+    if (dateTo && tx.date > dateTo) continue;
+
+    const signedAmount = getLedgerEffect(tx, accountId);
+    if (signedAmount === 0) continue;
+
+    runningBalance += signedAmount;
+    const credit = signedAmount > 0 ? signedAmount : 0;
+    const debit = signedAmount < 0 ? Math.abs(signedAmount) : 0;
+    totalCredit += credit;
+    totalDebit += debit;
+
+    rows.push({
+      transaction: tx,
+      debit,
+      credit,
+      signedAmount,
+      balanceAfter: runningBalance,
+    });
+  }
+
+  return {
+    account,
+    openingBalance,
+    closingBalance: runningBalance,
+    totalDebit,
+    totalCredit,
+    rows,
+  };
 }
 
 export async function addTransaction(data: Omit<Transaction, "id" | "createdAt" | "updatedAt">) {

@@ -47,6 +47,9 @@ class WalletDB extends Dexie {
     this.version(7).stores({
       debtPayments: "++id, debtId, date, transactionId",
     });
+    this.version(8).stores({
+      budgets: "++id, categoryId, month",
+    });
   }
 }
 

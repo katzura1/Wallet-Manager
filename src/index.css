@@ -85,6 +85,33 @@
       radial-gradient(circle at top left, hsl(var(--surface-3)) 0%, transparent 28%),
       radial-gradient(circle at top right, hsl(var(--surface-2)) 0%, transparent 24%);
   }
+
+  @media print {
+    body {
+      background: #fff !important;
+      color: #000 !important;
+    }
+
+    .app-shell {
+      background: #fff !important;
+    }
+
+    nav,
+    .no-print {
+      display: none !important;
+    }
+
+    main {
+      max-width: none !important;
+      padding: 0 !important;
+      min-height: auto !important;
+    }
+
+    * {
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
+  }
 }
 
 /* Custom scrollbar */

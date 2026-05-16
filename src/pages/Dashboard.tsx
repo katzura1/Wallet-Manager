@@ -8,7 +8,7 @@ import { TransactionCard } from "@/components/TransactionCard";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { deleteTransaction, getRecentSpendingAnomalies } from "@/db/transactions";
 import { getUpcomingRecurringTransactions } from "@/db/recurring";
-import { getBudgetsForMonth, predictBudgetStatus } from "@/db/budgets";
+import { predictBudgetStatus, getBudgetsForCategoriesWithInheritance } from "@/db/budgets";
 import { getCategoryExpenseData } from "@/db/transactions";
 import { getCategories } from "@/db/categories";
 import { db } from "@/db/db";
@@ -63,7 +63,7 @@ export default function Dashboard() {
   const [recurringItems, setRecurringItems] = useState<RecurringTransaction[]>([]);
   const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlertItem[]>([]);
   const [anomalyAlerts, setAnomalyAlerts] = useState<AnomalyAlertItem[]>([]);
-  const [accountsCollapsed, setAccountsCollapsed] = useState(true);
+  const [accountsCollapsed, setAccountsCollapsed] = useState(false);
   const [recentExpanded, setRecentExpanded] = useState(false);
   const [heroMenuOpen, setHeroMenuOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
@@ -91,11 +91,18 @@ export default function Dashboard() {
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const dayOfMonth = now.getDate();
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const [recurring, budgets, expenseByCategory, allCategories, anomalies] = await Promise.all([
+    
+    // Get all categories first to determine which are expense categories
+    const allCategories = await getCategories();
+    const expenseCategoryIds = allCategories
+      .filter((c) => c.type === "expense" || c.type === "both")
+      .map((c) => c.id)
+      .filter((id): id is number => id !== undefined);
+    
+    const [recurring, budgets, expenseByCategory, anomalies] = await Promise.all([
       getUpcomingRecurringTransactions(),
-      getBudgetsForMonth(monthKey),
+      getBudgetsForCategoriesWithInheritance(monthKey, expenseCategoryIds),
       getCategoryExpenseData(now.getFullYear(), now.getMonth() + 1),
-      getCategories(),
       getRecentSpendingAnomalies(),
     ]);
     setRecurringItems(recurring);

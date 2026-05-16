@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { registerSW } from "virtual:pwa-register";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LockScreen } from "@/components/LockScreen";
@@ -58,6 +58,7 @@ export default function App() {
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/ledger" element={<Navigate to="/reports?tab=ledger" replace />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/categories" element={<Categories />} />
           </Route>

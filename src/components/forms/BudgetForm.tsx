@@ -17,6 +17,7 @@ interface BudgetFormProps {
 export function BudgetForm({ open, onClose, onSaved, categories, month, initialCategoryId, initialAmount = 0 }: BudgetFormProps) {
   const [categoryId, setCategoryId] = useState(String(initialCategoryId ?? ""));
   const [amount, setAmount] = useState(String(initialAmount || ""));
+  const [recurring, setRecurring] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,6 +25,7 @@ export function BudgetForm({ open, onClose, onSaved, categories, month, initialC
     if (open) {
       setCategoryId(String(initialCategoryId ?? ""));
       setAmount(String(initialAmount || ""));
+      setRecurring(false);
       setError("");
     }
   }, [open, initialCategoryId, initialAmount]);
@@ -39,7 +41,7 @@ export function BudgetForm({ open, onClose, onSaved, categories, month, initialC
 
     setLoading(true);
     try {
-      await setBudget(Number(categoryId), month, amountNum);
+      await setBudget(Number(categoryId), month, amountNum, recurring);
       onSaved();
       onClose();
     } finally {
@@ -84,6 +86,20 @@ export function BudgetForm({ open, onClose, onSaved, categories, month, initialC
 
         <div className="rounded-[20px] border border-dashed border-[hsl(var(--border))] px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">
           Set 0 untuk menghapus budget pada kategori ini.
+        </div>
+
+        <div className="flex items-center gap-3 rounded-[20px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/50 px-4 py-3">
+          <input
+            type="checkbox"
+            id="recurring-checkbox"
+            checked={recurring}
+            onChange={(e) => setRecurring(e.target.checked)}
+            className="cursor-pointer rounded"
+          />
+          <label htmlFor="recurring-checkbox" className="flex-1 cursor-pointer text-sm">
+            <p className="font-medium text-[hsl(var(--foreground))]">Terapkan ke bulan depan</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">Budget ini akan otomatis berlaku untuk bulan berikutnya hingga diubah</p>
+          </label>
         </div>
 
         <div className="flex gap-2 pt-1">

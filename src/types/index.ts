@@ -101,6 +101,7 @@ export interface Budget {
   amount: number;
   month: string; // YYYY-MM
   createdAt: string;
+  recurring?: boolean; // If true, carries forward to future months automatically
 }
 
 // ─── Portfolio ────────────────────────────────────────────────────────────────

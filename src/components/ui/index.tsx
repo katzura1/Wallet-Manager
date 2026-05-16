@@ -132,19 +132,21 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 pb-24 safe-bottom sm:p-4 sm:pb-4">
+    <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full sm:max-w-lg border border-white/10 bg-[hsl(var(--background))]/98 rounded-t-4xl sm:rounded-4xl shadow-[0_24px_80px_-32px_rgba(15,23,42,0.75)] max-h-[90vh] overflow-y-auto overflow-x-hidden">
-        <div className="flex items-center justify-between p-5 border-b border-[hsl(var(--border))]">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Detail</p>
-            <h2 className="mt-1 font-semibold text-lg leading-tight">{title}</h2>
+      <div className="relative z-10 flex min-h-full items-end justify-center px-0 pt-4 pb-24 safe-bottom sm:items-center sm:p-4 sm:pb-4">
+        <div className="relative flex w-full max-h-[calc(100dvh-7rem)] flex-col overflow-hidden rounded-t-4xl border border-white/10 bg-[hsl(var(--background))]/98 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.75)] overscroll-contain sm:max-h-[90vh] sm:max-w-lg sm:rounded-4xl">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 p-5 backdrop-blur-sm">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Detail</p>
+              <h2 className="mt-1 font-semibold text-lg leading-tight">{title}</h2>
+            </div>
+            <button onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] text-xl leading-none hover:text-[hsl(var(--foreground))]">
+              ✕
+            </button>
           </div>
-          <button onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] text-xl leading-none">
-            ✕
-          </button>
+          <div className="min-h-0 overflow-y-auto p-5 pb-7 safe-bottom">{children}</div>
         </div>
-        <div className="p-5 pb-7 safe-bottom">{children}</div>
       </div>
     </div>
   );

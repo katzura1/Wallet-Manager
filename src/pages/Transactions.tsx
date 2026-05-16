@@ -91,7 +91,7 @@ export default function Transactions() {
     pendingFocusTxId.current = txParam;
     setShowFilter(false);
 
-    if (filter.search || filter.type || filter.dateFrom || filter.dateTo || (filter.accountIds?.length ?? 0) > 0) {
+    if (filter.search || filter.type || filter.categoryId !== undefined || filter.dateFrom || filter.dateTo || (filter.accountIds?.length ?? 0) > 0) {
       setSearch("");
       setFilter({});
     }
@@ -298,6 +298,11 @@ export default function Transactions() {
       label: `Akun: ${(filter.accountIds as number[]).map(id => getAccountName(id)).join(", ")}`,
       onRemove: () => setFilter({ ...filter, accountIds: undefined }),
     } : null,
+    filter.categoryId !== undefined ? {
+      key: "categoryId",
+      label: `Kategori: ${getCategory(filter.categoryId)?.name ?? "Unknown"}`,
+      onRemove: () => setFilter({ ...filter, categoryId: undefined }),
+    } : null,
     filter.type ? {
       key: "type",
       label: `Tipe: ${filter.type === "income" ? "Pemasukan" : filter.type === "expense" ? "Pengeluaran" : "Transfer"}`,
@@ -429,6 +434,20 @@ export default function Transactions() {
               ))}
             </div>
           </div>
+          {categories.length > 0 && (
+            <Select
+              label="Kategori"
+              value={filter.categoryId ?? ""}
+              onChange={(e) => setFilter({ ...filter, categoryId: e.target.value ? Number(e.target.value) : undefined })}
+            >
+              <option value="">Semua Kategori</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.icon} {category.name}
+                </option>
+              ))}
+            </Select>
+          )}
           <div className="grid grid-cols-1 gap-3">
             <Select
               label="Tipe"

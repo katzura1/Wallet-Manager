@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Button, EmptyState, Badge, Modal, Spinner, Card, CardContent } from "@/components/ui";
 import { AccountForm } from "@/components/forms/AccountForm";
@@ -96,9 +97,17 @@ export default function Accounts() {
             <h1 className="mt-1 text-2xl font-bold tracking-tight">Akun Saya</h1>
             <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Kelola akun aktif, arsip, dan ringkasan saldo dengan cepat.</p>
           </div>
-          <Button size="sm" onClick={() => setAddOpen(true)} disabled={loading}>
-            <Plus size={16} /> Tambah
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Link
+              to={`/reports?tab=ledger${accounts[0]?.id ? `&account=${accounts[0].id}` : ""}`}
+              className="inline-flex h-9 items-center justify-center rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 px-3.5 text-xs font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))]"
+            >
+              Ledger
+            </Link>
+            <Button size="sm" onClick={() => setAddOpen(true)} disabled={loading}>
+              <Plus size={16} /> Tambah
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
