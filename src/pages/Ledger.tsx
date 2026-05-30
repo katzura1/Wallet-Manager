@@ -255,63 +255,7 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
                 </div>
               </div>
 
-              <div className="space-y-4 sm:hidden">
-                {groupedRows.length === 0 ? (
-                  <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-sm text-[hsl(var(--muted-foreground))]">
-                    Belum ada transaksi pada rentang ini.
-                  </div>
-                ) : (
-                  groupedRows.map(([date, rows]) => (
-                    <section key={date} className="space-y-3">
-                      <div className="flex items-center gap-2 px-1">
-                        <div className="h-px flex-1 bg-[hsl(var(--border))]" />
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">{formatPlainDate(date)}</p>
-                        <div className="h-px flex-1 bg-[hsl(var(--border))]" />
-                      </div>
-
-                      <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-[0_12px_28px_-24px_rgba(15,23,42,0.32)]">
-                        {rows.map((row, index) => {
-                          const category = categories.find((item) => item.id === row.transaction.categoryId);
-                          const sourceAccount = accounts.find((item) => item.id === row.transaction.accountId);
-                          const targetAccount = accounts.find((item) => item.id === row.transaction.toAccountId);
-                          const description = row.transaction.type === "transfer"
-                            ? row.signedAmount > 0
-                              ? `Transfer masuk dari ${sourceAccount?.name ?? "akun lain"}`
-                              : `Transfer keluar ke ${targetAccount?.name ?? "akun lain"}`
-                            : row.transaction.note || "Tanpa catatan";
-                          const mutationAmount = row.debit > 0 ? row.debit : row.credit;
-                          const mutationLabel = row.debit > 0 ? "db" : "cr";
-                          const mutationTone = row.debit > 0 ? "text-red-500" : "text-emerald-500";
-
-                          return (
-                            <div
-                              key={row.transaction.id}
-                              className={`px-4 py-4 ${index !== rows.length - 1 ? "border-b border-[hsl(var(--border))]" : ""}`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1 space-y-1">
-                                  <p className="text-sm font-semibold leading-6 break-words">{category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-")}</p>
-                                  <p className="text-xs text-[hsl(var(--muted-foreground))] break-words">{description}</p>
-                                </div>
-                                <div className="text-right shrink-0 space-y-1">
-                                  <p className={`text-sm font-bold ${mutationTone}`}>
-                                    {mutationAmount > 0 ? `${formatCurrency(mutationAmount, currency)} ${mutationLabel}` : "-"}
-                                  </p>
-                                  <p className={`text-sm font-bold ${row.balanceAfter >= 0 ? "text-[hsl(var(--foreground))]" : "text-red-500"}`}>
-                                    {formatCurrency(row.balanceAfter, currency)}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  ))
-                )}
-              </div>
-
-              <div className="hidden sm:block overflow-x-auto rounded-3xl border border-[hsl(var(--border))] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[hsl(var(--muted-foreground))] [&::-webkit-scrollbar-thumb]:rounded-full">
+              <div className="overflow-x-auto rounded-3xl border border-[hsl(var(--border))] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[hsl(var(--muted-foreground))] [&::-webkit-scrollbar-thumb]:rounded-full">
                 {groupedRows.length === 0 ? (
                   <div className="bg-[hsl(var(--card))] p-5 text-sm text-[hsl(var(--muted-foreground))]">
                     Belum ada transaksi pada rentang ini.

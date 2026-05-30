@@ -1,6 +1,25 @@
 import { db } from "./db";
 import type { Asset, PortfolioHistory, SyncLogEntry } from "@/types";
 
+// ─── Foreign Currency Reference Data ──────────────────────────────────────────
+
+export const FOREIGN_CURRENCIES = [
+  { code: "SGD", name: "Singapore Dollar" },
+  { code: "JPY", name: "Japanese Yen" },
+  { code: "EUR", name: "Euro" },
+  { code: "GBP", name: "British Pound" },
+  { code: "AUD", name: "Australian Dollar" },
+  { code: "CNY", name: "Chinese Yuan" },
+  { code: "INR", name: "Indian Rupee" },
+  { code: "MYR", name: "Malaysian Ringgit" },
+  { code: "THB", name: "Thai Baht" },
+  { code: "PHP", name: "Philippine Peso" },
+  { code: "VND", name: "Vietnamese Dong" },
+  { code: "KRW", name: "South Korean Won" },
+  { code: "CAD", name: "Canadian Dollar" },
+  { code: "NZD", name: "New Zealand Dollar" },
+] as const;
+
 export async function getAssets(): Promise<Asset[]> {
   const all = await db.assets.toArray();
   return all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));

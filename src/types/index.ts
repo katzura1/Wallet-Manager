@@ -106,18 +106,21 @@ export interface Budget {
 
 // ─── Portfolio ────────────────────────────────────────────────────────────────
 
-export type AssetType = "crypto" | "stock_us" | "stock_idx" | "stock" | "gold_physical" | "gold_digital" | "mutual_fund" | "deposito";
+export type AssetType = "crypto" | "stock_us" | "stock_idx" | "stock" | "gold_physical" | "gold_digital" | "mutual_fund" | "deposito" | "foreign_currency";
 // "stock" is legacy alias for stock_us
 
 export interface Asset {
   id?: number;
-  symbol: string;            // BTC, AAPL, BBCA.JK
-  name: string;              // Bitcoin, Apple Inc
+  symbol: string;            // BTC, AAPL, BBCA.JK, SGD
+  name: string;              // Bitcoin, Apple Inc, Singapore Dollar
   type: AssetType;
   quantity: number;
   avgBuyPrice: number;       // average buy price in IDR
   coinGeckoId?: string;      // e.g. "bitcoin" — used for CoinGecko sync
   manualPriceIdr?: number;   // user-entered fallback when API is unavailable
+  interestRatePerYear?: number;  // for deposito: annual interest rate (e.g., 4.5)
+  depositStartDate?: string; // for deposito: ISO date YYYY-MM-DD when deposit starts
+  depositEndDate?: string;   // for deposito: ISO date YYYY-MM-DD when deposit ends
   createdAt: string;
   updatedAt: string;
 }

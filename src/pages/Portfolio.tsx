@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AreaChart, Area, CartesianGrid, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Button, Input, Modal, Spinner } from "@/components/ui";
 import { formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
-import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory } from "@/db/assets";
+import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory, FOREIGN_CURRENCIES } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
@@ -47,6 +47,15 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
   const [quantity, setQuantity] = useState(String(existing?.quantity ?? ""));
   const [avgBuyPrice, setAvgBuyPrice] = useState(String(existing?.avgBuyPrice ?? ""));
   const [manualPrice, setManualPrice] = useState(String(existing?.manualPriceIdr ?? ""));
+
+  // Deposito fields
+  const [depositInitial, setDepositInitial] = useState(String(existing?.avgBuyPrice ?? ""));
+  const [interestRate, setInterestRate] = useState(String(existing?.interestRatePerYear ?? ""));
+  const [depositStartDate, setDepositStartDate] = useState(existing?.depositStartDate ?? "");
+  const [depositEndDate, setDepositEndDate] = useState(existing?.depositEndDate ?? "");
+
+  // Foreign currency field
+  const [selectedCurrency, setSelectedCurrency] = useState(existing?.symbol ?? "");
 
   // Coin search (crypto only)
   const [coinSearch, setCoinSearch] = useState(existing?.name ?? "");
@@ -98,20 +107,41 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !symbol.trim()) { setError("Nama dan simbol wajib diisi"); return; }
-    if (!Number(quantity) || Number(quantity) <= 0) { setError("Jumlah harus > 0"); return; }
-    if (!Number(avgBuyPrice) || Number(avgBuyPrice) <= 0) { setError("Harga beli rata-rata harus > 0"); return; }
+    // For deposito, quantity is always 1 and locked, skip check
+    if (type !== "deposito" && (!Number(quantity) || Number(quantity) <= 0)) { setError("Jumlah harus > 0"); return; }
+    
+    // For deposito, validate the auto-calculation fields
+    if (type === "deposito") {
+      if (!Number(depositInitial) || Number(depositInitial) <= 0) { setError("Pokok deposito harus > 0"); return; }
+      if (!Number(interestRate) || Number(interestRate) < 0) { setError("Bunga per tahun harus >= 0"); return; }
+      if (!depositStartDate) { setError("Tanggal mulai wajib diisi"); return; }
+      if (!depositEndDate) { setError("Tanggal akhir wajib diisi"); return; }
+    } else if (!Number(avgBuyPrice) || Number(avgBuyPrice) <= 0) {
+      setError("Harga beli rata-rata harus > 0"); return;
+    }
 
     setLoading(true);
     try {
-      const data = {
+      // Build data object ensuring required fields are present
+      const baseData = {
         type,
         name: name.trim(),
         symbol: symbol.trim().toUpperCase(),
+        quantity: type === "deposito" ? 1 : Number(quantity),
         coinGeckoId: coinGeckoId.trim() || undefined,
-        quantity: Number(quantity),
-        avgBuyPrice: Number(avgBuyPrice),
-        manualPriceIdr: manualPrice ? Number(manualPrice) : undefined,
+        avgBuyPrice: type === "deposito" ? Number(depositInitial) : Number(avgBuyPrice),
+        manualPriceIdr: type === "deposito" ? undefined : (manualPrice ? Number(manualPrice) : undefined),
       };
+      
+      const data: Omit<Asset, "id" | "createdAt" | "updatedAt"> = {
+        ...baseData,
+        ...(type === "deposito" ? {
+          interestRatePerYear: Number(interestRate),
+          depositStartDate,
+          depositEndDate,
+        } : {}),
+      };
+      
       if (existing?.id) {
         await updateAsset(existing.id, data);
       } else {
@@ -127,64 +157,38 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
   return (
     <Modal open={open} onClose={onClose} title={existing ? "Edit Aset" : "Tambah Aset"}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Type selector (locked when editing) */}
+        {/* Type selector dropdown (locked when editing) */}
         {!existing && (
-          <div className="rounded-xl border border-[hsl(var(--border))] overflow-hidden">
-            <div className="flex">
-              <button
-                type="button"
-                onClick={() => setType("crypto")}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "crypto" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-              >
-                ₿ Kripto
-              </button>
-              <button
-                type="button"
-                onClick={() => setType("stock_us")}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "stock_us" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-              >
-                🇺🇸 Saham AS
-              </button>
-              <button
-                type="button"
-                onClick={() => setType("stock_idx")}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "stock_idx" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-              >
-                🇮🇩 Saham IDX
-              </button>
-            </div>
-            <div className="flex border-t border-[hsl(var(--border))]">
-              <button
-                type="button"
-                onClick={() => setType("gold_physical")}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "gold_physical" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-              >
-                🥇 Emas Fisik
-              </button>
-              <button
-                type="button"
-                onClick={() => setType("gold_digital")}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "gold_digital" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-              >
-                🥇 Emas Digital
-              </button>
-              <button
-                type="button"
-                onClick={() => setType("mutual_fund")}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "mutual_fund" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-              >
-                📈 Reksa Dana
-              </button>
-            </div>
-            <div className="flex border-t border-[hsl(var(--border))]">
-              <button
-                type="button"
-                onClick={() => setType("deposito")}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === "deposito" ? "bg-indigo-600 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-              >
-                🏦 Deposito
-              </button>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Jenis Aset</label>
+            <select
+              value={type}
+              onChange={(e) => {
+                setType(e.target.value as AssetType);
+                setError("");
+              }}
+              className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="crypto">₿ Kripto</option>
+              <option value="stock_us">🇺🇸 Saham AS</option>
+              <option value="stock_idx">🇮🇩 Saham IDX</option>
+              <option value="gold_physical">🥇 Emas Fisik</option>
+              <option value="gold_digital">🥇 Emas Digital</option>
+              <option value="mutual_fund">📈 Reksa Dana</option>
+              <option value="deposito">🏦 Deposito</option>
+              <option value="foreign_currency">💱 Foreign Currency</option>
+            </select>
+          </div>
+        )}
+
+        {/* Show type badge when editing */}
+        {existing && (
+          <div className="rounded-xl bg-[hsl(var(--muted))] px-3 py-2 text-sm flex items-center gap-2">
+            <span className="font-semibold">{existing.symbol}</span>
+            <span className="text-[hsl(var(--muted-foreground))]">{existing.name}</span>
+            <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">
+              {existing.type === "crypto" ? "₿ Kripto" : existing.type === "stock_idx" ? "🇮🇩 Saham IDX" : existing.type === "gold_physical" ? "🥇 Emas Fisik" : existing.type === "gold_digital" ? "🥇 Emas Digital" : existing.type === "mutual_fund" ? "📈 Reksa Dana" : existing.type === "deposito" ? "🏦 Deposito" : existing.type === "foreign_currency" ? "💱 Foreign Currency" : "🇺🇸 Saham AS"}
+            </span>
           </div>
         )}
 
@@ -295,7 +299,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           </>
         )}
 
-        {/* Deposito — manual, unit = jumlah nominal, harga manual = nilai saat ini */}
+        {/* Deposito — auto-calculated with compound interest and 20% tax */}
         {type === "deposito" && !existing && (
           <>
             <Input
@@ -310,8 +314,84 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
               value={symbol}
               onChange={(e) => { setSymbol(e.target.value.toUpperCase()); setError(""); }}
             />
-            <p className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2">
-              🏦 Jumlah = 1 (satu deposito). Harga Beli = nominal pokok. Harga Manual = nilai saat ini (pokok + bunga).
+            <Input
+              label={`Pokok Deposito (${currency})`}
+              type="text"
+              inputMode="numeric"
+              placeholder="10000000"
+              value={formatNumberWithSeparator(depositInitial)}
+              onChange={(e) => {
+                const cleanValue = e.target.value.replace(/\D/g, "");
+                setDepositInitial(cleanValue);
+                setError("");
+              }}
+              error={error}
+            />
+            <Input
+              label="Bunga per Tahun (%)"
+              type="number"
+              inputMode="decimal"
+              placeholder="4.5"
+              step="0.1"
+              value={interestRate}
+              onChange={(e) => { setInterestRate(e.target.value); setError(""); }}
+              error={error}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Tanggal Mulai"
+                type="date"
+                value={depositStartDate}
+                onChange={(e) => { setDepositStartDate(e.target.value); setError(""); }}
+                error={error}
+              />
+              <Input
+                label="Tanggal Akhir"
+                type="date"
+                value={depositEndDate}
+                onChange={(e) => { setDepositEndDate(e.target.value); setError(""); }}
+                error={error}
+              />
+            </div>
+            <p className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-xl px-3 py-2">
+              ✅ Harga deposito dihitung otomatis: Pokok + Bunga (dengan pajak 20% dipotong). Diupdate setiap sync. Jumlah = 1.
+            </p>
+          </>
+        )}
+
+        {/* Foreign Currency — auto-synced from Yahoo Finance */}
+        {type === "foreign_currency" && !existing && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Pilih Negara / Mata Uang</label>
+              <select
+                value={selectedCurrency}
+                onChange={(e) => {
+                  const code = e.target.value;
+                  setSelectedCurrency(code);
+                  setSymbol(code);
+                  const curr = FOREIGN_CURRENCIES.find((c) => c.code === code);
+                  if (curr) setName(curr.name);
+                  setError("");
+                }}
+                className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">-- Pilih Mata Uang --</option>
+                {FOREIGN_CURRENCIES.map((curr) => (
+                  <option key={curr.code} value={curr.code}>
+                    {curr.name} ({curr.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedCurrency && (
+              <div className="rounded-xl bg-teal-50 dark:bg-teal-900/20 px-3 py-2 text-sm">
+                <span className="font-semibold text-teal-700 dark:text-teal-300">{selectedCurrency}IDR=X</span>
+                <span className="text-[hsl(var(--muted-foreground))] ml-2 text-xs">Yahoo Finance ticker</span>
+              </div>
+            )}
+            <p className="text-xs text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 rounded-xl px-3 py-2">
+              💱 Harga mata uang (IDR per unit) disync otomatis dari Yahoo Finance. Jumlah = berapa banyak unit yang kamu punya.
             </p>
           </>
         )}
@@ -325,49 +405,76 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           </div>
         )}
 
-        {/* Editing: show locked symbol */}
-        {existing && (
-          <div className="rounded-xl bg-[hsl(var(--muted))] px-3 py-2 text-sm flex items-center gap-2">
-            <span className="font-semibold">{existing.symbol}</span>
-            <span className="text-[hsl(var(--muted-foreground))]">{existing.name}</span>
-            <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">{existing.type === "crypto" ? "₿ Kripto" : existing.type === "stock_idx" ? "🇮🇩 Saham IDX" : existing.type === "gold_physical" ? "🥇 Emas Fisik" : existing.type === "gold_digital" ? "🥇 Emas Digital" : existing.type === "mutual_fund" ? "📈 Reksa Dana" : existing.type === "deposito" ? "🏦 Deposito" : "🇺🇸 Saham AS"}</span>
-          </div>
+        {/* Quantity input — hidden for deposito (always 1), label includes currency for forex */}
+        {type !== "deposito" && (
+          <Input
+            label={type === "gold_physical" || type === "gold_digital" ? "Jumlah (gram)" : type === "mutual_fund" ? "Jumlah Unit Penyertaan" : type === "foreign_currency" ? `Jumlah (${selectedCurrency || "unit"})` : "Jumlah / Lot"}
+            type="number"
+            inputMode="decimal"
+            placeholder={type === "gold_physical" || type === "gold_digital" ? "10" : "0.001"}
+            value={quantity}
+            onChange={(e) => { setQuantity(e.target.value); setError(""); }}
+            error={error}
+          />
         )}
 
-        <Input
-          label={type === "gold_physical" || type === "gold_digital" ? "Jumlah (gram)" : type === "mutual_fund" ? "Jumlah Unit Penyertaan" : type === "deposito" ? "Jumlah Deposito" : "Jumlah / Lot"}
-          type="number"
-          inputMode="decimal"
-          placeholder={type === "gold_physical" || type === "gold_digital" ? "10" : "0.001"}
-          value={quantity}
-          onChange={(e) => { setQuantity(e.target.value); setError(""); }}
-          error={error}
-        />
+        {type === "deposito" && (
+          <Input
+            label="Jumlah Deposito"
+            type="number"
+            disabled
+            placeholder="1"
+            value="1"
+          />
+        )}
 
-        <Input
-          label={`Harga Beli Rata-rata (${currency})`}
-          type="text"
-          inputMode="numeric"
-          placeholder="0"
-          value={formatNumberWithSeparator(avgBuyPrice)}
-          onChange={(e) => {
-            const cleanValue = e.target.value.replace(/\D/g, "");
-            setAvgBuyPrice(cleanValue);
-            setError("");
-          }}
-        />
+        {/* Price input — hidden for deposito and forex (auto-synced) */}
+        {type !== "deposito" && type !== "foreign_currency" && (
+          <Input
+            label={`Harga Beli Rata-rata (${currency})`}
+            type="text"
+            inputMode="numeric"
+            placeholder="0"
+            value={formatNumberWithSeparator(avgBuyPrice)}
+            onChange={(e) => {
+              const cleanValue = e.target.value.replace(/\D/g, "");
+              setAvgBuyPrice(cleanValue);
+              setError("");
+            }}
+          />
+        )}
 
-        <Input
-          label={`Harga Manual (${currency}) — opsional, jika sync gagal`}
-          type="text"
-          inputMode="numeric"
-          placeholder="0"
-          value={formatNumberWithSeparator(manualPrice)}
-          onChange={(e) => {
-            const cleanValue = e.target.value.replace(/\D/g, "");
-            setManualPrice(cleanValue);
-          }}
-        />
+        {/* Foreign Currency: avg buy price in IDR per unit */}
+        {type === "foreign_currency" && (
+          <Input
+            label={`Harga Beli Rata-rata (${currency} per ${selectedCurrency || "unit"})`}
+            type="text"
+            inputMode="numeric"
+            placeholder="10500"
+            value={formatNumberWithSeparator(avgBuyPrice)}
+            onChange={(e) => {
+              const cleanValue = e.target.value.replace(/\D/g, "");
+              setAvgBuyPrice(cleanValue);
+              setError("");
+            }}
+            error={error}
+          />
+        )}
+
+        {/* Manual price fallback — only for manual-sync types (mutual fund, old deposito setup) */}
+        {(type === "mutual_fund" || (type === "deposito" && !depositStartDate)) && (
+          <Input
+            label={`Harga Manual (${currency}) — opsional, jika sync gagal`}
+            type="text"
+            inputMode="numeric"
+            placeholder="0"
+            value={formatNumberWithSeparator(manualPrice)}
+            onChange={(e) => {
+              const cleanValue = e.target.value.replace(/\D/g, "");
+              setManualPrice(cleanValue);
+            }}
+          />
+        )}
 
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Menyimpan…" : existing ? "Simpan Perubahan" : "Tambah Aset"}
@@ -694,7 +801,7 @@ function PriceHistoryModal({ asset, currency, onClose }: PriceHistoryModalProps)
 
 // ─── Portfolio Page ───────────────────────────────────────────────────────────
 
-type Filter = "all" | "crypto" | "stock_us" | "stock_idx" | "gold" | "mutual_fund" | "deposito";
+type Filter = "all" | "crypto" | "stock_us" | "stock_idx" | "gold" | "mutual_fund" | "deposito" | "foreign_currency";
 
 export default function Portfolio() {
   const { currency } = useSettingsStore();
@@ -805,10 +912,11 @@ export default function Portfolio() {
         setHistory(await getPortfolioHistory(30));
       }
 
-      // Build sync log entry — only for auto-syncable types (exclude manual: reksa dana, deposito)
+      // Build sync log entry — only for auto-syncable types (exclude manual: reksa dana)
+      // Now includes: crypto, stock_us, stock_idx, gold, forex, and deposito (with proper setup)
       // Only save if at least one asset was actually synced (respects 6-hour rule)
       const logResults = list
-        .filter((a) => a.type !== "mutual_fund" && a.type !== "deposito")
+        .filter((a) => a.type !== "mutual_fund")
         .map((a) => {
           let status: "synced" | "failed" | "skipped" = "failed";
           if (result.synced.includes(a.symbol)) status = "synced";
@@ -879,13 +987,14 @@ export default function Portfolio() {
 
   // Pie chart data — grouped by category
   const CATEGORY_META: Record<string, { label: string; color: string }> = {
-    crypto:        { label: "Kripto",       color: "#6366f1" },
-    stock_us:      { label: "Saham US",     color: "#22c55e" },
-    stock_idx:     { label: "Saham IDX",    color: "#f97316" },
-    gold_physical: { label: "Emas Fisik",   color: "#f59e0b" },
-    gold_digital:  { label: "Emas Digital", color: "#fbbf24" },
-    mutual_fund:   { label: "Reksa Dana",   color: "#14b8a6" },
-    deposito:      { label: "Deposito",     color: "#3b82f6" },
+    crypto:        { label: "Kripto",            color: "#6366f1" },
+    stock_us:      { label: "Saham US",          color: "#22c55e" },
+    stock_idx:     { label: "Saham IDX",         color: "#f97316" },
+    gold_physical: { label: "Emas Fisik",        color: "#f59e0b" },
+    gold_digital:  { label: "Emas Digital",      color: "#fbbf24" },
+    mutual_fund:   { label: "Reksa Dana",        color: "#14b8a6" },
+    deposito:      { label: "Deposito",          color: "#3b82f6" },
+    foreign_currency: { label: "Foreign Currency", color: "#06b6d4" },
   };
   const categoryTotals: Record<string, number> = {};
   for (const a of assets) {
@@ -910,6 +1019,7 @@ export default function Portfolio() {
     { value: "gold", label: "Emas" },
     { value: "mutual_fund", label: "Reksa Dana" },
     { value: "deposito", label: "Deposito" },
+    { value: "foreign_currency", label: "Foreign Currency" },
   ];
 
   return (

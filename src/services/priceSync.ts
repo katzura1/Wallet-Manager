@@ -182,6 +182,46 @@ async function fetchGoldPriceIdr(): Promise<{ priceIdr: number; changePct: numbe
   return { priceIdr, changePct };
 }
 
+// ─── Deposito auto-calculation ────────────────────────────────────────────────
+// Calculates final value of deposito with compound interest and 20% tax deduction
+// Formula: finalValue = initialAmount × (1 + (interestRate/100 × daysPassed/365)) × 0.8
+// The 0.8 factor accounts for 20% tax deduction on interest earned
+
+export function calculateDepositoValue(
+  initialAmount: number,
+  interestRatePerYear: number,
+  startDate: string, // YYYY-MM-DD
+  endDate: string,   // YYYY-MM-DD
+): { priceIdr: number; changePct: number } {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const today = new Date();
+  // Use the earlier of today or endDate
+  const calculatedUntil = today < end ? today : end;
+  const daysPassed = Math.max(0, (calculatedUntil.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Interest calculation: principal × (1 + (rate/100 × days/365))
+  // Then apply 20% tax: multiply by 0.8
+  const interestEarned = initialAmount * (interestRatePerYear / 100) * (daysPassed / 365);
+  const afterTax = interestEarned * 0.8;
+  const finalValue = initialAmount + afterTax;
+  
+  // Change percentage based on initial amount
+  const changePct = ((finalValue - initialAmount) / initialAmount) * 100;
+  
+  return { priceIdr: finalValue, changePct };
+}
+
+// ─── Forex price sync via Yahoo Finance ────────────────────────────────────────
+// Forex pairs: {CURRENCY}IDR=X on Yahoo Finance (e.g., SGDIDR=X, JPYIDR=X)
+// Price is already in IDR format from Yahoo Finance (no conversion needed)
+
+async function syncForex(asset: Asset): Promise<{ ok: boolean; error?: string }> {
+  // symbol is stored as currency code (e.g., "SGD"), convert to Yahoo ticker (e.g., "SGDIDR=X")
+  const yahooSymbol = `${asset.symbol}IDR=X`;
+  return syncViaYahoo(asset, yahooSymbol, false); // false = already in IDR
+}
+
 // ─── Freshness check ─────────────────────────────────────────────────────────
 
 async function isFresh(symbol: string): Promise<boolean> {
@@ -294,6 +334,63 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
       } else {
         failed.push(a.symbol);
         onProgress?.(a.symbol, "failed", "Gagal ambil harga emas dari Yahoo Finance (GC=F)");
+      }
+    }
+  }
+
+  // Forex (foreign currency pairs) — Yahoo Finance {CURRENCY}IDR=X
+  const staleForex = stale.filter((a) => a.type === "foreign_currency");
+  if (staleForex.length > 0) {
+    for (let i = 0; i < staleForex.length; i++) {
+      if (i > 0) await delay(AV_DELAY_MS);
+      onProgress?.(staleForex[i].symbol, "syncing");
+      try {
+        const result = await syncForex(staleForex[i]);
+        if (result.ok) {
+          synced.push(staleForex[i].symbol);
+          onProgress?.(staleForex[i].symbol, "done");
+        } else {
+          failed.push(staleForex[i].symbol);
+          onProgress?.(staleForex[i].symbol, "failed", result.error);
+        }
+      } catch (e) {
+        failed.push(staleForex[i].symbol);
+        onProgress?.(staleForex[i].symbol, "failed", e instanceof Error ? e.message : "Network error");
+      }
+    }
+  }
+
+  // Deposito: auto-calculate based on principal, interest rate, and dates
+  const staleDeposito = stale.filter((a) => a.type === "deposito");
+  if (staleDeposito.length > 0) {
+    const now = new Date().toISOString();
+    for (const a of staleDeposito) {
+      onProgress?.(a.symbol, "syncing");
+      // Check if all required fields are present
+      if (!a.interestRatePerYear || !a.depositStartDate || !a.depositEndDate) {
+        // Skip if missing fields (old data or not properly set up)
+        skipped.push(a.symbol);
+        onProgress?.(a.symbol, "skipped");
+      } else {
+        try {
+          const calculation = calculateDepositoValue(
+            a.avgBuyPrice,
+            a.interestRatePerYear,
+            a.depositStartDate,
+            a.depositEndDate,
+          );
+          await db.assetPrices.put({
+            symbol: a.symbol,
+            priceIdr: calculation.priceIdr,
+            changePercent24h: calculation.changePct,
+            lastSynced: now,
+          });
+          synced.push(a.symbol);
+          onProgress?.(a.symbol, "done");
+        } catch (e) {
+          failed.push(a.symbol);
+          onProgress?.(a.symbol, "failed", e instanceof Error ? e.message : "Calculation error");
+        }
       }
     }
   }
