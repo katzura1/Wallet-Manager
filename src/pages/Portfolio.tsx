@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AreaChart, Area, CartesianGrid, XAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Button, Input, Modal, Spinner } from "@/components/ui";
 import { formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
-import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory, FOREIGN_CURRENCIES } from "@/db/assets";
-import { syncAllPrices, searchCoins, anyPriceStale, type CoinSearchResult } from "@/services/priceSync";
+import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory, backfillPortfolioHistoryUsd, FOREIGN_CURRENCIES } from "@/db/assets";
+import { syncAllPrices, searchCoins, anyPriceStale, getUsdIdr, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
 import { Eye, EyeOff, Clock, Plus, ChevronDown, ChevronUp } from "lucide-react";
@@ -506,12 +506,13 @@ interface AssetCardProps {
   asset: Asset;
   price: AssetPrice | undefined;
   currency: string;
+  hidden?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onHistory: () => void;
 }
 
-function AssetCard({ asset, price, currency, onEdit, onDelete, onHistory }: AssetCardProps) {
+function AssetCard({ asset, price, currency, hidden = false, onEdit, onDelete, onHistory }: AssetCardProps) {
   const currentPrice = price?.priceIdr ?? asset.manualPriceIdr ?? null;
   const currentValue = currentPrice !== null ? asset.quantity * currentPrice : null;
   const costBasis = asset.quantity * asset.avgBuyPrice;
@@ -550,20 +551,22 @@ function AssetCard({ asset, price, currency, onEdit, onDelete, onHistory }: Asse
           <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-3.5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Nilai Saat Ini</p>
             <p className="mt-2 text-base font-bold leading-tight text-[hsl(var(--foreground))]">
-              {currentValue !== null ? formatCurrency(currentValue, currency) : "—"}
+              {hidden ? <span className="tracking-widest">•••</span> : currentValue !== null ? formatCurrency(currentValue, currency) : "—"}
             </p>
             <div className="mt-2 flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))]">
-              <span>{asset.quantity.toLocaleString("id-ID")} {asset.type === "gold_physical" || asset.type === "gold_digital" ? "g" : asset.type === "deposito" ? "dep" : "u"}</span>
+              <span>{hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${asset.type === "gold_physical" || asset.type === "gold_digital" ? "g" : asset.type === "deposito" ? "dep" : "u"}`}</span>
               <span>•</span>
-              <span>{currentPrice !== null ? formatCurrency(currentPrice, currency) : "—"}</span>
+              <span>{hidden ? "•••" : currentPrice !== null ? formatCurrency(currentPrice, currency) : "—"}</span>
             </div>
           </div>
           <div className={`rounded-3xl px-4 py-3.5 ${gain !== null && gain >= 0 ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${gain !== null && gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Gain</p>
             {gain !== null && gainPct !== null ? (
               <>
-                <p className={`mt-2 text-base font-bold leading-tight ${gainCls(gain)}`}>{formatCurrency(gain, currency)}</p>
-                <p className={`mt-1 text-[11px] font-semibold ${gainCls(gainPct)}`}>{fmtPct(gainPct)}</p>
+                <p className={`mt-2 text-base font-bold leading-tight ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(gain)}`}>
+                  {hidden ? "•••" : formatCurrency(gain, currency)}
+                </p>
+                <p className={`mt-1 text-[11px] font-semibold ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(gainPct)}`}>{hidden ? "•••" : fmtPct(gainPct)}</p>
               </>
             ) : (
               <p className="mt-2 text-base text-[hsl(var(--muted-foreground))]">—</p>
@@ -574,11 +577,11 @@ function AssetCard({ asset, price, currency, onEdit, onDelete, onHistory }: Asse
         <div className="grid grid-cols-2 gap-2 text-[11px]">
           <div className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5">
             <p className="text-[hsl(var(--muted-foreground))]">Modal</p>
-            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{formatCurrency(costBasis, currency)}</p>
+            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{hidden ? "•••" : formatCurrency(costBasis, currency)}</p>
           </div>
           <div className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5">
             <p className="text-[hsl(var(--muted-foreground))]">Harga / Unit</p>
-            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{currentPrice !== null ? formatCurrency(currentPrice, currency) : "—"}</p>
+            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{hidden ? "•••" : currentPrice !== null ? formatCurrency(currentPrice, currency) : "—"}</p>
           </div>
         </div>
       </div>
@@ -586,13 +589,13 @@ function AssetCard({ asset, price, currency, onEdit, onDelete, onHistory }: Asse
       <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-[hsl(var(--surface-2))] text-[10px] text-[hsl(var(--muted-foreground))]">
         <div className="flex items-center gap-2">
           {roiPct !== null ? (
-            <span className={`font-semibold ${gainCls(roiPct)}`}>ROI {fmtPct(roiPct)}</span>
+            <span className={`font-semibold ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(roiPct)}`}>ROI {hidden ? "•••" : fmtPct(roiPct)}</span>
           ) : (
             <span>ROI —</span>
           )}
           <span>·</span>
           <span className="truncate">
-            {asset.quantity.toLocaleString("id-ID")} {asset.type === "gold_physical" || asset.type === "gold_digital" ? "g" : asset.type === "deposito" ? "dep" : "u"}
+            {hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${asset.type === "gold_physical" || asset.type === "gold_digital" ? "g" : asset.type === "deposito" ? "dep" : "u"}`}
           </span>
         </div>
         <div className="shrink-0">
@@ -830,10 +833,20 @@ export default function Portfolio() {
   const [summaryTab, setSummaryTab] = useState(0);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [allocationExpanded, setAllocationExpanded] = useState(false);
+  const [assetListExpanded, setAssetListExpanded] = useState(() => localStorage.getItem("portfolio_assetListExpanded") !== "0");
+  const [usdIdrRate, setUsdIdrRate] = useState<number>(16200);
+  const [historyZoomed, setHistoryZoomed] = useState(false);
 
   function togglePortfolioHidden() {
     setPortfolioHidden((v) => {
       localStorage.setItem("portfolio_hidden", v ? "0" : "1");
+      return !v;
+    });
+  }
+
+  function toggleAssetListExpanded() {
+    setAssetListExpanded((v) => {
+      localStorage.setItem("portfolio_assetListExpanded", v ? "0" : "1");
       return !v;
     });
   }
@@ -850,7 +863,14 @@ export default function Portfolio() {
       const p = map[asset.symbol]?.priceIdr ?? asset.manualPriceIdr ?? 0;
       return sum + asset.quantity * p;
     }, 0);
-    if (snap > 0) await savePortfolioSnapshot(snap);
+    if (snap > 0) {
+      const usdIdr = await getUsdIdr();
+      setUsdIdrRate(usdIdr); // Store for display
+      // Backfill missing USD values in historical data
+      await backfillPortfolioHistoryUsd(usdIdr);
+      const snapUsd = snap / usdIdr;
+      await savePortfolioSnapshot(snap, snapUsd);
+    }
     // Refresh history
     setHistory(await getPortfolioHistory(30));
     return a;
@@ -908,7 +928,12 @@ export default function Portfolio() {
         return sum + a.quantity * p;
       }, 0);
       if (snap > 0) {
-        await savePortfolioSnapshot(snap);
+        const usdIdr = await getUsdIdr();
+        setUsdIdrRate(usdIdr); // Store for display
+        // Backfill missing USD values in historical data
+        await backfillPortfolioHistoryUsd(usdIdr);
+        const snapUsd = snap / usdIdr;
+        await savePortfolioSnapshot(snap, snapUsd);
         setHistory(await getPortfolioHistory(30));
       }
 
@@ -1047,10 +1072,13 @@ export default function Portfolio() {
 
           <div className="rounded-3xl bg-[hsl(var(--card))]/82 px-4 py-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Total Portofolio</p>
                 <p className="mt-2 text-[2rem] font-bold leading-[1.05] text-[hsl(var(--foreground))]">
                   {portfolioHidden ? <span className="tracking-widest">••••••</span> : formatCurrency(totalValue, currency)}
+                </p>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {portfolioHidden ? <span className="tracking-widest">••••••</span> : `$${(totalValue / (usdIdrRate || 16200)).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
                 </p>
                 <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{assets.length} aset aktif</p>
               </div>
@@ -1195,52 +1223,87 @@ export default function Portfolio() {
             ))}
           </div>
 
-          {/* Asset List */}
-          {filtered.length > 0 ? (
-            <div className="space-y-2">
-              {filtered.map((asset) => (
-                <AssetCard
-                  key={asset.id}
-                  asset={asset}
-                  price={prices[asset.symbol]}
-                  currency={currency}
-                  onEdit={() => setEditTarget(asset)}
-                  onDelete={() => setDeleteTarget(asset)}
-                  onHistory={() => setHistoryTarget(asset)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-[28px] border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-5 py-16 text-center text-[hsl(var(--muted-foreground))]">
-              <div className="text-5xl mb-3">📈</div>
-              <p className="font-medium">Belum ada aset untuk filter ini</p>
-              <p className="text-sm mt-1">Ganti filter atau tambahkan aset baru dari tombol bawah.</p>
-            </div>
-          )}
+          {/* Asset List Section */}
+          <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] space-y-4">
+            <button
+              type="button"
+              onClick={toggleAssetListExpanded}
+              className="flex w-full items-center justify-between gap-3 text-left"
+            >
+              <div>
+                <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Daftar Aset</p>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{filtered.length} aset dalam filter ini.</p>
+              </div>
+              <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))]">
+                {assetListExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </span>
+            </button>
+            {assetListExpanded && (
+              <>
+                {filtered.length > 0 ? (
+                  <div className="space-y-2">
+                    {filtered.map((asset) => (
+                      <AssetCard
+                        key={asset.id}
+                        asset={asset}
+                        price={prices[asset.symbol]}
+                        currency={currency}
+                        hidden={portfolioHidden}
+                        onEdit={() => setEditTarget(asset)}
+                        onDelete={() => setDeleteTarget(asset)}
+                        onHistory={() => setHistoryTarget(asset)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-[28px] border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-5 py-16 text-center text-[hsl(var(--muted-foreground))]">
+                    <div className="text-5xl mb-3">📈</div>
+                    <p className="font-medium">Belum ada aset untuk filter ini</p>
+                    <p className="text-sm mt-1">Ganti filter atau tambahkan aset baru dari tombol bawah.</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
           {/* Portfolio Value History */}
           {history.length > 1 && (
             <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] space-y-4">
-              <button
-                type="button"
-                onClick={() => setHistoryExpanded((value) => !value)}
-                className="flex w-full items-center justify-between gap-3 text-left"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Riwayat Nilai Portofolio</p>
-                  <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Pergerakan total nilai aset dari snapshot harian.</p>
-                </div>
-                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))]">
-                  {historyExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </span>
-              </button>
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setHistoryExpanded((value) => !value)}
+                  className="flex flex-1 items-center justify-between gap-3 text-left"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Riwayat Nilai Portofolio</p>
+                    <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Pergerakan total nilai aset dari snapshot harian.</p>
+                  </div>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] shrink-0">
+                    {historyExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </span>
+                </button>
+                {historyExpanded && (
+                  <button
+                    onClick={() => setHistoryZoomed((v) => !v)}
+                    className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm font-semibold shrink-0"
+                    title={historyZoomed ? "Zoom Out" : "Zoom In"}
+                  >
+                    {historyZoomed ? "−" : "+"}
+                  </button>
+                )}
+              </div>
               {historyExpanded && (
-                <ResponsiveContainer width="100%" height={150}>
-                  <AreaChart data={history} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                <ResponsiveContainer width="100%" height={historyZoomed ? 420 : 280}>
+                  <AreaChart data={history} margin={{ top: 4, right: 4, left: 4, bottom: 20 }}>
                     <defs>
                       <linearGradient id="portGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
                         <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="usdGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -1250,10 +1313,16 @@ export default function Portfolio() {
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(d: string) => d.slice(5)}
-                      interval="preserveStartEnd"
+                      interval={historyZoomed ? "preserveStartEnd" : Math.max(Math.ceil(history.length / 4) - 1, 0)}
                     />
+                    <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickFormatter={(v: number) => `Rp ${(v / 1e6).toFixed(0)}M`} width={45} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickFormatter={(v: number) => `$${(v / 1e3).toFixed(0)}K`} width={45} />
                     <Tooltip
-                      formatter={(val) => [formatCurrency(Number(val), currency), "Nilai"]}
+                      formatter={(val, name) => {
+                        if (name === "Nilai IDR") return [formatCurrency(Number(val), currency), name];
+                        if (name === "Nilai USD") return [`$${Number(val).toLocaleString("en-US", { maximumFractionDigits: 0 })}`, name];
+                        return [formatCurrency(Number(val), currency), String(name)];
+                      }}
                       labelFormatter={(label) => String(label)}
                       contentStyle={{
                         background: "hsl(var(--card))",
@@ -1262,7 +1331,9 @@ export default function Portfolio() {
                         fontSize: "12px",
                       }}
                     />
-                    <Area dataKey="totalValue" name="Nilai" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#portGrad)" dot={false} />
+                    <Legend wrapperStyle={{ fontSize: "12px" }} />
+                    <Area yAxisId="left" dataKey="totalValue" name="Nilai IDR" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#portGrad)" dot={false} />
+                    <Area yAxisId="right" dataKey="totalValueUsd" name="Nilai USD" stroke="#22c55e" strokeWidth={2.5} fill="url(#usdGrad)" dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               )}

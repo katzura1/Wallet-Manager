@@ -42,7 +42,7 @@ export async function deleteAsset(id: number): Promise<void> {
 // ─── Portfolio History ─────────────────────────────────────────────────────────
 
 /** Upsert today's snapshot. Called after prices are loaded. */
-export async function savePortfolioSnapshot(totalValue: number): Promise<void> {
+export async function savePortfolioSnapshot(totalValue: number, totalValueUsd?: number): Promise<void> {
   // Use local date (YYYY-MM-DD) not UTC, to avoid timezone issues
   const now = new Date();
   const year = now.getFullYear();
@@ -52,9 +52,9 @@ export async function savePortfolioSnapshot(totalValue: number): Promise<void> {
   
   const existing = await db.portfolioHistory.where("date").equals(date).first();
   if (existing?.id) {
-    await db.portfolioHistory.update(existing.id, { totalValue });
+    await db.portfolioHistory.update(existing.id, { totalValue, ...(totalValueUsd !== undefined && { totalValueUsd }) });
   } else {
-    await db.portfolioHistory.add({ date, totalValue });
+    await db.portfolioHistory.add({ date, totalValue, ...(totalValueUsd !== undefined && { totalValueUsd }) });
   }
 }
 
@@ -63,6 +63,22 @@ export async function getPortfolioHistory(days = 30): Promise<PortfolioHistory[]
   const all = await db.portfolioHistory.toArray();
   all.sort((a, b) => a.date.localeCompare(b.date));
   return all.slice(-days);
+}
+
+/** Backfill missing USD values in portfolio history. Called during sync to fill gaps. */
+export async function backfillPortfolioHistoryUsd(usdIdr: number): Promise<void> {
+  const all = await db.portfolioHistory.toArray();
+  let updated = 0;
+  for (const record of all) {
+    if (record.id && !record.totalValueUsd && record.totalValue) {
+      const totalValueUsd = record.totalValue / usdIdr;
+      await db.portfolioHistory.update(record.id, { totalValueUsd });
+      updated++;
+    }
+  }
+  if (updated > 0) {
+    console.log(`[Portfolio] Backfilled ${updated} history records with USD values`);
+  }
 }
 
 // ─── Sync Log ─────────────────────────────────────────────────────────────────

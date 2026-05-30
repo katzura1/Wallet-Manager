@@ -136,6 +136,7 @@ export interface PortfolioHistory {
   id?: number;
   date: string;        // YYYY-MM-DD, unique per day
   totalValue: number;
+  totalValueUsd?: number;  // USD equivalent (optional for backward compatibility)
 }
 
 // ─── Sync History ─────────────────────────────────────────────────────────────
