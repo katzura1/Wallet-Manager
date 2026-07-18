@@ -409,3 +409,200 @@ export async function getTotalBalanceHistory(months = 6) {
   }
   return result;
 }
+
+/** Year-to-Date summary - accumulates from January 1st to the specified month */
+export interface YearToDateSummary {
+  totalIncome: number;
+  totalExpense: number;
+  netSavings: number;
+  savingsRate: number;
+  monthsIncluded: number;
+  averageMonthlyIncome: number;
+  averageMonthlyExpense: number;
+}
+
+export async function getYearToDateSummary(year: number, upToMonth: number) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  const transactions = await db.transactions
+    .where("date")
+    .between(`${year}-01-01`, `${year}-${pad(upToMonth)}-${new Date(year, upToMonth, 0).getDate()}`, true, true)
+    .toArray();
+
+  let totalIncome = 0;
+  let totalExpense = 0;
+  for (const tx of transactions) {
+    if (tx.type === "income") totalIncome += tx.amount;
+    if (tx.type === "expense") totalExpense += tx.amount;
+  }
+
+  const netSavings = totalIncome - totalExpense;
+  const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0;
+  const monthsIncluded = upToMonth;
+
+  return {
+    totalIncome,
+    totalExpense,
+    netSavings,
+    savingsRate,
+    monthsIncluded,
+    averageMonthlyIncome: monthsIncluded > 0 ? Math.round(totalIncome / monthsIncluded) : 0,
+    averageMonthlyExpense: monthsIncluded > 0 ? Math.round(totalExpense / monthsIncluded) : 0,
+  };
+}
+
+/** Monthly breakdown for YTD chart */
+export interface MonthlyBreakdown {
+  month: string;
+  monthShort: string;
+  income: number;
+  expense: number;
+  net: number;
+}
+
+export async function getYearToDateBreakdown(year: number, upToMonth: number): Promise<MonthlyBreakdown[]> {
+  const result: MonthlyBreakdown[] = [];
+
+  for (let m = 1; m <= upToMonth; m++) {
+    const summary = await getMonthlySummary(year, m);
+    const date = new Date(year, m - 1, 1);
+    result.push({
+      month: date.toLocaleString("id-ID", { month: "long", year: "numeric" }),
+      monthShort: date.toLocaleString("id-ID", { month: "short", year: "2-digit" }),
+      income: summary.income,
+      expense: summary.expense,
+      net: summary.net,
+    });
+  }
+
+  return result;
+}
+
+/** Year-over-Year comparison for a specific month */
+export interface YearOverYearComparison {
+  currentYear: number;
+  currentMonth: number;
+  current: { income: number; expense: number; net: number };
+  previousYear: number;
+  previousMonth: { income: number; expense: number; net: number };
+  incomeChange: number; // percentage
+  expenseChange: number; // percentage
+  netChange: number; // percentage
+  hasPreviousYearData: boolean;
+}
+
+export async function getYearOverYearComparison(year: number, month: number): Promise<YearOverYearComparison> {
+  const current = await getMonthlySummary(year, month);
+  const previousYearSummary = await getMonthlySummary(year - 1, month);
+
+  const hasPreviousYearData = previousYearSummary.income > 0 || previousYearSummary.expense > 0;
+
+  const incomeChange = previousYearSummary.income > 0
+    ? Math.round(((current.income - previousYearSummary.income) / previousYearSummary.income) * 100)
+    : 0;
+  const expenseChange = previousYearSummary.expense > 0
+    ? Math.round(((current.expense - previousYearSummary.expense) / previousYearSummary.expense) * 100)
+    : 0;
+  const netChange = previousYearSummary.net !== 0
+    ? Math.round(((current.net - previousYearSummary.net) / Math.abs(previousYearSummary.net)) * 100)
+    : 0;
+
+  return {
+    currentYear: year,
+    currentMonth: month,
+    current,
+    previousYear: year - 1,
+    previousMonth: previousYearSummary,
+    incomeChange,
+    expenseChange,
+    netChange,
+    hasPreviousYearData,
+  };
+}
+
+/** Category income breakdown - returns basic data, UI enriches with category details */
+export interface CategoryIncomeEntry {
+  categoryId: number;
+  amount: number;
+}
+
+export async function getCategoryIncomeData(year: number, month: number): Promise<CategoryIncomeEntry[]> {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const prefix = `${year}-${pad(month)}`;
+  const transactions = await db.transactions
+    .where("date")
+    .startsWith(prefix)
+    .filter((t) => t.type === "income" && !!t.categoryId)
+    .toArray();
+
+  const categoryTotals = new Map<number, number>();
+  for (const tx of transactions) {
+    if (!tx.categoryId) continue;
+    categoryTotals.set(tx.categoryId, (categoryTotals.get(tx.categoryId) ?? 0) + tx.amount);
+  }
+
+  return Array.from(categoryTotals.entries())
+    .map(([categoryId, amount]) => ({
+      categoryId,
+      amount,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
+/** Monthly spending trends by category - for growth analysis */
+export interface CategoryTrend {
+  categoryId: number;
+  categoryName: string;
+  categoryIcon: string;
+  categoryColor: string;
+  currentMonth: number;
+  previousMonthsAverage: number;
+  growthRate: number; // percentage
+  isSignificant: boolean; // >50% change
+}
+
+export async function getCategoryTrends(year: number, month: number, lookbackMonths = 3): Promise<CategoryTrend[]> {
+  const currentData = await getCategoryExpenseData(year, month);
+  const categories = await db.categories.toArray();
+
+  const trends: CategoryTrend[] = [];
+
+  for (const [catIdStr, currentAmount] of Object.entries(currentData)) {
+    const categoryId = Number(catIdStr);
+    const category = categories.find((c) => c.id === categoryId);
+    if (!category) continue;
+
+    // Calculate average from previous months
+    let totalPrevious = 0;
+    let validMonths = 0;
+    for (let i = 1; i <= lookbackMonths; i++) {
+      const prevMonth = month - i;
+      const prevYear = prevMonth <= 0 ? year - 1 : year;
+      const adjustedMonth = prevMonth <= 0 ? prevMonth + 12 : prevMonth;
+      const prevData = await getCategoryExpenseData(prevYear, adjustedMonth);
+      const amount = prevData[categoryId] ?? 0;
+      if (amount > 0) {
+        totalPrevious += amount;
+        validMonths++;
+      }
+    }
+
+    const previousMonthsAverage = validMonths > 0 ? totalPrevious / validMonths : 0;
+    const growthRate = previousMonthsAverage > 0
+      ? Math.round(((currentAmount - previousMonthsAverage) / previousMonthsAverage) * 100)
+      : 0;
+
+    trends.push({
+      categoryId,
+      categoryName: category.name,
+      categoryIcon: category.icon ?? "📦",
+      categoryColor: category.color ?? "#6b7280",
+      currentMonth: currentAmount,
+      previousMonthsAverage,
+      growthRate,
+      isSignificant: Math.abs(growthRate) >= 50,
+    });
+  }
+
+  return trends.sort((a, b) => Math.abs(b.growthRate) - Math.abs(a.growthRate));
+}

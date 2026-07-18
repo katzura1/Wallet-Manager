@@ -3,8 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent, Badge } from "@/components/ui";
-import { getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween } from "@/db/transactions";
-import { getBudgetsForMonth, getBudgetsForCategoriesWithInheritance } from "@/db/budgets";
+import { getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween, getYearToDateSummary, getYearOverYearComparison, getCategoryIncomeData, getCategoryTrends, type YearToDateSummary, type YearOverYearComparison, type CategoryIncomeEntry, type CategoryTrend } from "@/db/transactions";
+import { getBudgetsForMonth, getBudgetsForCategoriesWithInheritance, predictBudgetStatus } from "@/db/budgets";
 import { BudgetForm } from "@/components/forms/BudgetForm";
 import { formatCurrency } from "@/lib/utils";
 import { generateMonthlyInsight, type MonthlyInsightResult } from "@/lib/monthlyInsight";
@@ -52,11 +52,18 @@ export default function Reports() {
   const [budgetFormOpen, setBudgetFormOpen] = useState(false);
   const [budgetCategoryId, setBudgetCategoryId] = useState<number | undefined>();
   const [budgetInitialAmount, setBudgetInitialAmount] = useState<number>(0);
+  const [budgetFormRecurring, setBudgetFormRecurring] = useState<boolean>(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [showAllBudgets, setShowAllBudgets] = useState(false);
   const [showAllAccounts, setShowAllAccounts] = useState(false);
   const [monthlyInsight, setMonthlyInsight] = useState<MonthlyInsightResult | null>(null);
   const [monthlyInsightLoading, setMonthlyInsightLoading] = useState(false);
+  const [ytdSummary, setYtdSummary] = useState<YearToDateSummary | null>(null);
+  const [yoyComparison, setYoyComparison] = useState<YearOverYearComparison | null>(null);
+  const [incomeCategories, setIncomeCategories] = useState<CategoryIncomeEntry[]>([]);
+  const [categoryTrends, setCategoryTrends] = useState<CategoryTrend[]>([]);
+  const [activeIncomeTab, setActiveIncomeTab] = useState<"expense" | "income">("expense");
+  const [showTrends, setShowTrends] = useState(false);
 
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -121,6 +128,11 @@ export default function Reports() {
       getTotalBalanceHistory(6),
       getBudgetsForCategoriesWithInheritance(monthStr, expenseCategoryIds),
       getBudgetsForMonth(monthStr),
+      // New YTD and analysis data
+      getYearToDateSummary(selectedYear, selectedMonth),
+      getYearOverYearComparison(selectedYear, selectedMonth),
+      getCategoryIncomeData(selectedYear, selectedMonth),
+      getCategoryTrends(selectedYear, selectedMonth, 3),
     ]);
     
     // Track which budgets are inherited (not explicitly set for this month)
@@ -132,12 +144,17 @@ export default function Reports() {
       }
     }
     setInheritedBudgetIds(inheritedIds);
-    
+
     setChartData(bars);
     setSummary(sumM);
     setPreviousSummary(prevSumM);
     setBalanceHistory(history);
     setBudgets(bdgtList);
+    // Set new state values
+    setYtdSummary(ytdSummary);
+    setYoyComparison(yoyComparison);
+    setIncomeCategories(incomeCategories);
+    setCategoryTrends(categoryTrends);
     const pie: PieEntry[] = mergePieEntries(
       Object.entries(catMapM).map(([catId, amount]) => {
         const cat = categories.find((c) => c.id === Number(catId));
@@ -195,6 +212,8 @@ export default function Reports() {
     setBudgetCategoryId(catId);
     setBudgetInitialAmount(existing?.amount ?? 0);
     setBudgetFormOpen(true);
+    // Store recurring flag for BudgetForm via a temporary state
+    setBudgetFormRecurring(existing?.recurring ?? false);
   }
 
   const currentMonth = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
@@ -244,12 +263,23 @@ export default function Reports() {
           const actual = pieData.find((entry) => entry.name === category.name)?.value ?? 0;
           const budget = budgets.find((item) => item.categoryId === category.id);
           const isInherited = budget ? inheritedBudgetIds.has(budget.id ?? 0) : false;
+          const pct = budget?.amount ? Math.min(Math.round((actual / budget.amount) * 100), 100) : 0;
+          // Calculate prediction if budget exists
+          const prediction = budget && budget.amount > 0
+            ? predictBudgetStatus({
+                budgetAmount: budget.amount,
+                spent: actual,
+                dayOfMonth: selectedMonth === new Date().getMonth() + 1 && selectedYear === new Date().getFullYear() ? new Date().getDate() : new Date(selectedYear, selectedMonth, 0).getDate(),
+                daysInMonth: new Date(selectedYear, selectedMonth, 0).getDate(),
+              })
+            : null;
           return {
             category,
             actual,
             budget,
             isInherited,
-            pct: budget?.amount ? Math.min(Math.round((actual / budget.amount) * 100), 100) : 0,
+            pct,
+            prediction,
           };
         })
         .filter((row) => row.budget || row.actual > 0)
@@ -407,6 +437,94 @@ export default function Reports() {
         </Card>
       </div>
 
+      {/* Year-to-Date Summary */}
+      {mode === "monthly" && ytdSummary && ytdSummary.totalIncome > 0 && (
+        <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--emerald-500\/5))_0%,hsl(var(--surface-2))_100%)]">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">YTD {selectedYear}</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">{ytdSummary.monthsIncluded} bulan berjalan</p>
+              </div>
+              <div className="text-right">
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
+                  ytdSummary.savingsRate >= 20
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : ytdSummary.savingsRate >= 10
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    : "bg-red-500/10 text-red-600 dark:text-red-400"
+                }`}>
+                  <span>{ytdSummary.savingsRate >= 20 ? "✅" : ytdSummary.savingsRate >= 10 ? "⚠️" : "❌"}</span>
+                  Savings Rate {ytdSummary.savingsRate}%
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-2 rounded-xl bg-[hsl(var(--card))]/60">
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Total Masuk</p>
+                <p className="font-bold text-sm text-emerald-500 mt-1">{formatCurrency(ytdSummary.totalIncome, currency)}</p>
+              </div>
+              <div className="text-center p-2 rounded-xl bg-[hsl(var(--card))]/60">
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Total Keluar</p>
+                <p className="font-bold text-sm text-red-500 mt-1">{formatCurrency(ytdSummary.totalExpense, currency)}</p>
+              </div>
+              <div className="text-center p-2 rounded-xl bg-[hsl(var(--card))]/60">
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Tersisa</p>
+                <p className={`font-bold text-sm mt-1 ${ytdSummary.netSavings >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                  {formatCurrency(ytdSummary.netSavings, currency)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Year-over-Year Comparison */}
+      {mode === "monthly" && yoyComparison && yoyComparison.hasPreviousYearData && (
+        <Card>
+          <CardHeader>
+            <CardTitle>vs {new Date(yoyComparison.previousYear, yoyComparison.currentMonth - 1, 1).toLocaleString("id-ID", { month: "long" })} {yoyComparison.previousYear}</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-emerald-500/5">
+                <span className={`text-lg ${yoyComparison.incomeChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                  {yoyComparison.incomeChange >= 0 ? "↑" : "↓"}
+                </span>
+                <div>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Income</p>
+                  <p className={`text-sm font-bold ${yoyComparison.incomeChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                    {yoyComparison.incomeChange > 0 ? "+" : ""}{yoyComparison.incomeChange}%
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-red-500/5">
+                <span className={`text-lg ${yoyComparison.expenseChange <= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                  {yoyComparison.expenseChange > 0 ? "↑" : "↓"}
+                </span>
+                <div>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Expense</p>
+                  <p className={`text-sm font-bold ${yoyComparison.expenseChange <= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                    {yoyComparison.expenseChange > 0 ? "+" : ""}{yoyComparison.expenseChange}%
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-indigo-500/5">
+                <span className={`text-lg ${yoyComparison.netChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                  {yoyComparison.netChange >= 0 ? "↑" : "↓"}
+                </span>
+                <div>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Net</p>
+                  <p className={`text-sm font-bold ${yoyComparison.netChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                    {yoyComparison.netChange > 0 ? "+" : ""}{yoyComparison.netChange}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {mode === "monthly" && (monthlyInsightLoading || monthlyInsight) && (
         <Card>
           <CardHeader>
@@ -481,70 +599,176 @@ export default function Reports() {
         </CardContent>
       </Card>}
 
-      {/* Category Pie Chart */}
-      {pieData.length > 0 && (
+      {/* Category Breakdown - Expense/Income tabs */}
+      {mode === "monthly" && (pieData.length > 0 || incomeCategories.length > 0) && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle>Pengeluaran Bersih per Kategori</CardTitle>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Expense dikurangi pemasukan pada kategori yang sama</p>
+                <CardTitle>{activeIncomeTab === "expense" ? "Kategori Pengeluaran" : "Sumber Pemasukan"}</CardTitle>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                  {activeIncomeTab === "expense" ? "Expense dikurangi pemasukan pada kategori yang sama" : "Breakdown sumber pemasukan utama"}
+                </p>
               </div>
-              {pieData.length > 5 && (
-                <button
-                  onClick={() => setShowAllCategories((value) => !value)}
-                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-                >
-                  {showAllCategories ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                  {showAllCategories ? "Ringkas" : `Semua ${pieData.length}`}
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {(activeIncomeTab === "expense" ? pieData.length : incomeCategories.length) > 5 && (
+                  <button
+                    onClick={() => setShowAllCategories((v) => !v)}
+                    className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
+                  >
+                    {showAllCategories ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    {showAllCategories ? "Ringkas" : "Semua"}
+                  </button>
+                )}
+                <div className="flex rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-0.5 text-xs">
+                  <button
+                    onClick={() => setActiveIncomeTab("expense")}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${activeIncomeTab === "expense" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))]"}`}
+                  >
+                    Pengeluaran
+                  </button>
+                  <button
+                    onClick={() => setActiveIncomeTab("income")}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${activeIncomeTab === "income" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))]"}`}
+                  >
+                    Pemasukan
+                  </button>
+                </div>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-3 pt-1">
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}>
-                  {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(val) => formatCurrency(Number(val), currency)}
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "12px",
-                    fontSize: "12px",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            {activeIncomeTab === "expense" ? (
+              <>
+                {pieData.length > 0 ? (
+                  <>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                          {pieData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(val) => formatCurrency(Number(val), currency)}
+                          contentStyle={{
+                            background: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
 
-            <div className="space-y-2 mt-2">
-              {visiblePieData.map((entry) => {
-                const pct = totalPieValue ? Math.round((entry.value / totalPieValue) * 100) : 0;
-                return (
-                  <div key={entry.name} className="flex items-center gap-2.5">
-                    <span className="text-sm">{entry.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between gap-2 text-xs mb-0.5">
-                        <span className="truncate">{entry.name}</span>
-                        <span className="font-medium shrink-0">{formatCurrency(entry.value, currency)}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
-                        <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: entry.color }} />
-                      </div>
+                    <div className="space-y-2 mt-2">
+                      {visiblePieData.map((entry) => {
+                        const pct = totalPieValue ? Math.round((entry.value / totalPieValue) * 100) : 0;
+                        return (
+                          <div key={entry.name} className="flex items-center gap-2.5">
+                            <span className="text-sm">{entry.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex justify-between gap-2 text-xs mb-0.5">
+                                <span className="truncate">{entry.name}</span>
+                                <span className="font-medium shrink-0">{formatCurrency(entry.value, currency)}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
+                                <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: entry.color }} />
+                              </div>
+                            </div>
+                            <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
+                          </div>
+                        );
+                      })}
+                      {!showAllCategories && pieData.length > visiblePieData.length && (
+                        <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                          {pieData.length - visiblePieData.length} kategori lain disembunyikan
+                        </p>
+                      )}
                     </div>
-                    <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
+                  </>
+                ) : (
+                  <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data pengeluaran</p>
+                )}
+              </>
+            ) : (
+              <>
+                {incomeCategories.length > 0 ? (
+                  <div className="space-y-2">
+                    {incomeCategories.slice(0, showAllCategories ? undefined : 5).map((entry) => {
+                      const category = categories.find((c) => c.id === entry.categoryId);
+                      const totalIncome = incomeCategories.reduce((s, c) => s + c.amount, 0);
+                      const pct = totalIncome > 0 ? Math.round((entry.amount / totalIncome) * 100) : 0;
+                      return (
+                        <div key={entry.categoryId} className="flex items-center gap-2.5">
+                          <span className="text-sm">{category?.icon ?? "💰"}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between gap-2 text-xs mb-0.5">
+                              <span className="truncate">{category?.name ?? "Lainnya"}</span>
+                              <span className="font-medium shrink-0 text-emerald-500">{formatCurrency(entry.amount, currency)}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
+                              <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: category?.color ?? "#22c55e" }} />
+                            </div>
+                          </div>
+                          <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                    {!showAllCategories && incomeCategories.length > 5 && (
+                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                        {incomeCategories.length - 5} kategori lain disembunyikan
+                      </p>
+                    )}
                   </div>
-                );
-              })}
-              {!showAllCategories && pieData.length > visiblePieData.length && (
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
-                  {pieData.length - visiblePieData.length} kategori lain disembunyikan
-                </p>
-              )}
+                ) : (
+                  <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data pemasukan</p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Category Trends */}
+      {mode === "monthly" && categoryTrends.filter((t) => t.isSignificant).length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle>Perubahan Kategori</CardTitle>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Kategori dengan perubahan signifikan vs rata-rata</p>
+              </div>
+              <button
+                onClick={() => setShowTrends((v) => !v)}
+                className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
+              >
+                {showTrends ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                {showTrends ? "Ringkas" : "Detail"}
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-3 pt-1">
+            <div className="space-y-2">
+              {categoryTrends
+                .filter((t) => t.isSignificant)
+                .slice(0, showTrends ? undefined : 3)
+                .map((trend) => (
+                  <div key={trend.categoryId} className="flex items-center gap-2.5 p-2 rounded-xl bg-[hsl(var(--surface-2))]">
+                    <span className="text-sm">{trend.categoryIcon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between gap-2 text-xs">
+                        <span className="truncate font-medium">{trend.categoryName}</span>
+                        <span className={`font-bold shrink-0 ${trend.growthRate > 0 ? "text-red-500" : "text-emerald-500"}`}>
+                          {trend.growthRate > 0 ? "+" : ""}{trend.growthRate}%
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                        {formatCurrency(trend.previousMonthsAverage, currency)} → {formatCurrency(trend.currentMonth, currency)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
             </div>
           </CardContent>
         </Card>
@@ -579,7 +803,7 @@ export default function Reports() {
             </div>
           </CardHeader>
           <CardContent className="p-3 pt-1 space-y-2.5">
-            {visibleBudgetRows.map(({ category, actual, budget, isInherited, pct }) => {
+            {visibleBudgetRows.map(({ category, actual, budget, isInherited, pct, prediction }) => {
               const over = !!budget && actual > budget.amount;
               return (
                 <div key={category.id} className="flex items-center gap-2.5">
@@ -610,7 +834,19 @@ export default function Reports() {
                           Inherited
                         </Badge>
                       )}
+                      {/* Budget Prediction */}
+                      {prediction && !over && prediction.predictedExhaustInDays !== null && prediction.predictedExhaustInDays <= 15 && (
+                        <span className="text-[9px] text-amber-500 shrink-0">
+                          ~{prediction.predictedExhaustInDays === 0 ? "habis" : `${prediction.predictedExhaustInDays}d`}
+                        </span>
+                      )}
                     </div>
+                    {/* Over-budget warning */}
+                    {over && prediction && prediction.projectedOverrun > 0 && (
+                      <p className="text-[10px] text-red-500 mt-0.5">
+                        Proyeksi over {formatCurrency(prediction.projectedOverrun, currency)}
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={() => openBudgetForm(category.id!)}
@@ -758,6 +994,7 @@ export default function Reports() {
         month={currentMonth}
         initialCategoryId={budgetCategoryId}
         initialAmount={budgetInitialAmount}
+        initialRecurring={budgetFormRecurring}
       />
     </div>
   );

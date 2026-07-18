@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowDownToLine, Printer } from "lucide-react";
 import { useSettingsStore, useWalletStore } from "@/stores/walletStore";
 import { Button, Card, CardContent, EmptyState, Input, Select, Spinner } from "@/components/ui";
@@ -17,6 +17,7 @@ function csvEscape(value: string) {
 export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
   const { accounts, categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(() => {
     const parsed = Number(searchParams.get("account"));
@@ -90,6 +91,13 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
     };
   }, [dateFrom, dateTo, selectedAccountId]);
 
+  function handleReportTabChange(tab: "overview" | "ledger") {
+    const nextParams = new URLSearchParams(searchParams);
+    if (tab === "overview") nextParams.delete("tab");
+    else nextParams.set("tab", tab);
+    navigate(`/reports?${nextParams.toString()}`, { replace: true });
+  }
+
   function handleAccountChange(value: string) {
     const nextId = Number(value);
     if (!Number.isFinite(nextId)) return;
@@ -159,15 +167,28 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
         <CardContent className="p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Report</p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight break-words">Ledger per Akun</h1>
-              <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))] break-words">Lihat mutasi, saldo awal, dan saldo berjalan setiap akun.</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Analytics</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight">Laporan</h1>
+              <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Baca pola cashflow, kategori, budget, dan perubahan performa bulanan.</p>
             </div>
-            {!embedded && (
-              <Link to="/reports" className="inline-flex h-9 items-center justify-center rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 px-3.5 text-xs font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))] no-print">
-                Kembali
-              </Link>
-            )}
+            <div className="flex flex-col items-end gap-2">
+              <div className="inline-flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 p-1 text-xs no-print">
+                <button
+                  type="button"
+                  onClick={() => handleReportTabChange("overview")}
+                  className="rounded-xl px-3 py-2 font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--surface-2))]"
+                >
+                  Ikhtisar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReportTabChange("ledger")}
+                  className="rounded-xl bg-[hsl(var(--primary))] px-3 py-2 font-medium text-[hsl(var(--primary-foreground))] transition-colors"
+                >
+                  Ledger
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,1fr))] no-print">
