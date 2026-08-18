@@ -497,15 +497,17 @@ export default function Debts() {
         />
       )}
 
-      <button
-        type="button"
-        onClick={() => setAddOpen(true)}
-        className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-40 w-12 h-12 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-lg hover:brightness-[1.06] active:scale-95 transition"
-        aria-label="Tambah hutang atau piutang"
-        title="Tambah hutang/piutang"
-      >
-        <Plus size={18} className="mx-auto" />
-      </button>
+      <div className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-30 sm:right-[max(1rem,calc((100vw-36rem)/2+1rem))]">
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-[0_24px_50px_-24px_hsl(var(--primary))] hover:brightness-[1.06] active:scale-95 transition"
+          aria-label="Tambah hutang atau piutang"
+          title="Tambah hutang/piutang"
+        >
+          <Plus size={18} />
+        </button>
+      </div>
     </div>
   );
 }

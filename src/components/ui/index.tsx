@@ -145,7 +145,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
               ✕
             </button>
           </div>
-          <div className="min-h-0 overflow-y-auto p-5 pb-7 safe-bottom">{children}</div>
+          <div className="min-h-0 overflow-y-auto p-5 pb-24 safe-bottom">{children}</div>
         </div>
       </div>
     </div>
