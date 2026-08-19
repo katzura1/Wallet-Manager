@@ -155,12 +155,13 @@ ${JSON.stringify(input, null, 2)}`;
 }
 
 function parseAIInsight(raw: string): AIInsightPayload {
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
+  const startIdx = raw.indexOf("{");
+  const endIdx = raw.lastIndexOf("}");
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
     throw new Error("AI insight tidak valid");
   }
 
-  const parsed = JSON.parse(jsonMatch[0]) as AIInsightPayload;
+  const parsed = JSON.parse(raw.substring(startIdx, endIdx + 1)) as AIInsightPayload;
   return parsed;
 }
 

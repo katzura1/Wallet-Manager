@@ -131,15 +131,20 @@ function sanitizeTransactions(parsed: ParsedTransaction[], accounts: Account[], 
 }
 
 function extractTransactions(raw: string) {
-  const jsonMatch = raw.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
+  // Find the first '[' and last ']' to extract the JSON array
+  const startIdx = raw.indexOf("[");
+  const endIdx = raw.lastIndexOf("]");
+
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
     throw new Error("Gemini tidak mengembalikan format yang valid. Coba lagi.");
   }
 
+  const jsonStr = raw.substring(startIdx, endIdx + 1);
+
   let parsed: ParsedTransaction[];
   try {
-    parsed = JSON.parse(jsonMatch[0]);
-  } catch {
+    parsed = JSON.parse(jsonStr);
+  } catch (error) {
     throw new Error("Gagal memparse respons Gemini. Coba lagi.");
   }
 
@@ -340,10 +345,11 @@ export async function parseChatMessage(
   const raw = result.response.text().trim();
 
   // Try to parse as transaction first
-  const jsonMatch = raw.match(/\[[\s\S]*\]/);
-  if (jsonMatch) {
+  const startIdx = raw.indexOf("[");
+  const endIdx = raw.lastIndexOf("]");
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
     try {
-      const parsed: ParsedTransaction[] = JSON.parse(jsonMatch[0]);
+      const parsed: ParsedTransaction[] = JSON.parse(raw.substring(startIdx, endIdx + 1));
       if (Array.isArray(parsed) && parsed.length > 0) {
         const transactions = sanitizeTransactions(parsed, accounts, categories);
         if (transactions.length > 0) {
