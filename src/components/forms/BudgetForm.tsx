@@ -12,12 +12,13 @@ interface BudgetFormProps {
   month: string; // YYYY-MM
   initialCategoryId?: number;
   initialAmount?: number;
+  initialRecurring?: boolean;
 }
 
-export function BudgetForm({ open, onClose, onSaved, categories, month, initialCategoryId, initialAmount = 0 }: BudgetFormProps) {
+export function BudgetForm({ open, onClose, onSaved, categories, month, initialCategoryId, initialAmount = 0, initialRecurring = false }: BudgetFormProps) {
   const [categoryId, setCategoryId] = useState(String(initialCategoryId ?? ""));
   const [amount, setAmount] = useState(String(initialAmount || ""));
-  const [recurring, setRecurring] = useState(false);
+  const [recurring, setRecurring] = useState(initialRecurring);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -25,10 +26,10 @@ export function BudgetForm({ open, onClose, onSaved, categories, month, initialC
     if (open) {
       setCategoryId(String(initialCategoryId ?? ""));
       setAmount(String(initialAmount || ""));
-      setRecurring(false);
+      setRecurring(initialRecurring);
       setError("");
     }
-  }, [open, initialCategoryId, initialAmount]);
+  }, [open, initialCategoryId, initialAmount, initialRecurring]);
 
   const expenseCategories = categories.filter((c) => c.type === "expense" || c.type === "both");
   const monthLabel = new Date(month + "-01").toLocaleString("id-ID", { month: "long", year: "numeric" });
