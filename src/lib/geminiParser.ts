@@ -227,3 +227,178 @@ export async function parseReceiptImage(
 
   return { transactions, raw };
 }
+
+// Chat-specific types and functions
+
+export interface ChatParseResult {
+  type: "transaction" | "summary" | "text";
+  transactions?: ParsedTransaction[];
+  summaryData?: { type: "daily" | "weekly" | "monthly"; period: string; income: number; expense: number; net: number };
+  text?: string;
+  raw?: string;
+}
+
+function buildRecentSummary(transactions: { type: string; amount: number; categoryId?: number; date: string }[]): string {
+  const recent = transactions
+    .filter((tx) => tx.type === "expense" || tx.type === "income")
+    .slice(0, 20);
+
+  if (recent.length === 0) return "(belum ada transaksi)";
+
+  const totalIncome = recent.filter((tx) => tx.type === "income").reduce((sum, tx) => sum + tx.amount, 0);
+  const totalExpense = recent.filter((tx) => tx.type === "expense").reduce((sum, tx) => sum + tx.amount, 0);
+
+  return `Total pemasukan: Rp ${totalIncome.toLocaleString("id-ID")}, Total pengeluaran: Rp ${totalExpense.toLocaleString("id-ID")}, Jumlah transaksi: ${recent.length}`;
+}
+
+function buildChatPrompt(
+  text: string,
+  accounts: Account[],
+  categories: Category[],
+  recentTransactions: { type: string; amount: number; date: string }[],
+): string {
+  const accountList = buildAccountList(accounts);
+  const categoryList = buildCategoryList(categories);
+  const recentSummary = buildRecentSummary(recentTransactions);
+
+  return `Kamu adalah asisten keuangan pribadi yang cerdas dalam bahasa Indonesia.
+
+Tanggal hari ini: ${todayISO()}
+
+Daftar akun yang tersedia:
+${accountList || "  (tidak ada akun)"}
+
+Daftar kategori yang tersedia:
+${categoryList || "  (tidak ada kategori)"}
+
+Ringkasan transaksi terakhir:
+${recentSummary}
+
+TUGAS UTAMA:
+1. Jika input adalah transaksi keuangan → return JSON array transaksi
+2. Jika input adalah pertanyaan tentang ringkasan/summary → hitung dari data yang tersedia
+3. Jika input adalah pertanyaan umum → jawab dengan natural
+
+ATURAN PARSING TRANSAKSI:
+- Return HANYA JSON array jika input adalah transaksi
+- Setiap transaksi: type, amount, accountId, toAccountId (transfer), categoryId, date, note
+- Konversi: "30rb" = 30000, "50k" = 50000, "500k" = 500000, "1jt" = 1000000
+- Cocokkan akun/kategori dari teks ke daftar yang tersedia
+- Jika tidak ada kategori yang cocok, abaikan categoryId
+- Jika tanggal tidak disebutkan, gunakan tanggal hari ini: ${todayISO()}
+
+ATURAN RINGKASAN:
+- Hitung total pemasukan/pengeluaran/net dari data transaksi
+- Format jawaban: "Pengeluaran minggu ini: Rp X (kategori1: Rp Y, kategori2: Rp Z)"
+- Gunakan data dari ringkasan transaksi terakhir
+
+ATURAN JAWABAN UMUM:
+- Format jawaban dalam bahasa Indonesia yang natural
+- Jika ada transaksi, selalu konfirmasi sebelum simpan
+
+CONTOH INPUT TRANSAKSI:
+Input: "beli kopi 15000"
+Output: [{"type":"expense","amount":15000,"accountId":1,"categoryId":1,"date":"${todayISO()}","note":"Beli kopi"}]
+
+CONTOH PERTANYAAN RINGKASAN:
+Input: "berapa pengeluaran minggu ini?"
+Output: "Berdasarkan data transaksi terakhir, pengeluaran Anda adalah Rp 1.250.000. Rincian: Makan & Minum (Rp 450.000), Transport (Rp 200.000), Belanja (Rp 600.000)."
+
+CONTOH PERTANYAAN UMUM:
+Input: "tips menabung"
+Output: "Beberapa tips menabung: 1. Atur budget bulanan, 2. Catat semua pengeluaran, 3. Kurangi belanja non-esensial."
+
+INPUT USER:
+"${text}"`;
+}
+
+export async function parseChatMessage(
+  text: string,
+  apiKey: string,
+  accounts: Account[],
+  categories: Category[],
+  recentTransactions: { type: string; amount: number; date: string }[],
+  modelName = "gemini-2.5-flash",
+): Promise<ChatParseResult> {
+  if (!apiKey.trim()) {
+    throw new Error("Gemini API key belum diset. Silakan set API key di Pengaturan.");
+  }
+  if (!text.trim()) {
+    throw new Error("Teks tidak boleh kosong.");
+  }
+  if (!isAIOnline()) {
+    throw new Error("Perangkat sedang offline. Fitur AI butuh koneksi internet.");
+  }
+
+  assertAIRequestAllowed("chatbot", 2000);
+
+  const genAI = new GoogleGenerativeAI(apiKey.trim());
+  const model = genAI.getGenerativeModel({ model: modelName });
+
+  const prompt = buildChatPrompt(text, accounts, categories, recentTransactions);
+  const result = await model.generateContent(prompt);
+  const raw = result.response.text().trim();
+
+  // Try to parse as transaction first
+  const jsonMatch = raw.match(/\[[\s\S]*\]/);
+  if (jsonMatch) {
+    try {
+      const parsed: ParsedTransaction[] = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const transactions = sanitizeTransactions(parsed, accounts, categories);
+        if (transactions.length > 0) {
+          return { type: "transaction", transactions, raw };
+        }
+      }
+    } catch {
+      // Not valid JSON, continue to other types
+    }
+  }
+
+  // Try to detect summary request
+  const summaryKeywords = ["ringkasan", "total", "berapa", "pengeluaran", "pemasukan", "saldo", "minggu ini", "bulan ini", "hari ini"];
+  const isSummaryRequest = summaryKeywords.some((keyword) => text.toLowerCase().includes(keyword));
+
+  if (isSummaryRequest) {
+    // Calculate summary from recent transactions
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    let periodTransactions = recentTransactions;
+    let periodType: "daily" | "weekly" | "monthly" = "weekly";
+    let periodLabel = "Minggu ini";
+
+    if (text.toLowerCase().includes("hari ini")) {
+      const today = now.toISOString().split("T")[0];
+      periodTransactions = recentTransactions.filter((tx) => tx.date === today);
+      periodType = "daily";
+      periodLabel = "Hari ini";
+    } else if (text.toLowerCase().includes("bulan ini")) {
+      const monthPrefix = now.toISOString().slice(0, 7);
+      periodTransactions = recentTransactions.filter((tx) => tx.date.startsWith(monthPrefix));
+      periodType = "monthly";
+      periodLabel = "Bulan ini";
+    } else {
+      periodTransactions = recentTransactions.filter((tx) => new Date(tx.date) >= weekAgo);
+    }
+
+    const income = periodTransactions.filter((tx) => tx.type === "income").reduce((sum, tx) => sum + tx.amount, 0);
+    const expense = periodTransactions.filter((tx) => tx.type === "expense").reduce((sum, tx) => sum + tx.amount, 0);
+
+    return {
+      type: "summary",
+      summaryData: {
+        type: periodType,
+        period: periodLabel,
+        income,
+        expense,
+        net: income - expense,
+      },
+      text: raw,
+      raw,
+    };
+  }
+
+  // Default to text response
+  return { type: "text", text: raw, raw };
+}

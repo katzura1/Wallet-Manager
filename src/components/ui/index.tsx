@@ -120,9 +120,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  noScroll?: boolean;
 }
 
-export function Modal({ open, onClose, title, children }: ModalProps) {
+export function Modal({ open, onClose, title, children, noScroll }: ModalProps) {
   React.useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
@@ -135,7 +136,10 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 flex min-h-full items-end justify-center px-0 pt-4 pb-24 safe-bottom sm:items-center sm:p-4 sm:pb-4">
-        <div className="relative flex w-full max-h-[calc(100dvh-7rem)] flex-col overflow-hidden rounded-t-4xl border border-white/10 bg-[hsl(var(--background))]/98 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.75)] overscroll-contain sm:max-h-[90vh] sm:max-w-lg sm:rounded-4xl">
+        <div className={cn(
+          "relative flex w-full flex-col overflow-hidden rounded-t-4xl border border-white/10 bg-[hsl(var(--background))]/98 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.75)] overscroll-contain sm:max-w-lg sm:rounded-4xl",
+          noScroll ? "h-full max-h-[calc(100dvh-7rem)] sm:max-h-[90vh]" : "max-h-[calc(100dvh-7rem)] sm:max-h-[90vh]"
+        )}>
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 p-5 backdrop-blur-sm">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Detail</p>
@@ -145,7 +149,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
               ✕
             </button>
           </div>
-          <div className="min-h-0 overflow-y-auto p-5 pb-24 safe-bottom">{children}</div>
+          <div className={noScroll ? "flex-1 min-h-0 overflow-hidden flex flex-col" : "min-h-0 overflow-y-auto p-5 pb-24 safe-bottom"}>{children}</div>
         </div>
       </div>
     </div>
