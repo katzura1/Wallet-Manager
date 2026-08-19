@@ -4,6 +4,7 @@ import { registerSW } from "virtual:pwa-register";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LockScreen } from "@/components/LockScreen";
 import { Button } from "@/components/ui";
+import { ChatWidget } from "@/components/chat";
 import Accounts from "@/pages/Accounts";
 import Categories from "@/pages/Categories";
 import Dashboard from "@/pages/Dashboard";
@@ -64,6 +65,8 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+
+      <ChatWidget />
 
       {showUpdateToast && (
         <div className="fixed left-4 right-4 bottom-20 z-50 sm:left-auto sm:right-6 sm:bottom-6 sm:w-80">

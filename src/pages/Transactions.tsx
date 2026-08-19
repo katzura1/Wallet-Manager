@@ -56,7 +56,6 @@ export default function Transactions() {
   const [splitMap, setSplitMap] = useState<Record<number, TransactionSplit[]>>({});
   const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
-  const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
   const pendingFocusTxId = useRef<number | null>(null);
 
   useEffect(() => {
@@ -115,10 +114,6 @@ export default function Transactions() {
     }
     setSearchParams(nextParams, { replace: true });
   }, [transactions, searchParams, setSearchParams]);
-
-  useEffect(() => {
-    setIsFabMenuOpen(false);
-  }, [activeTab]);
 
   useEffect(() => {
     void loadSplits();
@@ -850,71 +845,22 @@ export default function Transactions() {
         </div>
       </Modal>
 
-      <div className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-40 flex flex-col items-end gap-2">
-        {activeTab === "all" && (
-          <button
-            type="button"
-            onClick={() => {
-              setShowFilter((v) => !v);
-              setIsFabMenuOpen(false);
-            }}
-            className={`relative w-11 h-11 rounded-full border shadow-lg transition ${
-              showFilter
-                ? "bg-[hsl(var(--primary))] border-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                : "bg-[hsl(var(--card))] border-[hsl(var(--border))] text-[hsl(var(--foreground))]"
-            }`}
-            style={{
-              opacity: isFabMenuOpen ? 1 : 0,
-              transform: isFabMenuOpen ? "translateY(0) scale(1)" : "translateY(8px) scale(0.9)",
-              pointerEvents: isFabMenuOpen ? "auto" : "none",
-            }}
-            aria-label="Buka filter transaksi"
-            title="Filter"
-          >
-            <Filter size={18} className="mx-auto" />
-            {activeFilterChips.length > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] text-[10px] leading-4 font-bold border border-white dark:border-[hsl(var(--card))]">
-                {activeFilterChips.length}
-              </span>
-            )}
-          </button>
-        )}
-
-        {activeTab === "all" && (
-          <button
-            type="button"
-            onClick={() => {
-              setAddOpen(true);
-              setIsFabMenuOpen(false);
-            }}
-            className="w-11 h-11 rounded-full bg-[hsl(var(--card))] border border-[hsl(var(--border))] text-[hsl(var(--foreground))] shadow-lg transition"
-            style={{
-              opacity: isFabMenuOpen ? 1 : 0,
-              transform: isFabMenuOpen ? "translateY(0) scale(1)" : "translateY(8px) scale(0.9)",
-              pointerEvents: isFabMenuOpen ? "auto" : "none",
-            }}
-            aria-label="Tambah transaksi"
-            title="Tambah transaksi"
-          >
-            <Plus size={16} className="mx-auto" />
-          </button>
-        )}
-
+      <div className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-30 sm:right-[max(1rem,calc((100vw-36rem)/2+1rem))]">
         <button
           type="button"
           onClick={() => {
             if (activeTab === "recurring") {
               setRecurringDraft(null);
               setRecurringFormOpen(true);
-              return;
+            } else {
+              setAddOpen(true);
             }
-            setIsFabMenuOpen((v) => !v);
           }}
-          className="w-12 h-12 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-lg hover:brightness-[1.06] active:scale-95 transition"
-          aria-label={activeTab === "recurring" ? "Tambah transaksi terjadwal" : "Aksi transaksi"}
-          title={activeTab === "recurring" ? "Tambah jadwal" : "Buka menu aksi"}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-[0_24px_50px_-24px_hsl(var(--primary))] hover:brightness-[1.06] active:scale-95 transition"
+          aria-label={activeTab === "recurring" ? "Tambah transaksi terjadwal" : "Tambah transaksi"}
+          title={activeTab === "recurring" ? "Tambah jadwal" : "Tambah transaksi"}
         >
-          <Plus size={18} className={`mx-auto transition-transform ${activeTab === "all" && isFabMenuOpen ? "rotate-45" : "rotate-0"}`} />
+          <Plus size={18} />
         </button>
       </div>
     </div>
