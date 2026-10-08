@@ -5,7 +5,7 @@ import { Card, CardContent, Modal, Button, Badge } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { AITransactionForm } from "@/components/forms/AITransactionForm";
 import { TransactionCard } from "@/components/TransactionCard";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, ACCOUNT_TYPE_LABELS } from "@/lib/utils";
 import { deleteTransaction, getRecentSpendingAnomalies } from "@/db/transactions";
 import { getUpcomingRecurringTransactions } from "@/db/recurring";
 import { predictBudgetStatus, getBudgetsForCategoriesWithInheritance } from "@/db/budgets";
@@ -293,12 +293,12 @@ export default function Dashboard() {
   return (
     <div className="grid grid-cols-1 space-y-5 px-4 pt-6 pb-4 lg:grid-cols-12 lg:gap-6 lg:space-y-0 lg:px-0 lg:pt-8">
       <Card className="overflow-hidden border-transparent bg-[hsl(var(--hero))] text-[hsl(var(--hero-foreground))] lg:col-span-12">
-        <CardContent className="p-5 space-y-5">
+        <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-end">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-white/70">Ringkasan hari ini</p>
               <p className="mt-4 text-sm font-medium text-white/70">Total saldo</p>
-              <h1 className="mt-1 text-[2.15rem] font-bold tracking-tight leading-[1.05] sm:text-4xl">
+              <h1 className="mt-1 text-[2.15rem] font-bold tabular-nums tracking-tight leading-[1.05] sm:text-4xl">
                 {balanceHidden ? <span className="text-2xl">••••••</span> : formatCurrency(totalBalance, currency)}
               </h1>
               <p className="mt-2 text-sm text-white/70">{formatDate(now.toISOString(), "EEEE, dd MMMM yyyy")}</p>
@@ -336,20 +336,20 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 lg:max-w-3xl">
-            <div className="rounded-2xl bg-white/10 p-3 text-center">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-white/10 p-3 text-center lg:p-4">
               <p className="text-xs font-medium leading-tight text-white/70">Pemasukan</p>
-              <p className="mt-2 text-sm font-bold text-emerald-500 leading-tight">{formatCompactRupiah(monthIncome)}</p>
+              <p className="mt-2 text-sm font-bold tabular-nums text-emerald-400 leading-tight">{formatCompactRupiah(monthIncome)}</p>
               <p className="mt-1 text-xs text-white/65">bulan ini</p>
             </div>
-            <div className="rounded-2xl bg-white/10 p-3 text-center">
+            <div className="rounded-2xl bg-white/10 p-3 text-center lg:p-4">
               <p className="text-xs font-medium leading-tight text-white/70">Pengeluaran</p>
-              <p className="mt-2 text-sm font-bold text-amber-500 leading-tight">{formatCompactRupiah(monthExpense)}</p>
+              <p className="mt-2 text-sm font-bold tabular-nums text-amber-300 leading-tight">{formatCompactRupiah(monthExpense)}</p>
               <p className="mt-1 text-xs text-white/65">bulan ini</p>
             </div>
-            <div className="rounded-2xl bg-white/10 p-3 text-center">
+            <div className="rounded-2xl bg-white/10 p-3 text-center lg:p-4">
               <p className="text-xs font-medium leading-tight text-white/70">Saldo bersih</p>
-              <p className={`mt-2 text-sm font-bold leading-tight ${monthIncome - monthExpense >= 0 ? "text-[hsl(var(--primary))]" : "text-red-600 dark:text-red-400"}`}>
+              <p className={`mt-2 text-sm font-bold tabular-nums leading-tight ${monthIncome - monthExpense >= 0 ? "text-indigo-300" : "text-red-300"}`}>
                 {monthIncome - monthExpense < 0 ? "−" : ""}{formatCompactRupiah(Math.abs(monthIncome - monthExpense))}
               </p>
               <p className="mt-1 text-xs text-white/65">bulan ini</p>
@@ -360,8 +360,8 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 items-start gap-5 lg:col-span-12 lg:grid-cols-12 lg:gap-6">
       {accounts.length > 0 && (nextBill || topBudgetAlert || topAnomalyAlert) && (
-        <Card className="overflow-hidden lg:col-span-5">
-          <CardContent className="p-5 space-y-4">
+        <Card className="overflow-hidden lg:col-span-4 lg:col-start-9 lg:row-start-1">
+          <CardContent className="space-y-4 p-4">
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-semibold">Perlu Perhatian</p>
@@ -401,7 +401,7 @@ export default function Dashboard() {
                 return (
                   <Link
                     to="/transactions?tab=recurring"
-                    className="rounded-[26px] border border-[hsl(var(--border))] px-4 py-4 hover:bg-[hsl(var(--accent))] transition-colors"
+                    className="rounded-2xl border border-[hsl(var(--border))] px-3 py-3 hover:bg-[hsl(var(--accent))] transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-base flex-none">
@@ -434,7 +434,7 @@ export default function Dashboard() {
                 return (
                   <Link
                     to="/reports"
-                    className="rounded-[26px] border border-[hsl(var(--border))] px-4 py-4 hover:bg-[hsl(var(--accent))] transition-colors"
+                    className="rounded-2xl border border-[hsl(var(--border))] px-3 py-3 hover:bg-[hsl(var(--accent))] transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-none ${isDanger ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
@@ -474,7 +474,7 @@ export default function Dashboard() {
                 return (
                   <Link
                     to={anomalyHref}
-                    className="rounded-[26px] border border-[hsl(var(--border))] px-4 py-4 hover:bg-[hsl(var(--accent))] transition-colors"
+                    className="rounded-2xl border border-[hsl(var(--border))] px-3 py-3 hover:bg-[hsl(var(--accent))] transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-none ${isDanger ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
@@ -528,7 +528,7 @@ export default function Dashboard() {
 
       {/* Account Cards */}
       {accounts.length > 0 && (
-        <div className="space-y-3 lg:col-span-7">
+        <div className="space-y-3 lg:col-span-4 lg:col-start-9">
           <button
             onClick={() => setAccountsCollapsed((value) => !value)}
             className="w-full flex items-center justify-between gap-3"
@@ -546,19 +546,17 @@ export default function Dashboard() {
           </button>
 
           {!accountsCollapsed && (
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 pl-4 pr-16 scrollbar-hide">
+            <div className="space-y-1 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2">
               {accounts.map((account) => (
-                <div
-                  key={account.id}
-                  className="relative flex-none w-40 overflow-hidden rounded-3xl p-4 text-white shadow-sm"
-                  style={{ background: account.color }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xl">{account.icon}</span>
-                    <span className="text-[10px] px-2 py-1 rounded-full bg-white/15 ">{account.type}</span>
+                <div key={account.id} className="flex min-w-0 items-center gap-2.5 rounded-xl px-2 py-2">
+                  <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-sm" style={{ background: `${account.color}20` }}>
+                    {account.icon}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold">{account.name}</p>
+                    <p className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">{ACCOUNT_TYPE_LABELS[account.type]}</p>
                   </div>
-                  <p className="text-xs opacity-80 mt-6 truncate">{account.name}</p>
-                  <p className="font-bold text-base mt-1 leading-tight">{formatCurrency(account.currentBalance, currency)}</p>
+                  <p className="whitespace-nowrap text-xs font-semibold tabular-nums">{formatCurrency(account.currentBalance, currency)}</p>
                 </div>
               ))}
             </div>
@@ -568,10 +566,10 @@ export default function Dashboard() {
 
       {/* Recent Transactions */}
       {recentTxs.length > 0 && (
-        <div className="space-y-3 lg:col-span-7">
+        <div className="space-y-3 lg:col-span-8 lg:col-start-1 lg:row-start-1">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <p className="mt-1 text-sm font-semibold">Transaksi terbaru</p>
+                <p className="text-sm font-semibold">Transaksi terbaru</p>
             </div>
             <div className="flex items-center gap-3">
               {transactions.length > 3 && (

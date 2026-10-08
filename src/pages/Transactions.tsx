@@ -492,15 +492,12 @@ export default function Transactions() {
         transactions.length === 0 ? (
           <EmptyState icon="📋" title="Belum ada transaksi" description="Tap + Tambah untuk mencatat transaksi baru" />
         ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/75 px-4 py-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Tampilan Hari</p>
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Buka semua grup atau rapikan list.</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button size="sm" variant="outline" className="px-3" onClick={expandAllDays}>Expand</Button>
-                <Button size="sm" variant="outline" className="px-3" onClick={collapseAllDays}>Collapse</Button>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-3 py-1">
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">{sortedDates.length} hari</p>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" className="px-2.5" onClick={expandAllDays}>Buka semua</Button>
+                <Button size="sm" variant="ghost" className="px-2.5" onClick={collapseAllDays}>Tutup semua</Button>
               </div>
             </div>
             {sortedDates.map((date) => {
@@ -509,20 +506,20 @@ export default function Transactions() {
               const dayExpense = dayTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
               const isDayExpanded = expandedDates[date] ?? true;
               return (
-                <Card key={date} className="overflow-hidden">
-                  <CardContent className="p-4 space-y-3">
+                <section key={date} className="border-t border-[hsl(var(--border))] py-3">
                     <div className="flex items-start justify-between gap-3">
                       <button
                         onClick={() => setExpandedDates((prev) => ({ ...prev, [date]: !isDayExpanded }))}
-                        className="inline-flex items-start gap-2 text-left hover:text-[hsl(var(--foreground))]"
+                        aria-expanded={isDayExpanded}
+                        className="inline-flex min-h-11 items-start gap-2 text-left hover:text-[hsl(var(--foreground))]"
                       >
                         <span className="mt-0.5 text-[hsl(var(--muted-foreground))]">{isDayExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
                         <span>
-                          <span className="block text-xs font-semibold text-[hsl(var(--muted-foreground))]">{formatDate(date, "EEEE, dd MMM")}</span>
-                          <span className="mt-1 block text-[11px] text-[hsl(var(--muted-foreground))]">{dayTxs.length} transaksi</span>
+                          <span className="block text-sm font-semibold text-[hsl(var(--foreground))]">{formatDate(date, "EEEE, dd MMM")}</span>
+                          <span className="mt-0.5 block text-[11px] text-[hsl(var(--muted-foreground))]">{dayTxs.length} transaksi</span>
                         </span>
                       </button>
-                      <div className="grid grid-cols-3 gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-2.5 py-2 text-right">
+                      <div className="grid grid-cols-3 gap-2 rounded-xl bg-[hsl(var(--surface-2))] px-2.5 py-2 text-right">
                         <div className="min-w-12">
                           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Masuk</p>
                           <p className="mt-1 text-[11px] font-semibold text-emerald-500">{formatCompactRupiah(dayIncome)}</p>
@@ -586,8 +583,7 @@ export default function Transactions() {
                     })}
                     </div>
                   )}
-                  </CardContent>
-                </Card>
+                </section>
               );
             })}
           </div>

@@ -321,90 +321,69 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
-      <Card className="overflow-hidden">
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-start justify-between gap-3">
+    <div className="grid grid-cols-1 items-start gap-4 px-4 pt-5 pb-4 lg:grid-cols-2 lg:gap-5 lg:space-y-0 lg:px-0 lg:pt-7">
+      <Card className="overflow-hidden lg:col-span-2">
+        <CardContent className="space-y-4 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="mt-1 text-2xl font-bold tracking-tight">Laporan</h1>
-              <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Baca pola cashflow, kategori, budget, dan perubahan performa bulanan.</p>
+              <h1 className="text-2xl font-bold tracking-tight">Laporan</h1>
+              <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Arus kas, kategori, dan anggaran.</p>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="inline-flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 p-1 text-xs no-print">
+            <div className="inline-flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1 text-xs no-print">
                 <button
                   type="button"
                   onClick={() => handleReportTabChange("overview")}
-                  className="rounded-xl bg-[hsl(var(--primary))] px-3 py-2 font-medium text-[hsl(var(--primary-foreground))] transition-colors"
+                  className="min-h-9 rounded-lg bg-[hsl(var(--primary))] px-3 font-medium text-[hsl(var(--primary-foreground))] transition-colors"
                 >
                   Ikhtisar
                 </button>
                 <button
                   type="button"
                   onClick={() => handleReportTabChange("ledger")}
-                  className="rounded-xl px-3 py-2 font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--surface-2))]"
+                  className="min-h-9 rounded-lg px-3 font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--card))]"
                 >
                   Ledger
                 </button>
-              </div>
-              <div className="rounded-[24px] bg-[hsl(var(--card))]/75 px-4 py-3 text-right">
-                <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Mode</p>
-                <p className="mt-2 text-sm font-semibold capitalize">{mode === "monthly" ? "Bulanan" : "Rentang"}</p>
-              </div>
             </div>
           </div>
 
-          <div className="flex rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 text-sm">
+          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1 text-sm sm:flex-1">
         <button
           onClick={() => setMode("monthly")}
-          className={`flex-1 rounded-[18px] py-2.5 font-medium transition-colors ${mode === "monthly" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
+          className={`min-h-10 flex-1 rounded-lg font-medium transition-colors ${mode === "monthly" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--card))]"}`}
         >
           📅 Bulanan
         </button>
         <button
           onClick={() => setMode("range")}
-          className={`flex-1 rounded-[18px] py-2.5 font-medium transition-colors ${mode === "range" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
+          className={`min-h-10 flex-1 rounded-lg font-medium transition-colors ${mode === "range" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--card))]"}`}
         >
           📆 Rentang
         </button>
           </div>
+          {mode === "monthly" ? (
+            <div className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-[hsl(var(--border))] px-2 sm:flex-1">
+              <button aria-label="Bulan sebelumnya" onClick={prevMonth} className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[hsl(var(--surface-2))]"><ChevronLeft size={18} /></button>
+              <p className="font-semibold capitalize text-sm">{monthLabel}</p>
+              <button aria-label="Bulan berikutnya" onClick={nextMonth} className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[hsl(var(--surface-2))]"><ChevronRight size={18} /></button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-[hsl(var(--border))] p-2 sm:flex-[1.5]">
+              <label className="min-w-0 text-[11px] text-[hsl(var(--muted-foreground))]">Dari
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 w-full min-w-0 bg-transparent text-sm text-[hsl(var(--foreground))] outline-none" />
+              </label>
+              <label className="min-w-0 text-[11px] text-[hsl(var(--muted-foreground))]">Sampai
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 w-full min-w-0 bg-transparent text-sm text-[hsl(var(--foreground))] outline-none" />
+              </label>
+            </div>
+          )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Month navigator — only in monthly mode */}
-      {mode === "monthly" && (
-        <div className="flex items-center justify-between rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2">
-          <button onClick={prevMonth} className="p-2 rounded-2xl hover:bg-[hsl(var(--surface-2))]"><ChevronLeft size={18} /></button>
-          <p className="font-semibold capitalize text-sm">{monthLabel}</p>
-          <button onClick={nextMonth} className="p-2 rounded-2xl hover:bg-[hsl(var(--surface-2))]"><ChevronRight size={18} /></button>
-        </div>
-      )}
-
-      {/* Date range picker — only in range mode */}
-      {mode === "range" && (
-        <div className="flex items-center gap-2 rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-          <div className="flex-1">
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Dari</p>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Sampai</p>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-        </div>
-      )}
-
       {/* Monthly summary cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:col-span-2">
         <Card>
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Pemasukan</p>
@@ -425,7 +404,7 @@ export default function Reports() {
         </Card>
         <Card>
           <CardContent className="p-4 flex flex-col justify-between h-full">
-            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Net</p>
+            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Saldo bersih</p>
             <p className={`font-bold text-lg mt-3 ${summary.net >= 0 ? "text-emerald-500" : "text-red-500"}`}>
               {formatCurrency(summary.net, currency)}
             </p>
@@ -438,7 +417,7 @@ export default function Reports() {
 
       {/* Year-to-Date Summary */}
       {mode === "monthly" && ytdSummary && ytdSummary.totalIncome > 0 && (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden lg:col-span-2">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -454,7 +433,7 @@ export default function Reports() {
                     : "bg-red-500/10 text-red-600 dark:text-red-400"
                 }`}>
                   <span>{ytdSummary.savingsRate >= 20 ? "✅" : ytdSummary.savingsRate >= 10 ? "⚠️" : "❌"}</span>
-                  Savings Rate {ytdSummary.savingsRate}%
+                  Tingkat tabungan {ytdSummary.savingsRate}%
                 </div>
               </div>
             </div>
@@ -480,7 +459,7 @@ export default function Reports() {
 
       {/* Year-over-Year Comparison */}
       {mode === "monthly" && yoyComparison && yoyComparison.hasPreviousYearData && (
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>vs {new Date(yoyComparison.previousYear, yoyComparison.currentMonth - 1, 1).toLocaleString("id-ID", { month: "long" })} {yoyComparison.previousYear}</CardTitle>
           </CardHeader>
@@ -491,7 +470,7 @@ export default function Reports() {
                   {yoyComparison.incomeChange >= 0 ? "↑" : "↓"}
                 </span>
                 <div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Income</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Pemasukan</p>
                   <p className={`text-sm font-bold ${yoyComparison.incomeChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                     {yoyComparison.incomeChange > 0 ? "+" : ""}{yoyComparison.incomeChange}%
                   </p>
@@ -502,7 +481,7 @@ export default function Reports() {
                   {yoyComparison.expenseChange > 0 ? "↑" : "↓"}
                 </span>
                 <div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Expense</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
                   <p className={`text-sm font-bold ${yoyComparison.expenseChange <= 0 ? "text-emerald-500" : "text-red-500"}`}>
                     {yoyComparison.expenseChange > 0 ? "+" : ""}{yoyComparison.expenseChange}%
                   </p>
@@ -513,7 +492,7 @@ export default function Reports() {
                   {yoyComparison.netChange >= 0 ? "↑" : "↓"}
                 </span>
                 <div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Net</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Saldo bersih</p>
                   <p className={`text-sm font-bold ${yoyComparison.netChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                     {yoyComparison.netChange > 0 ? "+" : ""}{yoyComparison.netChange}%
                   </p>
@@ -525,7 +504,7 @@ export default function Reports() {
       )}
 
       {mode === "monthly" && (monthlyInsightLoading || monthlyInsight) && (
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -568,7 +547,7 @@ export default function Reports() {
       )}
 
       {/* Cash Flow Bar Chart — monthly only */}
-      {mode === "monthly" && <Card>
+      {mode === "monthly" && <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Arus Kas 6 Bulan</CardTitle>
         </CardHeader>
@@ -606,7 +585,7 @@ export default function Reports() {
               <div>
                 <CardTitle>{activeIncomeTab === "expense" ? "Kategori Pengeluaran" : "Sumber Pemasukan"}</CardTitle>
                 <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                  {activeIncomeTab === "expense" ? "Expense dikurangi pemasukan pada kategori yang sama" : "Breakdown sumber pemasukan utama"}
+                  {activeIncomeTab === "expense" ? "Pengeluaran dan pemasukan bersih per kategori" : "Sumber pemasukan utama"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -641,9 +620,10 @@ export default function Reports() {
               <>
                 {pieData.length > 0 ? (
                   <>
-                    <ResponsiveContainer width="100%" height={180}>
+                    <div className="lg:grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-4">
+                    <ResponsiveContainer width="100%" height={160}>
                       <PieChart>
-                        <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                        <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={44} outerRadius={68} paddingAngle={3}>
                           {pieData.map((entry, i) => (
                             <Cell key={i} fill={entry.color} />
                           ))}
@@ -660,7 +640,7 @@ export default function Reports() {
                       </PieChart>
                     </ResponsiveContainer>
 
-                    <div className="space-y-2 mt-2">
+                    <div className="mt-2 space-y-2 lg:mt-0">
                       {visiblePieData.map((entry) => {
                         const pct = totalPieValue ? Math.round((entry.value / totalPieValue) * 100) : 0;
                         return (
@@ -684,6 +664,7 @@ export default function Reports() {
                           {pieData.length - visiblePieData.length} kategori lain disembunyikan
                         </p>
                       )}
+                    </div>
                     </div>
                   </>
                 ) : (
@@ -731,7 +712,7 @@ export default function Reports() {
 
       {/* Category Trends */}
       {mode === "monthly" && categoryTrends.filter((t) => t.isSignificant).length > 0 && (
-        <Card>
+        <Card className="lg:order-3">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -775,7 +756,7 @@ export default function Reports() {
 
       {/* Budget vs Actuals — monthly only */}
       {mode === "monthly" && budgetRows.length > 0 && (
-        <Card>
+        <Card className="lg:order-2">
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -908,7 +889,7 @@ export default function Reports() {
 
       {/* Account balances */}
       {accounts.length > 0 && (
-        <Card>
+        <Card className="lg:col-span-2 lg:order-4">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <CardTitle>Saldo per Akun</CardTitle>
@@ -953,7 +934,7 @@ export default function Reports() {
 
       {/* Balance History — monthly only */}
       {mode === "monthly" && balanceHistory.length > 0 && balanceHistory.some((d) => d.balance !== 0) && (
-        <Card>
+        <Card className="lg:col-span-2 lg:order-5">
           <CardHeader>
             <CardTitle>Riwayat Total Saldo</CardTitle>
           </CardHeader>

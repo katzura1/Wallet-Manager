@@ -32,6 +32,9 @@ export function TransactionCard({
   onDelete,
 }: TransactionCardProps) {
   const displayLabel = tx.note || (hasSplits ? "Split Kategori" : categoryLabel) || accountName;
+  const detailLabel = tx.note
+    ? hasSplits ? `Split · ${categoryLabel?.split(" · ").pop() ?? "Kategori"}` : categoryLabel ?? "Transaksi"
+    : tx.type === "income" ? "Pemasukan" : tx.type === "expense" ? "Pengeluaran" : "Transfer";
   const displayIcon = hasSplits ? "✂️" : categoryIcon || (tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️");
   const amountColor =
     tx.type === "income"
@@ -41,48 +44,32 @@ export function TransactionCard({
         : "text-amber-500";
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 shadow-sm backdrop-blur-sm">
-      <div className="flex gap-3 border-b border-[hsl(var(--border))] px-4 py-3">
-        <div className="flex gap-2 flex-1 min-w-0">
-          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-base flex-none ${TRANSACTION_TYPE_BG[tx.type as TransactionType]}`}>
-            {displayIcon}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-[hsl(var(--foreground))] truncate leading-tight">
-              {hasSplits ? `Split · ${categoryLabel?.split(" · ").pop() ?? ""}` : categoryLabel || accountName}
-            </p>
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate mt-1">
-              {formatDate(tx.date, "dd MMM")} {tx.type === "transfer" ? "· Transfer" : ""}
-            </p>
-          </div>
-        </div>
-        <div className={`font-bold text-sm flex-none self-center pl-2 ${amountColor}`}>
-          {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
-          {formatCurrency(tx.amount, currency)}
-        </div>
+    <div className="flex items-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2.5">
+      <div className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl text-base ${TRANSACTION_TYPE_BG[tx.type as TransactionType]}`}>
+        {displayIcon}
       </div>
-
-      <div className="flex items-center gap-3 px-4 py-2.5">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-[hsl(var(--foreground))] truncate">
-            {displayLabel}
-          </p>
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate mt-1">
-            {accountName}{toAccountName ? ` → ${toAccountName}` : ""}
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-1 flex-none">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold leading-tight text-[hsl(var(--foreground))]">{displayLabel}</p>
+        <p className="mt-1 truncate text-[11px] text-[hsl(var(--muted-foreground))]">
+          {detailLabel}
+          {` · ${accountName}${toAccountName ? ` → ${toAccountName}` : ""} · ${formatDate(tx.date, "dd MMM")}`}
+        </p>
+      </div>
+      <div className="flex flex-none flex-col items-end gap-1.5">
+        <p className={`whitespace-nowrap text-sm font-bold tabular-nums ${amountColor}`}>
+          {tx.type === "expense" ? "−" : tx.type === "income" ? "+" : ""}{formatCurrency(tx.amount, currency)}
+        </p>
+        <div className="flex items-center gap-1">
           {hasSplits && onExpandSplits && (
-            <button onClick={onExpandSplits} className="flex h-7 w-7 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors" title="Detail">
-              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            <button onClick={onExpandSplits} aria-label={isExpanded ? "Tutup detail split" : "Lihat detail split"} className="flex h-9 w-9 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+              {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
             </button>
           )}
-          <button onClick={onEdit} className="flex h-7 w-7 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors" title="Edit">
-            <Pencil size={14} />
+          <button onClick={onEdit} aria-label={`Edit ${displayLabel}`} title="Edit" className="flex h-9 w-9 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+            <Pencil size={15} />
           </button>
-          <button onClick={onDelete} className="flex h-7 w-7 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-red-500 transition-colors" title="Hapus">
-            <Trash2 size={14} />
+          <button onClick={onDelete} aria-label={`Hapus ${displayLabel}`} title="Hapus" className="flex h-9 w-9 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-red-500/10 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+            <Trash2 size={15} />
           </button>
         </div>
       </div>

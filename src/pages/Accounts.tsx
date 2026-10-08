@@ -91,13 +91,13 @@ export default function Accounts() {
   const visibleAccounts = view === "active" ? activeAccounts : archivedAccounts;
 
   return (
-    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
+    <div className="space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-7">
       <Card className="overflow-hidden">
-        <CardContent className="p-5 space-y-4">
+        <CardContent className="space-y-3 p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight">Akun Saya</h1>
-            <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Kelola akun aktif, arsip, dan ringkasan saldo dengan cepat.</p>
+            <h1 className="text-2xl font-bold tracking-tight">Akun</h1>
+            <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Saldo dan akun aktif atau arsip.</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Link
@@ -109,14 +109,14 @@ export default function Accounts() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-3xl bg-[hsl(var(--card))]/75 p-4">
-            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Wallet size={13} /> Total Saldo Aktif</p>
-            <p className="text-lg font-bold mt-3 truncate">{formatCurrency(totalBalance, currency)}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl bg-[hsl(var(--surface-2))] p-3">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-[hsl(var(--muted-foreground))]"><Wallet size={13} /> Saldo aktif</p>
+            <p className="mt-1 truncate text-base font-bold tabular-nums">{formatCurrency(totalBalance, currency)}</p>
           </div>
-          <div className="rounded-3xl bg-[hsl(var(--card))]/75 p-4">
-            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Layers3 size={13} /> Jumlah Akun</p>
-            <p className="text-lg font-bold mt-3">{activeAccounts.length} aktif • {archivedAccounts.length} arsip</p>
+          <div className="rounded-2xl bg-[hsl(var(--surface-2))] p-3">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-[hsl(var(--muted-foreground))]"><Layers3 size={13} /> Jumlah akun</p>
+            <p className="mt-1 text-base font-bold">{activeAccounts.length} aktif <span className="font-normal text-[hsl(var(--muted-foreground))]">· {archivedAccounts.length} arsip</span></p>
           </div>
         </div>
         </CardContent>
@@ -128,16 +128,16 @@ export default function Accounts() {
         </div>
       )}
 
-      <div className="flex rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 p-1 text-xs">
+      <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1 text-sm">
         <button
           onClick={() => setView("active")}
-          className={`flex-1 rounded-[18px] py-2 font-medium transition-colors ${view === "active" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
+          className={`min-h-10 flex-1 rounded-xl py-2 font-medium transition-colors ${view === "active" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
         >
           Aktif ({activeAccounts.length})
         </button>
         <button
           onClick={() => setView("archived")}
-          className={`flex-1 rounded-[18px] py-2 font-medium transition-colors ${view === "archived" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
+          className={`min-h-10 flex-1 rounded-xl py-2 font-medium transition-colors ${view === "archived" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
         >
           Arsip ({archivedAccounts.length})
         </button>
@@ -159,7 +159,7 @@ export default function Accounts() {
           description={view === "active" ? "Tap Tambah untuk mulai tracking saldo akun" : "Akun yang diarsipkan akan muncul di sini"}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {visibleAccounts.map((account) => (
             <AccountCard
               key={account.id}
@@ -250,7 +250,7 @@ function AccountCard({
   busy: boolean;
 }) {
   return (
-    <div className={`rounded-[28px] border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))] shadow-sm ${account.isArchived ? "opacity-80" : ""}`}>
+    <div className={`overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] ${account.isArchived ? "opacity-80" : ""}`}>
       <div className="flex items-center gap-3 p-3 pb-2">
         <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl flex-none" style={{ background: account.color + "25" }}>
           {account.icon}
@@ -274,7 +274,7 @@ function AccountCard({
           disabled={busy}
           aria-label={`Edit ${account.name}`}
           title={`Edit ${account.name}`}
-          className="h-8 rounded-xl border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] inline-flex items-center justify-center gap-1 text-[11px] font-medium"
+          className="min-h-11 rounded-xl border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] inline-flex items-center justify-center gap-1 text-[11px] font-medium"
         >
           <Pencil size={14} />
           Edit
@@ -284,7 +284,7 @@ function AccountCard({
           disabled={busy}
           aria-label={account.isArchived ? `Pulihkan ${account.name}` : `Arsipkan ${account.name}`}
           title={account.isArchived ? `Pulihkan ${account.name}` : `Arsipkan ${account.name}`}
-          className="h-8 rounded-xl border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-amber-500 hover:bg-amber-500/10 inline-flex items-center justify-center gap-1 text-[11px] font-medium"
+          className="min-h-11 rounded-xl border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-amber-500 hover:bg-amber-500/10 inline-flex items-center justify-center gap-1 text-[11px] font-medium"
         >
           <Archive size={14} />
           {account.isArchived ? "Pulihkan" : "Arsipkan"}
@@ -294,7 +294,7 @@ function AccountCard({
           disabled={busy}
           aria-label={`Hapus ${account.name}`}
           title={`Hapus ${account.name}`}
-          className="h-8 rounded-xl border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-red-500 hover:bg-red-500/10 inline-flex items-center justify-center gap-1 text-[11px] font-medium"
+          className="min-h-11 rounded-xl border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-red-500 hover:bg-red-500/10 inline-flex items-center justify-center gap-1 text-[11px] font-medium"
         >
           <Trash2 size={14} />
           Hapus
