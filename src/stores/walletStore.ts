@@ -18,6 +18,8 @@ interface WalletState {
   refreshAll: () => Promise<void>;
 }
 
+let transactionRequestId = 0;
+
 export const useWalletStore = create<WalletState>((set, get) => ({
   accounts: [],
   categories: [],
@@ -36,10 +38,15 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   },
 
   loadTransactions: async (filter) => {
+    const requestId = ++transactionRequestId;
     const f = filter ?? get().filter;
     set({ isLoading: true, filter: f });
-    const transactions = await getTransactions(f);
-    set({ transactions, isLoading: false });
+    try {
+      const transactions = await getTransactions(f);
+      if (requestId === transactionRequestId) set({ transactions });
+    } finally {
+      if (requestId === transactionRequestId) set({ isLoading: false });
+    }
   },
 
   setFilter: (filter) => {

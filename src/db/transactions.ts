@@ -76,30 +76,28 @@ export interface TransactionFilter {
 }
 
 export async function getTransactions(filter: TransactionFilter = {}) {
-  const query = db.transactions.orderBy("date").reverse();
-  let results = await query.toArray();
+  const { dateFrom, dateTo, accountIds, categoryId, type } = filter;
+  if (dateFrom && dateTo && dateFrom > dateTo) return [];
 
-  if (filter.accountIds && filter.accountIds.length > 0) {
-    results = results.filter((t) => filter.accountIds!.includes(t.accountId) || (t.toAccountId && filter.accountIds!.includes(t.toAccountId)));
-  }
-  if (filter.categoryId !== undefined) {
-    results = results.filter((t) => t.categoryId === filter.categoryId);
-  }
-  if (filter.type) {
-    results = results.filter((t) => t.type === filter.type);
-  }
-  if (filter.dateFrom) {
-    results = results.filter((t) => t.date >= filter.dateFrom!);
-  }
-  if (filter.dateTo) {
-    results = results.filter((t) => t.date <= filter.dateTo!);
-  }
-  if (filter.search) {
-    const search = filter.search.toLowerCase();
-    results = results.filter((t) => t.note.toLowerCase().includes(search));
-  }
+  const query = dateFrom && dateTo
+    ? db.transactions.where("date").between(dateFrom, dateTo, true, true)
+    : dateFrom
+      ? db.transactions.where("date").aboveOrEqual(dateFrom)
+      : dateTo
+        ? db.transactions.where("date").belowOrEqual(dateTo)
+        : db.transactions.orderBy("date");
+  // ponytail: Substring search scans the date range; add a text index if large histories still lag.
+  const search = filter.search?.toLowerCase();
 
-  return results;
+  const collection = query.reverse();
+  if (!accountIds?.length && categoryId === undefined && !type && !search) return collection.toArray();
+
+  return collection.filter((tx) => {
+    if (accountIds?.length && !accountIds.includes(tx.accountId) && !(tx.toAccountId && accountIds.includes(tx.toAccountId))) return false;
+    if (categoryId !== undefined && tx.categoryId !== categoryId) return false;
+    if (type && tx.type !== type) return false;
+    return !search || tx.note.toLowerCase().includes(search);
+  }).toArray();
 }
 
 export interface AccountLedgerRow {
