@@ -5,14 +5,34 @@ import { formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory, backfillPortfolioHistoryUsd, FOREIGN_CURRENCIES } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, getUsdIdr, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
-import { useSettingsStore } from "@/stores/walletStore";
 import { Eye, EyeOff, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
 import { usePageAction } from "@/components/layout/appLayoutContext";
+import { getPortfolioMetrics } from "@/lib/portfolioMetrics";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const PORTFOLIO_CURRENCY = "IDR";
+const ASSET_TYPE_LABELS: Record<AssetType, string> = {
+  crypto: "₿ Kripto", stock_us: "🇺🇸 Saham AS", stock_idx: "🇮🇩 Saham IDX", stock: "🇺🇸 Saham AS",
+  gold_physical: "🥇 Emas Fisik", gold_digital: "🥇 Emas Digital", mutual_fund: "📈 Reksa Dana",
+  deposito: "🏦 Deposito", foreign_currency: "💱 Mata Uang Asing",
+};
+
+function quantityUnit(type: AssetType, symbol: string): string {
+  if (type === "gold_physical" || type === "gold_digital") return "g";
+  if (type === "stock_us" || type === "stock_idx" || type === "stock") return "lembar";
+  if (type === "mutual_fund") return "unit penyertaan";
+  if (type === "foreign_currency") return symbol || "unit";
+  if (type === "deposito") return "deposito";
+  return "unit";
+}
+
+function quantityLabel(type: AssetType, symbol: string): string {
+  return `Jumlah (${quantityUnit(type, symbol)})`;
+}
 
 function fmtPct(n: number): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
@@ -23,10 +43,10 @@ function gainCls(n: number): string {
 function fmtAge(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
   const m = Math.floor(ms / 60000);
-  if (m < 60) return `${m}m`;
+  if (m < 60) return `${m} mnt`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}j`;
-  return `${Math.floor(h / 24)}h`;
+  if (h < 24) return `${h} jam`;
+  return `${Math.floor(h / 24)} hari`;
 }
 
 // ─── Asset Form ───────────────────────────────────────────────────────────────
@@ -39,8 +59,6 @@ interface AssetFormProps {
 }
 
 function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
-  const { currency } = useSettingsStore();
-
   const [type, setType] = useState<AssetType>(existing?.type ?? "crypto");
   const [name, setName] = useState(existing?.name ?? "");
   const [symbol, setSymbol] = useState(existing?.symbol ?? "");
@@ -114,9 +132,10 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
     // For deposito, validate the auto-calculation fields
     if (type === "deposito") {
       if (!Number(depositInitial) || Number(depositInitial) <= 0) { setError("Pokok deposito harus > 0"); return; }
-      if (!Number(interestRate) || Number(interestRate) < 0) { setError("Bunga per tahun harus >= 0"); return; }
+      if (!interestRate.trim() || !Number.isFinite(Number(interestRate)) || Number(interestRate) < 0) { setError("Bunga per tahun harus >= 0"); return; }
       if (!depositStartDate) { setError("Tanggal mulai wajib diisi"); return; }
       if (!depositEndDate) { setError("Tanggal akhir wajib diisi"); return; }
+      if (depositEndDate < depositStartDate) { setError("Tanggal akhir tidak boleh sebelum tanggal mulai"); return; }
     } else if (!Number(avgBuyPrice) || Number(avgBuyPrice) <= 0) {
       setError("Harga beli rata-rata harus > 0"); return;
     }
@@ -166,6 +185,19 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
               value={type}
               onChange={(e) => {
                 setType(e.target.value as AssetType);
+                setName("");
+                setSymbol("");
+                setCoinGeckoId("");
+                setCoinSearch("");
+                setQuantity("");
+                setAvgBuyPrice("");
+                setManualPrice("");
+                setDepositInitial("");
+                setInterestRate("");
+                setDepositStartDate("");
+                setDepositEndDate("");
+                setSelectedCurrency("");
+                setCoinResults([]);
                 setError("");
               }}
               className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-indigo-500"
@@ -177,7 +209,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
               <option value="gold_digital">🥇 Emas Digital</option>
               <option value="mutual_fund">📈 Reksa Dana</option>
               <option value="deposito">🏦 Deposito</option>
-              <option value="foreign_currency">💱 Foreign Currency</option>
+              <option value="foreign_currency">💱 Mata Uang Asing</option>
             </select>
           </div>
         )}
@@ -188,7 +220,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
             <span className="font-semibold">{existing.symbol}</span>
             <span className="text-[hsl(var(--muted-foreground))]">{existing.name}</span>
             <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">
-              {existing.type === "crypto" ? "₿ Kripto" : existing.type === "stock_idx" ? "🇮🇩 Saham IDX" : existing.type === "gold_physical" ? "🥇 Emas Fisik" : existing.type === "gold_digital" ? "🥇 Emas Digital" : existing.type === "mutual_fund" ? "📈 Reksa Dana" : existing.type === "deposito" ? "🏦 Deposito" : existing.type === "foreign_currency" ? "💱 Foreign Currency" : "🇺🇸 Saham AS"}
+              {ASSET_TYPE_LABELS[existing.type]}
             </span>
           </div>
         )}
@@ -228,7 +260,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           </div>
         )}
 
-        {/* Stock US: symbol + name — auto-sync via Alpha Vantage */}
+        {/* Saham AS: harga disinkronkan dari Yahoo Finance */}
         {(type === "stock_us" || type === "stock") && !existing && (
           <>
             <Input
@@ -246,7 +278,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           </>
         )}
 
-        {/* Stock IDX: symbol + name — auto-sync via Yahoo Finance */}
+        {/* Saham IDX memakai kode ticker dan nama perusahaan. */}
         {type === "stock_idx" && !existing && (
           <>
             <Input
@@ -264,7 +296,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           </>
         )}
 
-        {/* Gold physical / digital — auto-sync via Yahoo Finance GC=F, unit = gram */}
+        {/* Harga emas merupakan estimasi berbasis kontrak berjangka GC=F. */}
         {(type === "gold_physical" || type === "gold_digital") && !existing && (
           <>
             <Input
@@ -274,7 +306,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
               onChange={(e) => { setName(e.target.value); setSymbol(e.target.value.replace(/\s+/g, "_").toUpperCase()); setError(""); }}
             />
             <p className="text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl px-3 py-2">
-              ✅ Harga emas (IDR/gram) disync otomatis dari Yahoo Finance (GC=F + kurs USD). Jumlah = gram.
+              Harga estimasi IDR/gram memakai kontrak berjangka emas GC=F dan kurs USD/IDR, sehingga dapat berbeda dari harga emas fisik atau digital.
             </p>
           </>
         )}
@@ -295,13 +327,13 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
               onChange={(e) => { setSymbol(e.target.value.toUpperCase()); setError(""); }}
             />
             <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-3 py-2">
-              💡 NAV reksa dana diinput manual. Jumlah = unit penyertaan. Update harga di kolom &quot;Harga Manual&quot; secara berkala.
+              NAV reksa dana diinput manual. Gunakan unit penyertaan dan perbarui harga secara berkala.
             </p>
           </>
         )}
 
-        {/* Deposito — auto-calculated with compound interest and 20% tax */}
-        {type === "deposito" && !existing && (
+        {/* Deposito — dihitung lokal dengan bunga sederhana dan pajak atas bunga. */}
+        {type === "deposito" && (
           <>
             <Input
               label="Nama Bank / Label"
@@ -316,7 +348,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
               onChange={(e) => { setSymbol(e.target.value.toUpperCase()); setError(""); }}
             />
             <Input
-              label={`Pokok Deposito (${currency})`}
+              label={`Pokok Deposito (${PORTFOLIO_CURRENCY})`}
               type="text"
               inputMode="numeric"
               placeholder="10000000"
@@ -326,7 +358,6 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
                 setDepositInitial(cleanValue);
                 setError("");
               }}
-              error={error}
             />
             <Input
               label="Bunga per Tahun (%)"
@@ -336,7 +367,6 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
               step="0.1"
               value={interestRate}
               onChange={(e) => { setInterestRate(e.target.value); setError(""); }}
-              error={error}
             />
             <div className="grid grid-cols-2 gap-3">
               <Input
@@ -344,23 +374,21 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
                 type="date"
                 value={depositStartDate}
                 onChange={(e) => { setDepositStartDate(e.target.value); setError(""); }}
-                error={error}
               />
               <Input
                 label="Tanggal Akhir"
                 type="date"
                 value={depositEndDate}
                 onChange={(e) => { setDepositEndDate(e.target.value); setError(""); }}
-                error={error}
               />
             </div>
             <p className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-xl px-3 py-2">
-              ✅ Harga deposito dihitung otomatis: Pokok + Bunga (dengan pajak 20% dipotong). Diupdate setiap sync. Jumlah = 1.
+              Nilai dihitung lokal dari pokok dan bunga sederhana setelah pajak bunga 20%. Jumlah deposito = 1.
             </p>
           </>
         )}
 
-        {/* Foreign Currency — auto-synced from Yahoo Finance */}
+        {/* Mata uang asing — harga disinkronkan dari Yahoo Finance */}
         {type === "foreign_currency" && !existing && (
           <>
             <div>
@@ -388,11 +416,11 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
             {selectedCurrency && (
               <div className="rounded-xl bg-teal-50 dark:bg-teal-900/20 px-3 py-2 text-sm">
                 <span className="font-semibold text-teal-700 dark:text-teal-300">{selectedCurrency}IDR=X</span>
-                <span className="text-[hsl(var(--muted-foreground))] ml-2 text-xs">Yahoo Finance ticker</span>
+                <span className="text-[hsl(var(--muted-foreground))] ml-2 text-xs">Ticker Yahoo Finance</span>
               </div>
             )}
             <p className="text-xs text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 rounded-xl px-3 py-2">
-              💱 Harga mata uang (IDR per unit) disync otomatis dari Yahoo Finance. Jumlah = berapa banyak unit yang kamu punya.
+              Harga disinkronkan dari Yahoo Finance dalam IDR per unit mata uang.
             </p>
           </>
         )}
@@ -406,12 +434,14 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           </div>
         )}
 
-        {/* Quantity input — hidden for deposito (always 1), label includes currency for forex */}
+        {/* Jumlah deposito tersimpan sebagai satu unit. */}
         {type !== "deposito" && (
           <Input
-            label={type === "gold_physical" || type === "gold_digital" ? "Jumlah (gram)" : type === "mutual_fund" ? "Jumlah Unit Penyertaan" : type === "foreign_currency" ? `Jumlah (${selectedCurrency || "unit"})` : "Jumlah / Lot"}
+            label={quantityLabel(type, selectedCurrency || symbol)}
             type="number"
             inputMode="decimal"
+            step={type === "stock_idx" ? "1" : "any"}
+            min="0"
             placeholder={type === "gold_physical" || type === "gold_digital" ? "10" : "0.001"}
             value={quantity}
             onChange={(e) => { setQuantity(e.target.value); setError(""); }}
@@ -432,7 +462,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
         {/* Price input — hidden for deposito and forex (auto-synced) */}
         {type !== "deposito" && type !== "foreign_currency" && (
           <Input
-            label={`Harga Beli Rata-rata (${currency})`}
+            label={`Harga Beli Rata-rata (${PORTFOLIO_CURRENCY})`}
             type="text"
             inputMode="numeric"
             placeholder="0"
@@ -448,7 +478,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
         {/* Foreign Currency: avg buy price in IDR per unit */}
         {type === "foreign_currency" && (
           <Input
-            label={`Harga Beli Rata-rata (${currency} per ${selectedCurrency || "unit"})`}
+            label={`Harga Beli Rata-rata (${PORTFOLIO_CURRENCY} per ${selectedCurrency || "unit"})`}
             type="text"
             inputMode="numeric"
             placeholder="10500"
@@ -462,10 +492,10 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           />
         )}
 
-        {/* Manual price fallback — only for manual-sync types (mutual fund, old deposito setup) */}
-        {(type === "mutual_fund" || (type === "deposito" && !depositStartDate)) && (
+        {/* Harga manual hanya digunakan untuk reksa dana. */}
+        {type === "mutual_fund" && (
           <Input
-            label={`Harga Manual (${currency}) — opsional, jika sync gagal`}
+            label={`Harga NAV (${PORTFOLIO_CURRENCY} per unit)`}
             type="text"
             inputMode="numeric"
             placeholder="0"
@@ -476,6 +506,8 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
             }}
           />
         )}
+
+        {type === "deposito" && error && <p role="alert" className="text-sm text-red-500">{error}</p>}
 
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Menyimpan…" : existing ? "Simpan Perubahan" : "Tambah Aset"}
@@ -506,14 +538,13 @@ function DeleteModal({ name, onClose, onConfirm }: { name: string; onClose: () =
 interface AssetCardProps {
   asset: Asset;
   price: AssetPrice | undefined;
-  currency: string;
   hidden?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onHistory: () => void;
 }
 
-function AssetCard({ asset, price, currency, hidden = false, onEdit, onDelete, onHistory }: AssetCardProps) {
+function AssetCard({ asset, price, hidden = false, onEdit, onDelete, onHistory }: AssetCardProps) {
   const currentPrice = price?.priceIdr ?? asset.manualPriceIdr ?? null;
   const currentValue = currentPrice !== null ? asset.quantity * currentPrice : null;
   const costBasis = asset.quantity * asset.avgBuyPrice;
@@ -524,48 +555,48 @@ function AssetCard({ asset, price, currency, hidden = false, onEdit, onDelete, o
   return (
     <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm">
       <div className="px-4 pt-4 pb-3 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-bold text-base text-[hsl(var(--foreground))] shrink-0">{asset.symbol}</span>
+        <div className="flex flex-col gap-2 min-[520px]:flex-row min-[520px]:items-start min-[520px]:justify-between">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+            <span className="max-w-full break-words font-bold text-base text-[hsl(var(--foreground))]">{asset.symbol}</span>
             <span className="text-[10px] px-2 py-1 rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] shrink-0">
-            {asset.type === "crypto" ? "₿" : asset.type === "stock_idx" ? "🇮🇩" : asset.type === "gold_physical" ? "🥇F" : asset.type === "gold_digital" ? "🥇D" : asset.type === "mutual_fund" ? "📈" : asset.type === "deposito" ? "🏦" : "🇺🇸"}
+            {ASSET_TYPE_LABELS[asset.type].split(" ")[0]}
             </span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))] truncate">{asset.name}</span>
+            <span className="min-w-0 break-words text-xs text-[hsl(var(--muted-foreground))]">{asset.name}</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {price?.changePercent24h !== undefined && (
-              <span className={`text-[11px] font-semibold px-2 py-1 rounded-full bg-[hsl(var(--surface-2))] ${gainCls(price.changePercent24h)}`}>
-                {fmtPct(price.changePercent24h)}
+              <span className={`text-[11px] font-semibold px-2 py-1 rounded-full bg-[hsl(var(--surface-2))] ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(price.changePercent24h)}`}>
+                {hidden ? "•••" : fmtPct(price.changePercent24h)}
               </span>
             )}
             {asset.type !== "mutual_fund" && asset.type !== "deposito" && (
-              <button onClick={onHistory} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors" title="Riwayat harga">
+              <button onClick={onHistory} aria-label={`Riwayat harga ${asset.symbol}`} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors" title="Riwayat harga">
                 <Clock size={13} />
               </button>
             )}
-            <button onClick={onEdit} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm">✏️</button>
-            <button onClick={onDelete} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-red-500 transition-colors text-sm">🗑️</button>
+            <button onClick={onEdit} aria-label={`Edit ${asset.symbol}`} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm">✏️</button>
+            <button onClick={onDelete} aria-label={`Hapus ${asset.symbol}`} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-red-500 transition-colors text-sm">🗑️</button>
           </div>
         </div>
 
-        <div className="grid grid-cols-[1.4fr_1fr] gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1fr] gap-3">
           <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-3.5">
             <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Nilai Saat Ini</p>
             <p className="mt-2 text-base font-bold leading-tight text-[hsl(var(--foreground))]">
-              {hidden ? <span className="st">•••</span> : currentValue !== null ? formatCurrency(currentValue, currency) : "—"}
+              {hidden ? "•••" : currentValue !== null ? formatCurrency(currentValue, PORTFOLIO_CURRENCY) : "—"}
             </p>
             <div className="mt-2 flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))]">
-              <span>{hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${asset.type === "gold_physical" || asset.type === "gold_digital" ? "g" : asset.type === "deposito" ? "dep" : "u"}`}</span>
+              <span>{hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${quantityUnit(asset.type, asset.symbol)}`}</span>
               <span>•</span>
-              <span>{hidden ? "•••" : currentPrice !== null ? formatCurrency(currentPrice, currency) : "—"}</span>
+              <span>{hidden ? "•••" : currentPrice !== null ? formatCurrency(currentPrice, PORTFOLIO_CURRENCY) : "—"}</span>
             </div>
           </div>
-          <div className={`rounded-3xl px-4 py-3.5 ${gain !== null && gain >= 0 ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-            <p className={`text-[10px] font-semibold ${gain !== null && gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Gain</p>
+          <div className={`rounded-3xl px-4 py-3.5 ${gain === null ? "bg-[hsl(var(--surface-2))]" : gain >= 0 ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
+            <p className={`text-[10px] font-semibold ${gain === null ? "text-[hsl(var(--muted-foreground))]" : gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Untung/Rugi</p>
             {gain !== null && gainPct !== null ? (
               <>
                 <p className={`mt-2 text-base font-bold leading-tight ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(gain)}`}>
-                  {hidden ? "•••" : formatCurrency(gain, currency)}
+                  {hidden ? "•••" : formatCurrency(gain, PORTFOLIO_CURRENCY)}
                 </p>
                 <p className={`mt-1 text-[11px] font-semibold ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(gainPct)}`}>{hidden ? "•••" : fmtPct(gainPct)}</p>
               </>
@@ -578,11 +609,11 @@ function AssetCard({ asset, price, currency, hidden = false, onEdit, onDelete, o
         <div className="grid grid-cols-2 gap-2 text-[11px]">
           <div className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5">
             <p className="text-[hsl(var(--muted-foreground))]">Modal</p>
-            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{hidden ? "•••" : formatCurrency(costBasis, currency)}</p>
+            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{hidden ? "•••" : formatCurrency(costBasis, PORTFOLIO_CURRENCY)}</p>
           </div>
           <div className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5">
             <p className="text-[hsl(var(--muted-foreground))]">Harga / Unit</p>
-            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{hidden ? "•••" : currentPrice !== null ? formatCurrency(currentPrice, currency) : "—"}</p>
+            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{hidden ? "•••" : currentPrice !== null ? formatCurrency(currentPrice, PORTFOLIO_CURRENCY) : "—"}</p>
           </div>
         </div>
       </div>
@@ -596,13 +627,13 @@ function AssetCard({ asset, price, currency, hidden = false, onEdit, onDelete, o
           )}
           <span>·</span>
           <span className="truncate">
-            {hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${asset.type === "gold_physical" || asset.type === "gold_digital" ? "g" : asset.type === "deposito" ? "dep" : "u"}`}
+            {hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${quantityUnit(asset.type, asset.symbol)}`}
           </span>
         </div>
         <div className="shrink-0">
           {price?.lastSynced && <span>{fmtAge(price.lastSynced)}</span>}
           {!price && asset.manualPriceIdr && <span className="italic">manual</span>}
-          {!price && !asset.manualPriceIdr && <span className="text-amber-500">unsync</span>}
+          {!price && !asset.manualPriceIdr && <span className="text-amber-500">Belum ada harga</span>}
         </div>
       </div>
     </div>
@@ -618,28 +649,14 @@ interface SyncProgressToastProps {
   progress: Record<string, SyncStatus>;
   errors: Record<string, string>;
   syncing: boolean;
-  finishedAt: number | null;
 }
 
-function SyncProgressToast({ assets, progress, errors, syncing, finishedAt }: SyncProgressToastProps) {
-  // Track visibility with a local state so the toast fades out smoothly
-  const [visible, setVisible] = useState(false);
+function SyncProgressToast({ assets, progress, errors, syncing }: SyncProgressToastProps) {
+  if (Object.keys(progress).length === 0) return null;
 
-  useEffect(() => {
-    if (syncing || Object.keys(progress).length > 0) {
-      setVisible(true);
-    }
-    if (!syncing && finishedAt !== null) {
-      const t = setTimeout(() => setVisible(false), 3500);
-      return () => clearTimeout(t);
-    }
-  }, [syncing, finishedAt, progress]);
-
-  if (!visible || Object.keys(progress).length === 0) return null;
-
-  // Only count assets that are included in this sync (not mutual_fund/deposito)
+  // Reksa dana menggunakan harga manual; deposito dihitung lokal dan tetap tampil di progres.
   const syncableSymbols = assets
-    .filter((a) => a.type !== "mutual_fund" && a.type !== "deposito")
+    .filter((a) => a.type !== "mutual_fund")
     .map((a) => a.symbol);
 
   const total = syncableSymbols.length || 1;
@@ -649,6 +666,7 @@ function SyncProgressToast({ assets, progress, errors, syncing, finishedAt }: Sy
   }).length;
   const successCount = syncableSymbols.filter((s) => progress[s] === "done").length;
   const failedCount = syncableSymbols.filter((s) => progress[s] === "failed").length;
+  const skippedCount = syncableSymbols.filter((s) => progress[s] === "skipped").length;
   const pct = Math.round((doneCount / total) * 100);
 
   // Find the asset currently being synced
@@ -657,7 +675,7 @@ function SyncProgressToast({ assets, progress, errors, syncing, finishedAt }: Sy
   const allDone = !syncing && doneCount >= total;
 
   return (
-    <div className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 pointer-events-none sm:left-auto sm:right-4 sm:w-96">
+    <div className="fixed bottom-[calc(10rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 sm:bottom-4 sm:left-auto sm:right-4 sm:w-96">
       <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-xl overflow-hidden">
         {/* Progress bar */}
         <div className="h-1 bg-[hsl(var(--muted))]">
@@ -673,11 +691,11 @@ function SyncProgressToast({ assets, progress, errors, syncing, finishedAt }: Sy
             <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
               {allDone
                 ? failedCount > 0
-                  ? `✅ Selesai · ${successCount} berhasil, ${failedCount} gagal`
-                  : `✅ Semua harga diperbarui`
+                  ? `✅ Selesai · ${successCount} berhasil, ${skippedCount} dilewati, ${failedCount} gagal`
+                  : `✅ ${successCount} harga disinkronkan · ${skippedCount} dilewati`
                 : currentlySyncing
-                ? `🔄 Memperbarui ${currentlySyncing.symbol}…`
-                : "🔄 Memperbarui harga…"}
+                ? `🔄 Menyinkronkan ${currentlySyncing.symbol}…`
+                : "🔄 Menyinkronkan harga…"}
             </span>
             <span className="text-xs font-bold tabular-nums text-[hsl(var(--muted-foreground))]">
               {pct}%
@@ -694,7 +712,7 @@ function SyncProgressToast({ assets, progress, errors, syncing, finishedAt }: Sy
           {/* Per-asset status chips — only syncable assets */}
           <div className="flex flex-wrap gap-1 pt-0.5">
             {assets
-              .filter((a) => a.type !== "mutual_fund" && a.type !== "deposito")
+              .filter((a) => a.type !== "mutual_fund")
               .map((a) => {
                 const status = progress[a.symbol] ?? "pending";
                 const chipCls =
@@ -743,11 +761,11 @@ function fmtAbsTime(iso: string): string {
 
 interface PriceHistoryModalProps {
   asset: Asset;
-  currency: string;
+  hidden: boolean;
   onClose: () => void;
 }
 
-function PriceHistoryModal({ asset, currency, onClose }: PriceHistoryModalProps) {
+function PriceHistoryModal({ asset, hidden, onClose }: PriceHistoryModalProps) {
   const [records, setRecords] = useState<{ syncedAt: string; price: number; changePct: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -772,7 +790,7 @@ function PriceHistoryModal({ asset, currency, onClose }: PriceHistoryModalProps)
           <table className="w-full text-xs">
             <thead>
               <tr className="text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                <th className="text-left pb-2 font-medium">Waktu Sync</th>
+                <th className="text-left pb-2 font-medium">Waktu sinkronisasi</th>
                 <th className="text-right pb-2 font-medium">Harga</th>
                 <th className="text-right pb-2 font-medium">Perubahan</th>
               </tr>
@@ -782,12 +800,12 @@ function PriceHistoryModal({ asset, currency, onClose }: PriceHistoryModalProps)
                 <tr key={i}>
                   <td className="py-2 pr-3 text-[hsl(var(--muted-foreground))]">{fmtAbsTime(r.syncedAt)}</td>
                   <td className="text-right py-2 pr-3 font-semibold text-[hsl(var(--foreground))]">
-                    {formatCurrency(r.price, currency)}
+                    {hidden ? "•••" : formatCurrency(r.price, PORTFOLIO_CURRENCY)}
                   </td>
                   <td className="text-right py-2">
                     {r.changePct !== null ? (
-                      <span className={r.changePct >= 0 ? "text-emerald-500 font-semibold" : "text-red-500 font-semibold"}>
-                        {r.changePct >= 0 ? "▲" : "▼"} {Math.abs(r.changePct).toFixed(2)}%
+                      <span className={hidden ? "text-[hsl(var(--muted-foreground))] font-semibold" : r.changePct >= 0 ? "text-emerald-500 font-semibold" : "text-red-500 font-semibold"}>
+                        {hidden ? "•••" : `${r.changePct >= 0 ? "▲" : "▼"} ${Math.abs(r.changePct).toFixed(2)}%`}
                       </span>
                     ) : (
                       <span className="text-[hsl(var(--muted-foreground))]">pertama</span>
@@ -808,8 +826,6 @@ function PriceHistoryModal({ asset, currency, onClose }: PriceHistoryModalProps)
 type Filter = "all" | "crypto" | "stock_us" | "stock_idx" | "gold" | "mutual_fund" | "deposito" | "foreign_currency";
 
 export default function Portfolio() {
-  const { currency } = useSettingsStore();
-
   const [assets, setAssets] = useState<Asset[]>([]);
   const [prices, setPrices] = useState<Record<string, AssetPrice>>({});
   const [history, setHistory] = useState<PortfolioHistory[]>([]);
@@ -824,13 +840,12 @@ export default function Portfolio() {
   // Sync progress toast state
   const [syncProgress, setSyncProgress] = useState<Record<string, SyncStatus>>({});
   const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
-  const [syncFinishedAt, setSyncFinishedAt] = useState<number | null>(null);
   const syncFinishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Per-asset price history modal
   const [historyTarget, setHistoryTarget] = useState<Asset | null>(null);
 
-  // Summary metrics tab (0=total, 1=modal vs nilai, 2=roi overall)
+  // Tab 0 shows the summary; tab 1 shows performance.
   const [summaryTab, setSummaryTab] = useState(0);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [allocationExpanded, setAllocationExpanded] = useState(false);
@@ -861,18 +876,14 @@ export default function Portfolio() {
     const map: Record<string, AssetPrice> = {};
     for (const p of storedPrices) map[p.symbol] = p;
     setPrices(map);
-    // Save today's snapshot based on current stored prices
-    const snap = a.reduce((sum, asset) => {
-      const p = map[asset.symbol]?.priceIdr ?? asset.manualPriceIdr ?? 0;
-      return sum + asset.quantity * p;
-    }, 0);
-    if (snap > 0) {
+    const metrics = getPortfolioMetrics(a, map);
+    if (a.length) {
       const usdIdr = await getUsdIdr();
-      setUsdIdrRate(usdIdr); // Store for display
-      // Backfill missing USD values in historical data
-      await backfillPortfolioHistoryUsd(usdIdr);
-      const snapUsd = snap / usdIdr;
-      await savePortfolioSnapshot(snap, snapUsd);
+      setUsdIdrRate(usdIdr);
+      if (metrics.totalValue > 0) await backfillPortfolioHistoryUsd(usdIdr);
+      if (!metrics.hasMissingPrices && metrics.totalValue > 0) {
+        await savePortfolioSnapshot(metrics.totalValue, metrics.totalValue / usdIdr);
+      }
     }
     // Refresh history
     setHistory(await getPortfolioHistory(30));
@@ -891,7 +902,8 @@ export default function Portfolio() {
   }, []);
 
   async function handleSync(assetsToSync?: Asset[]) {
-    const list = assetsToSync ?? assets;
+    const portfolioAssets = assetsToSync ?? assets;
+    const list = portfolioAssets.filter((asset) => asset.type !== "mutual_fund");
     if (!list.length) return;
 
     // Snapshot prices before sync (to compute deltas later)
@@ -906,7 +918,6 @@ export default function Portfolio() {
     for (const a of list) initProgress[a.symbol] = "pending";
     setSyncProgress(initProgress);
     setSyncErrors({});
-    setSyncFinishedAt(null);
     if (syncFinishTimerRef.current) clearTimeout(syncFinishTimerRef.current);
 
     setSyncing(true);
@@ -926,18 +937,15 @@ export default function Portfolio() {
       setPrices(map);
 
       // Save daily portfolio snapshot using fresh prices
-      const snap = list.reduce((sum, a) => {
-        const p = map[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? 0;
-        return sum + a.quantity * p;
-      }, 0);
-      if (snap > 0) {
+      const metrics = getPortfolioMetrics(portfolioAssets, map);
+      if (metrics.totalValue > 0) {
         const usdIdr = await getUsdIdr();
-        setUsdIdrRate(usdIdr); // Store for display
-        // Backfill missing USD values in historical data
+        setUsdIdrRate(usdIdr);
         await backfillPortfolioHistoryUsd(usdIdr);
-        const snapUsd = snap / usdIdr;
-        await savePortfolioSnapshot(snap, snapUsd);
-        setHistory(await getPortfolioHistory(30));
+        if (!metrics.hasMissingPrices) {
+          await savePortfolioSnapshot(metrics.totalValue, metrics.totalValue / usdIdr);
+          setHistory(await getPortfolioHistory(30));
+        }
       }
 
       // Build sync log entry — only for auto-syncable types (exclude manual: reksa dana)
@@ -962,26 +970,16 @@ export default function Portfolio() {
         await saveSyncLog({ syncedAt: new Date().toISOString(), results: logResults });
       }
 
-      const msgs: string[] = [];
-      if (msgs.length) {
-        setSyncMsg(msgs.join(" · ") + " — Buka Setelan → Portofolio.");
-      } else {
-        setSyncMsg("");
-      }
-      // Show toast "done" state, then auto-hide after 3.5s
-      setSyncFinishedAt(Date.now());
+      setSyncMsg("");
       syncFinishTimerRef.current = setTimeout(() => {
         setSyncProgress({});
         setSyncErrors({});
-        setSyncFinishedAt(null);
       }, 5000);
     } catch {
       setSyncMsg("❌ Sinkronisasi gagal. Cek koneksi internet.");
-      setSyncFinishedAt(Date.now());
       syncFinishTimerRef.current = setTimeout(() => {
         setSyncProgress({});
         setSyncErrors({});
-        setSyncFinishedAt(null);
       }, 200);
     } finally {
       setSyncing(false);
@@ -1004,29 +1002,31 @@ export default function Portfolio() {
           ? assets.filter((a) => a.type === "gold_physical" || a.type === "gold_digital")
           : assets.filter((a) => a.type === filter);
 
-  // Summary calculations
-  const totalValue = assets.reduce((sum, a) => {
-    const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? null;
-    return sum + (p !== null ? a.quantity * p : 0);
-  }, 0);
-  const totalCost = assets.reduce((sum, a) => sum + a.quantity * a.avgBuyPrice, 0);
-  const totalGain = totalValue - totalCost;
-  const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
+  const metrics = getPortfolioMetrics(assets, prices);
+  const { totalValue, totalCost, totalGain, totalGainPct } = metrics;
+  const performanceAssets = metrics.priced
+    .filter(({ asset }) => asset.quantity * asset.avgBuyPrice > 0)
+    .map(({ asset, value }) => ({
+      asset,
+      pct: ((value - asset.quantity * asset.avgBuyPrice) / (asset.quantity * asset.avgBuyPrice)) * 100,
+    }))
+    .sort((a, b) => b.pct - a.pct);
 
   // Pie chart data — grouped by category
   const CATEGORY_META: Record<string, { label: string; color: string }> = {
     crypto:        { label: "Kripto",            color: "#6366f1" },
-    stock_us:      { label: "Saham US",          color: "#22c55e" },
+    stock_us:      { label: "Saham AS",          color: "#22c55e" },
     stock_idx:     { label: "Saham IDX",         color: "#f97316" },
     gold_physical: { label: "Emas Fisik",        color: "#f59e0b" },
     gold_digital:  { label: "Emas Digital",      color: "#fbbf24" },
     mutual_fund:   { label: "Reksa Dana",        color: "#14b8a6" },
     deposito:      { label: "Deposito",          color: "#3b82f6" },
-    foreign_currency: { label: "Foreign Currency", color: "#06b6d4" },
+    foreign_currency: { label: "Mata Uang Asing", color: "#06b6d4" },
   };
   const categoryTotals: Record<string, number> = {};
   for (const a of assets) {
-    const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? 0;
+    const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr;
+    if (p === undefined) continue;
     const val = a.quantity * p;
     // Normalise legacy "stock" alias → "stock_us" so they merge into one slice
     const key = (a.type === "stock" ? "stock_us" : a.type) ?? "crypto";
@@ -1042,12 +1042,12 @@ export default function Portfolio() {
   const filterOptions: Array<{ value: Filter; label: string }> = [
     { value: "all", label: "Semua" },
     { value: "crypto", label: "Kripto" },
-    { value: "stock_us", label: "Saham US" },
+    { value: "stock_us", label: "Saham AS" },
     { value: "stock_idx", label: "Saham IDX" },
     { value: "gold", label: "Emas" },
     { value: "mutual_fund", label: "Reksa Dana" },
     { value: "deposito", label: "Deposito" },
-    { value: "foreign_currency", label: "Foreign Currency" },
+    { value: "foreign_currency", label: "Mata Uang Asing" },
   ];
 
   return (
@@ -1055,20 +1055,20 @@ export default function Portfolio() {
       {/* Header */}
       <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
         <div className="space-y-3.5">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="mt-1 text-[2rem] font-bold tracking-tight leading-[1.05] text-[hsl(var(--foreground))]">Portofolio</h1>
-              <p className="mt-2 max-w-sm text-sm leading-6 text-[hsl(var(--muted-foreground))]">Pantau aset dan performa tanpa banyak scroll.</p>
+              <p className="mt-2 max-w-sm text-sm leading-6 text-[hsl(var(--muted-foreground))]">Pantau nilai, alokasi, dan performa portofolio.</p>
             </div>
             <Button
               size="sm"
               variant="outline"
               onClick={() => handleSync()}
-              disabled={syncing || assets.length === 0}
+              disabled={syncing || !assets.some((asset) => asset.type !== "mutual_fund")}
               className="h-11 rounded-2xl gap-2 self-start bg-[hsl(var(--card))]/72 px-3.5"
             >
               <span className={syncing ? "animate-spin" : ""}>🔄</span>
-              <span className="leading-tight">{syncing ? "Update" : "Sync Harga"}</span>
+              <span className="leading-tight">{syncing ? "Menyinkronkan…" : "Sinkronkan Harga"}</span>
             </Button>
           </div>
 
@@ -1076,15 +1076,16 @@ export default function Portfolio() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Total Portofolio</p>
-                <p className="mt-2 text-[2rem] font-bold leading-[1.05] text-[hsl(var(--foreground))]">
-                  {portfolioHidden ? <span className="st">••••••</span> : formatCurrency(totalValue, currency)}
+                <p className="mt-2 text-xl sm:text-[2rem] font-bold leading-[1.05] text-[hsl(var(--foreground))]">
+                  {portfolioHidden ? "••••••" : formatCurrency(totalValue, PORTFOLIO_CURRENCY)}
                 </p>
                 <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {portfolioHidden ? <span className="st">••••••</span> : `$${(totalValue / (usdIdrRate || 16200)).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
+                  {portfolioHidden ? "••••••" : `Estimasi $${(totalValue / (usdIdrRate || 16200)).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
                 </p>
+                {metrics.hasMissingPrices && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Nilai sebagian · {metrics.unpricedAssetCount} aset belum ada harga</p>}
                 <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{assets.length} aset aktif</p>
               </div>
-              <button onClick={togglePortfolioHidden} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
+              <button onClick={togglePortfolioHidden} aria-label={portfolioHidden ? "Tampilkan nilai portofolio" : "Sembunyikan nilai portofolio"} aria-pressed={portfolioHidden} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
                 {portfolioHidden ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
@@ -1098,15 +1099,22 @@ export default function Portfolio() {
         </p>
       )}
 
+      <p className="-mt-2 text-center text-[11px] text-[hsl(var(--muted-foreground))]">Harga pasar memakai Yahoo Finance; pencarian kripto memakai CoinGecko. Harga segar dilewati selama 6 jam.</p>
+
       {assets.length > 0 && (
         <>
-          {/* Summary Card with Metric Tabs */}
+          {/* Ringkasan portofolio dengan tab metrik */}
           <div className="rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden shadow-sm">
             <div className="p-3 pb-0">
-              <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1">
-              {(["Summary", "Performance"] as const).map((label, idx) => (
+              <div role="tablist" aria-label="Ringkasan portofolio" className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1">
+              {(["Ringkasan", "Performa"] as const).map((label, idx) => (
                 <button
                   key={idx}
+                  type="button"
+                  role="tab"
+                  aria-selected={summaryTab === idx}
+                  id={`portfolio-tab-${idx}`}
+                  aria-controls="portfolio-tab-panel"
                   onClick={() => setSummaryTab(idx)}
                   className={`flex-1 rounded-xl py-2.5 text-[11px] font-semibold transition-colors ${
                     summaryTab === idx
@@ -1121,26 +1129,28 @@ export default function Portfolio() {
             </div>
 
             {/* Tab Content */}
-            <div className="p-5 pt-4 space-y-4">
+            <div id="portfolio-tab-panel" role="tabpanel" aria-labelledby={`portfolio-tab-${summaryTab}`} className="p-5 pt-4 space-y-4">
 
-              {/* Tab 0: Summary */}
+              {/* Tab 0: Ringkasan */}
               {summaryTab === 0 && (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-4">
                       <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] mb-1">Modal</p>
                       <p className="text-sm font-semibold leading-tight text-[hsl(var(--foreground))]">
-                        {portfolioHidden ? "•••" : formatCurrency(totalCost, currency)}
+                        {portfolioHidden ? "•••" : formatCurrency(totalCost, PORTFOLIO_CURRENCY)}
                       </p>
                     </div>
-                    <div className={`rounded-3xl px-4 py-4 ${totalGain >= 0 ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-                      <p className={`text-[10px] font-semibold mb-1 ${totalGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Keuntungan</p>
+                    <div className={`rounded-3xl px-4 py-4 ${totalGain === null ? "bg-[hsl(var(--surface-2))]" : totalGain >= 0 ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
+                      <p className={`text-[10px] font-semibold mb-1 ${totalGain === null ? "text-[hsl(var(--muted-foreground))]" : totalGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Untung/Rugi</p>
                       {portfolioHidden ? (
                         <p className="text-sm font-bold text-[hsl(var(--muted-foreground))]">•••</p>
+                      ) : totalGain === null || totalGainPct === null ? (
+                        <p className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">—</p>
                       ) : (
                         <>
                           <p className={`text-sm font-bold leading-tight ${totalGain >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                            {totalGain >= 0 ? "+" : ""}{formatCurrency(totalGain, currency)}
+                            {totalGain >= 0 ? "+" : ""}{formatCurrency(totalGain, PORTFOLIO_CURRENCY)}
                           </p>
                           <p className={`mt-1 text-[11px] font-semibold ${totalGain >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                             {fmtPct(totalGainPct)}
@@ -1152,53 +1162,35 @@ export default function Portfolio() {
                 </div>
               )}
 
-              {/* Tab 1: Performance (ROI + Best/Worst Assets) */}
+              {/* Tab 1: Performa (ROI dan aset terbaik/terendah) */}
               {summaryTab === 1 && (() => {
-                const bestAsset = assets.length > 0
-                  ? assets.reduce((best, a) => {
-                      const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? null;
-                      const val = p !== null ? a.quantity * p : null;
-                      const gain = val !== null ? val - a.quantity * a.avgBuyPrice : null;
-                      const pct = gain !== null ? (gain / (a.quantity * a.avgBuyPrice)) * 100 : -Infinity;
-                      const bestPct = best.pct ?? -Infinity;
-                      return pct > bestPct ? { asset: a, pct } : best;
-                    }, { asset: null as Asset | null, pct: null as number | null })
-                  : { asset: null, pct: null };
-
-                const worstAsset = assets.length > 0
-                  ? assets.reduce((worst, a) => {
-                      const p = prices[a.symbol]?.priceIdr ?? a.manualPriceIdr ?? null;
-                      const val = p !== null ? a.quantity * p : null;
-                      const gain = val !== null ? val - a.quantity * a.avgBuyPrice : null;
-                      const pct = gain !== null ? (gain / (a.quantity * a.avgBuyPrice)) * 100 : Infinity;
-                      const worstPct = worst.pct ?? Infinity;
-                      return pct < worstPct ? { asset: a, pct } : worst;
-                    }, { asset: null as Asset | null, pct: null as number | null })
-                  : { asset: null, pct: null };
+                const bestAsset = performanceAssets[0];
+                const worstAsset = performanceAssets.at(-1);
 
                 return (
                   <div className="space-y-3">
                     <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-4">
                       <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">ROI Keseluruhan</p>
-                      <p className={`mt-2 text-2xl font-bold ${totalGainPct >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                        {portfolioHidden ? "•••" : fmtPct(totalGainPct)}
+                      <p className={`mt-2 text-2xl font-bold ${totalGainPct === null ? "text-[hsl(var(--muted-foreground))]" : totalGainPct >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                        {portfolioHidden ? "•••" : totalGainPct === null ? "—" : fmtPct(totalGainPct)}
                       </p>
+                      {metrics.hasMissingPrices && <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Lengkapi harga semua aset untuk menghitung performa keseluruhan.</p>}
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      {bestAsset.asset && bestAsset.pct !== null && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {bestAsset && (
                         <div className="rounded-3xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-4 py-4 min-w-0">
                           <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Terbaik</p>
                           <p className="text-sm font-bold text-[hsl(var(--foreground))] truncate">{bestAsset.asset.symbol}</p>
                           <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))] truncate">{bestAsset.asset.name}</p>
-                          <p className="mt-2 text-base font-bold text-emerald-500">{fmtPct(bestAsset.pct)}</p>
+                          <p className="mt-2 text-base font-bold text-emerald-500">{portfolioHidden ? "•••" : fmtPct(bestAsset.pct)}</p>
                         </div>
                       )}
-                      {worstAsset.asset && worstAsset.pct !== null && worstAsset.pct !== Infinity && (
+                      {worstAsset && (
                         <div className="rounded-3xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-4 min-w-0">
                           <p className="text-[10px] font-semibold text-red-600 dark:text-red-400 mb-1">Terburuk</p>
                           <p className="text-sm font-bold text-[hsl(var(--foreground))] truncate">{worstAsset.asset.symbol}</p>
                           <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))] truncate">{worstAsset.asset.name}</p>
-                          <p className="mt-2 text-base font-bold text-red-500">{fmtPct(worstAsset.pct)}</p>
+                          <p className="mt-2 text-base font-bold text-red-500">{portfolioHidden ? "•••" : fmtPct(worstAsset.pct)}</p>
                         </div>
                       )}
                     </div>
@@ -1208,11 +1200,13 @@ export default function Portfolio() {
             </div>
           </div>
 
-          {/* Filter Tabs — Horizontal Scroll */}
+          {/* Filter aset */}
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
             {filterOptions.map((option) => (
               <button
                 key={option.value}
+                type="button"
+                aria-pressed={filter === option.value}
                 onClick={() => setFilter(option.value)}
                 className={`px-3.5 py-2.5 rounded-2xl font-medium text-xs whitespace-nowrap transition-colors ${
                   filter === option.value
@@ -1230,6 +1224,7 @@ export default function Portfolio() {
             <button
               type="button"
               onClick={toggleAssetListExpanded}
+              aria-expanded={assetListExpanded}
               className="flex w-full items-center justify-between gap-3 text-left"
             >
               <div>
@@ -1249,7 +1244,6 @@ export default function Portfolio() {
                         key={asset.id}
                         asset={asset}
                         price={prices[asset.symbol]}
-                        currency={currency}
                         hidden={portfolioHidden}
                         onEdit={() => setEditTarget(asset)}
                         onDelete={() => setDeleteTarget(asset)}
@@ -1261,7 +1255,7 @@ export default function Portfolio() {
                   <div className="rounded-[28px] border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-5 py-16 text-center text-[hsl(var(--muted-foreground))]">
                     <div className="text-5xl mb-3">📈</div>
                     <p className="font-medium">Belum ada aset untuk filter ini</p>
-                    <p className="text-sm mt-1">Ganti filter atau tambahkan aset baru dari tombol bawah.</p>
+                    <p className="text-sm mt-1">Ganti filter atau pilih Tambah aset untuk menambahkan aset.</p>
                   </div>
                 )}
               </>
@@ -1275,6 +1269,7 @@ export default function Portfolio() {
                 <button
                   type="button"
                   onClick={() => setHistoryExpanded((value) => !value)}
+                  aria-expanded={historyExpanded}
                   className="flex flex-1 items-center justify-between gap-3 text-left"
                 >
                   <div>
@@ -1288,14 +1283,17 @@ export default function Portfolio() {
                 {historyExpanded && (
                   <button
                     onClick={() => setHistoryZoomed((v) => !v)}
+                    aria-label={historyZoomed ? "Perkecil grafik" : "Perbesar grafik"}
                     className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm font-semibold shrink-0"
-                    title={historyZoomed ? "Zoom Out" : "Zoom In"}
+                    title={historyZoomed ? "Perkecil grafik" : "Perbesar grafik"}
                   >
                     {historyZoomed ? "−" : "+"}
                   </button>
                 )}
               </div>
-              {historyExpanded && (
+              {historyExpanded && (portfolioHidden ? (
+                <p className="py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">Grafik disembunyikan saat nilai portofolio disembunyikan.</p>
+              ) : (
                 <ResponsiveContainer width="100%" height={historyZoomed ? 420 : 280}>
                   <AreaChart data={history} margin={{ top: 4, right: 4, left: 4, bottom: 20 }}>
                     <defs>
@@ -1321,9 +1319,9 @@ export default function Portfolio() {
                     <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickFormatter={(v: number) => `$${(v / 1e3).toFixed(0)}K`} width={45} />
                     <Tooltip
                       formatter={(val, name) => {
-                        if (name === "Nilai IDR") return [formatCurrency(Number(val), currency), name];
-                        if (name === "Nilai USD") return [`$${Number(val).toLocaleString("en-US", { maximumFractionDigits: 0 })}`, name];
-                        return [formatCurrency(Number(val), currency), String(name)];
+                        if (name === "Nilai IDR") return [formatCurrency(Number(val), PORTFOLIO_CURRENCY), name];
+                        if (name === "Estimasi USD") return [`$${Number(val).toLocaleString("en-US", { maximumFractionDigits: 0 })}`, name];
+                        return [formatCurrency(Number(val), PORTFOLIO_CURRENCY), String(name)];
                       }}
                       labelFormatter={(label) => String(label)}
                       contentStyle={{
@@ -1335,10 +1333,10 @@ export default function Portfolio() {
                     />
                     <Legend wrapperStyle={{ fontSize: "12px" }} />
                     <Area yAxisId="left" dataKey="totalValue" name="Nilai IDR" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#portGrad)" dot={false} />
-                    <Area yAxisId="right" dataKey="totalValueUsd" name="Nilai USD" stroke="#22c55e" strokeWidth={2.5} fill="url(#usdGrad)" dot={false} />
+                    <Area yAxisId="right" dataKey="totalValueUsd" name="Estimasi USD" stroke="#22c55e" strokeWidth={2.5} fill="url(#usdGrad)" dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
-              )}
+              ))}
             </div>
           )}
 
@@ -1348,6 +1346,7 @@ export default function Portfolio() {
               <button
                 type="button"
                 onClick={() => setAllocationExpanded((value) => !value)}
+                aria-expanded={allocationExpanded}
                 className="flex w-full items-center justify-between gap-3 text-left"
               >
                 <div>
@@ -1370,8 +1369,8 @@ export default function Portfolio() {
                             <span className="truncate text-sm font-medium">{d.name}</span>
                           </div>
                           <div className="shrink-0 text-right">
-                            <p className="text-sm font-semibold">{formatCurrency(d.value, currency)}</p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))]">{pct.toFixed(1)}%</p>
+                            <p className="text-sm font-semibold">{portfolioHidden ? "•••" : formatCurrency(d.value, PORTFOLIO_CURRENCY)}</p>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))">{portfolioHidden ? "•••" : `${pct.toFixed(1)}%`}</p>
                           </div>
                         </div>
                       );
@@ -1395,10 +1394,10 @@ export default function Portfolio() {
                               <span className="font-medium text-[hsl(var(--foreground))]">{d.name}</span>
                             </td>
                             <td className="py-2 px-1 text-right font-semibold text-[hsl(var(--foreground))]">
-                              {formatCurrency(d.value, currency)}
+                              {portfolioHidden ? "•••" : formatCurrency(d.value, PORTFOLIO_CURRENCY)}
                             </td>
                             <td className="py-2 px-1 text-right text-[hsl(var(--muted-foreground))]">
-                              {pct.toFixed(1)}%
+                              {portfolioHidden ? "•••" : `${pct.toFixed(1)}%`}
                             </td>
                           </tr>
                         );
@@ -1416,19 +1415,19 @@ export default function Portfolio() {
         <div className="rounded-[28px] border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-5 py-16 text-center text-[hsl(var(--muted-foreground))]">
           <div className="text-5xl mb-3">📈</div>
           <p className="font-medium">Belum ada aset portofolio</p>
-          <p className="text-sm mt-1">Tap tombol di bawah untuk menambahkan saham atau kripto</p>
+          <p className="text-sm mt-1">Pilih Tambah aset untuk menambahkan investasi dan aset lainnya.</p>
         </div>
       )}
 
-      {/* Sync note for stocks */}
+      {/* Sumber harga saham */}
       {assets.some((a) => a.type === "stock_us" || a.type === "stock" || a.type === "stock_idx") && (
         <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">
-          💡 Saham AS: sync otomatis via Alpha Vantage · Saham IDX: perbarui harga manual di edit aset
+          Harga saham AS dan IDX disinkronkan dari Yahoo Finance melalui layanan proxy. Harga beli dan jumlah dicatat dalam IDR per lembar.
         </p>
       )}
 
       {/* Modals */}
-      <AssetForm open={addOpen} onClose={() => setAddOpen(false)} onSaved={loadAll} />
+      <AssetForm key={addOpen ? "add-open" : "add-closed"} open={addOpen} onClose={() => setAddOpen(false)} onSaved={loadAll} />
       {editTarget && <AssetForm open onClose={() => setEditTarget(null)} onSaved={loadAll} existing={editTarget} />}
       {deleteTarget && (
         <DeleteModal
@@ -1440,7 +1439,7 @@ export default function Portfolio() {
       {historyTarget && (
         <PriceHistoryModal
           asset={historyTarget}
-          currency={currency}
+          hidden={portfolioHidden}
           onClose={() => setHistoryTarget(null)}
         />
       )}
@@ -1451,7 +1450,6 @@ export default function Portfolio() {
         progress={syncProgress}
         errors={syncErrors}
         syncing={syncing}
-        finishedAt={syncFinishedAt}
       />
 
     </div>

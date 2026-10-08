@@ -116,7 +116,7 @@ export interface Asset {
   type: AssetType;
   quantity: number;
   avgBuyPrice: number;       // average buy price in IDR
-  coinGeckoId?: string;      // e.g. "bitcoin" — used for CoinGecko sync
+  coinGeckoId?: string;      // e.g. "bitcoin" — identifier from CoinGecko coin search
   manualPriceIdr?: number;   // user-entered fallback when API is unavailable
   interestRatePerYear?: number;  // for deposito: annual interest rate (e.g., 4.5)
   depositStartDate?: string; // for deposito: ISO date YYYY-MM-DD when deposit starts

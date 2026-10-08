@@ -1,5 +1,6 @@
 import { db } from "@/db/db";
 import type { Asset } from "@/types";
+import { getSyncablePortfolioAssets } from "@/lib/portfolioMetrics";
 
 const CG = "https://api.coingecko.com/api/v3";
 const CURRENCY_API = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json";
@@ -45,7 +46,7 @@ export const STALE_MS = 6 * 60 * 60 * 1000; // 6 hours — don't re-sync if fres
 
 /** Wait ms milliseconds — used to respect fetch rate limits. */
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const AV_DELAY_MS = 2000; // 2-second gap between stock requests
+const REQUEST_DELAY_MS = 2000; // Gap between market data requests
 
 // ─── CoinGecko coin search ────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ async function syncCrypto(assets: Asset[], onProgress?: ProgressCallback): Promi
   const failed: string[] = [];
 
   for (let i = 0; i < cryptos.length; i++) {
-    if (i > 0) await delay(AV_DELAY_MS);
+    if (i > 0) await delay(REQUEST_DELAY_MS);
     const asset = cryptos[i];
     onProgress?.(asset.symbol, "syncing");
     const yahooSymbol = `${asset.symbol.toUpperCase()}-USD`;
@@ -183,9 +184,7 @@ async function fetchGoldPriceIdr(): Promise<{ priceIdr: number; changePct: numbe
 }
 
 // ─── Deposito auto-calculation ────────────────────────────────────────────────
-// Calculates final value of deposito with compound interest and 20% tax deduction
-// Formula: finalValue = initialAmount × (1 + (interestRate/100 × daysPassed/365)) × 0.8
-// The 0.8 factor accounts for 20% tax deduction on interest earned
+// Calculates simple interest after a 20% tax deduction on interest earned.
 
 export function calculateDepositoValue(
   initialAmount: number,
@@ -231,16 +230,15 @@ async function isFresh(symbol: string): Promise<boolean> {
 }
 
 // ─── Main sync entry point ────────────────────────────────────────────────────
-// All asset types sync via Yahoo Finance through the Cloudflare Worker (no API keys needed).
-// Assets fresher than STALE_MS (6h) are skipped to conserve quota.
+// Market prices use Yahoo Finance; deposito is calculated locally and reksa dana stays manual.
+// Prices fresher than STALE_MS (6h) are skipped to conserve requests.
 
 export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallback): Promise<SyncResult> {
   const synced: string[] = [];
   const failed: string[] = [];
   const skipped: string[] = [];
 
-  // All asset types are now syncable
-  const syncable = assets;
+  const syncable = getSyncablePortfolioAssets(assets);
 
   // Separate fresh (< 6h) vs stale assets
   const stale: Asset[] = [];
@@ -275,7 +273,7 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
   const staleUs = stale.filter((a) => a.type === "stock_us" || a.type === "stock");
   if (staleUs.length > 0) {
     for (let i = 0; i < staleUs.length; i++) {
-      if (i > 0) await delay(AV_DELAY_MS);
+      if (i > 0) await delay(REQUEST_DELAY_MS);
       onProgress?.(staleUs[i].symbol, "syncing");
       try {
         const result = await syncViaYahoo(staleUs[i], staleUs[i].symbol, true);
@@ -297,7 +295,7 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
   const staleIdx = stale.filter((a) => a.type === "stock_idx");
   if (staleIdx.length > 0) {
     for (let i = 0; i < staleIdx.length; i++) {
-      if (i > 0) await delay(AV_DELAY_MS);
+      if (i > 0) await delay(REQUEST_DELAY_MS);
       onProgress?.(staleIdx[i].symbol, "syncing");
       try {
         const result = await syncStockIdx(staleIdx[i]);
@@ -342,7 +340,7 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
   const staleForex = stale.filter((a) => a.type === "foreign_currency");
   if (staleForex.length > 0) {
     for (let i = 0; i < staleForex.length; i++) {
-      if (i > 0) await delay(AV_DELAY_MS);
+      if (i > 0) await delay(REQUEST_DELAY_MS);
       onProgress?.(staleForex[i].symbol, "syncing");
       try {
         const result = await syncForex(staleForex[i]);
@@ -367,7 +365,7 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
     for (const a of staleDeposito) {
       onProgress?.(a.symbol, "syncing");
       // Check if all required fields are present
-      if (!a.interestRatePerYear || !a.depositStartDate || !a.depositEndDate) {
+      if (a.interestRatePerYear === undefined || !a.depositStartDate || !a.depositEndDate) {
         // Skip if missing fields (old data or not properly set up)
         skipped.push(a.symbol);
         onProgress?.(a.symbol, "skipped");
@@ -395,8 +393,6 @@ export async function syncAllPrices(assets: Asset[], onProgress?: ProgressCallba
     }
   }
 
-  // Reksa dana: manual only — skip auto-sync
-
   return { synced, failed, skipped };
 }
 
@@ -409,7 +405,7 @@ export async function getPriceAge(symbol: string): Promise<number | null> {
 }
 
 export async function anyPriceStale(assets: Asset[]): Promise<boolean> {
-  for (const a of assets) {
+  for (const a of getSyncablePortfolioAssets(assets)) {
     const age = await getPriceAge(a.symbol);
     if (age === null || age > STALE_MS) return true;
   }
