@@ -17,7 +17,7 @@ export function BottomNav() {
     <nav aria-label="Navigasi utama" className="safe-bottom fixed inset-x-0 bottom-0 z-40 px-3 lg:hidden">
       <div className="mx-auto flex max-w-2xl items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1.5 shadow-lg">
         <NavLink to="/" end className={({ isActive }) => itemClass(isActive)}>
-          <House size={18} /><span>Ringkasan</span>
+          <House size={18} /><span>Dashboard</span>
         </NavLink>
         <NavLink to="/transactions" className={({ isActive }) => itemClass(isActive)}>
           <ReceiptText size={18} /><span>Transaksi</span>

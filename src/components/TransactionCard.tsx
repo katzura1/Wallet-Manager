@@ -11,6 +11,7 @@ interface TransactionCardProps {
   categoryLabel?: string;
   categoryIcon?: string;
   currency: string;
+  hidden?: boolean;
   hasSplits?: boolean;
   isExpanded?: boolean;
   onExpandSplits?: () => void;
@@ -25,6 +26,7 @@ export function TransactionCard({
   categoryLabel,
   categoryIcon,
   currency,
+  hidden = false,
   hasSplits = false,
   isExpanded = false,
   onExpandSplits,
@@ -36,7 +38,7 @@ export function TransactionCard({
     ? hasSplits ? `Split · ${categoryLabel?.split(" · ").pop() ?? "Kategori"}` : categoryLabel ?? "Transaksi"
     : tx.type === "income" ? "Pemasukan" : tx.type === "expense" ? "Pengeluaran" : "Transfer";
   const displayIcon = hasSplits ? "✂️" : categoryIcon || (tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️");
-  const amountColor =
+  const amountColor = hidden ? "text-[hsl(var(--muted-foreground))]" :
     tx.type === "income"
       ? "text-emerald-500"
       : tx.type === "expense"
@@ -57,7 +59,7 @@ export function TransactionCard({
       </div>
       <div className="flex flex-none flex-col items-end gap-1.5">
         <p className={`whitespace-nowrap text-sm font-bold tabular-nums ${amountColor}`}>
-          {tx.type === "expense" ? "−" : tx.type === "income" ? "+" : ""}{formatCurrency(tx.amount, currency)}
+          {hidden ? "•••" : `${tx.type === "expense" ? "−" : tx.type === "income" ? "+" : ""}${formatCurrency(tx.amount, currency)}`}
         </p>
         <div className="flex items-center gap-1">
           {hasSplits && onExpandSplits && (

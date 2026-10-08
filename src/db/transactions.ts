@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { db } from "./db";
 import { getAccountById, recalculateAccountBalance } from "./accounts";
 import type { Transaction } from "@/types";
@@ -35,7 +36,7 @@ function startOfDay(date: Date) {
 }
 
 function toDateKey(date: Date) {
-  return date.toISOString().split("T")[0];
+  return format(date, "yyyy-MM-dd");
 }
 
 function calculateMedian(values: number[]) {
@@ -75,7 +76,7 @@ export interface TransactionFilter {
 }
 
 export async function getTransactions(filter: TransactionFilter = {}) {
-  let query = db.transactions.orderBy("date").reverse();
+  const query = db.transactions.orderBy("date").reverse();
   let results = await query.toArray();
 
   if (filter.accountIds && filter.accountIds.length > 0) {

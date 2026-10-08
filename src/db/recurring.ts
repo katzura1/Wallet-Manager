@@ -1,3 +1,4 @@
+import { format, addDays } from "date-fns";
 import { db } from "./db";
 import { addTransaction } from "./transactions";
 import { todayISO } from "@/lib/utils";
@@ -16,7 +17,7 @@ function advanceDate(dateStr: string, interval: RecurringInterval): string {
 
 export type RecurringDueTone = "overdue" | "today" | "soon" | "upcoming";
 
-export function getRecurringDueInfo(date: string, referenceDate = todayISO()): {
+export function getRecurringDueInfo(date: string, referenceDate = format(new Date(), "yyyy-MM-dd")): {
   diffDays: number;
   label: string;
   tone: RecurringDueTone;
@@ -70,8 +71,9 @@ export async function getRecurringTransactions(): Promise<RecurringTransaction[]
 
 // get all recurring where nextDate is next 7 days
 export async function getUpcomingRecurringTransactions(): Promise<RecurringTransaction[]> {
-  const today = todayISO();
-  const nextWeek = advanceDate(today, "weekly");
+  const now = new Date();
+  const today = format(now, "yyyy-MM-dd");
+  const nextWeek = format(addDays(now, 7), "yyyy-MM-dd");
   return db.recurring
     .where("nextDate").between(today, nextWeek, true, true)
     .toArray();
