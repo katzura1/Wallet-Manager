@@ -317,16 +317,15 @@ export default function Reports() {
   }
 
   if (isLedgerTab) {
-    return <LedgerContent embedded />;
+    return <LedgerContent />;
   }
 
   return (
-    <div className="px-4 pt-5 pb-4 space-y-5">
-      <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
+    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
+      <Card className="overflow-hidden">
         <CardContent className="p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Analytics</p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight">Laporan</h1>
               <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Baca pola cashflow, kategori, budget, dan perubahan performa bulanan.</p>
             </div>
@@ -348,7 +347,7 @@ export default function Reports() {
                 </button>
               </div>
               <div className="rounded-[24px] bg-[hsl(var(--card))]/75 px-4 py-3 text-right">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Mode</p>
+                <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Mode</p>
                 <p className="mt-2 text-sm font-semibold capitalize">{mode === "monthly" ? "Bulanan" : "Rentang"}</p>
               </div>
             </div>
@@ -408,7 +407,7 @@ export default function Reports() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card>
           <CardContent className="p-4 flex flex-col justify-between h-full">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Pemasukan</p>
+            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Pemasukan</p>
             <p className="font-bold text-lg text-emerald-500 mt-3">{formatCurrency(summary.income, currency)}</p>
             {mode === "monthly" && incomeComparison && (
               <p className={`text-[11px] mt-2 ${incomeComparison.className}`}>{incomeComparison.label}</p>
@@ -417,7 +416,7 @@ export default function Reports() {
         </Card>
         <Card>
           <CardContent className="p-4 flex flex-col justify-between h-full">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
+            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
             <p className="font-bold text-lg text-red-500 mt-3">{formatCurrency(summary.expense, currency)}</p>
             {mode === "monthly" && expenseComparison && (
               <p className={`text-[11px] mt-2 ${expenseComparison.className}`}>{expenseComparison.label}</p>
@@ -426,7 +425,7 @@ export default function Reports() {
         </Card>
         <Card>
           <CardContent className="p-4 flex flex-col justify-between h-full">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Net</p>
+            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Net</p>
             <p className={`font-bold text-lg mt-3 ${summary.net >= 0 ? "text-emerald-500" : "text-red-500"}`}>
               {formatCurrency(summary.net, currency)}
             </p>
@@ -439,11 +438,11 @@ export default function Reports() {
 
       {/* Year-to-Date Summary */}
       {mode === "monthly" && ytdSummary && ytdSummary.totalIncome > 0 && (
-        <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--emerald-500\/5))_0%,hsl(var(--surface-2))_100%)]">
+        <Card className="overflow-hidden">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">YTD {selectedYear}</p>
+                <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">YTD {selectedYear}</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">{ytdSummary.monthsIncluded} bulan berjalan</p>
               </div>
               <div className="text-right">
@@ -461,15 +460,15 @@ export default function Reports() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center p-2 rounded-xl bg-[hsl(var(--card))]/60">
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Total Masuk</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] r">Total Masuk</p>
                 <p className="font-bold text-sm text-emerald-500 mt-1">{formatCurrency(ytdSummary.totalIncome, currency)}</p>
               </div>
               <div className="text-center p-2 rounded-xl bg-[hsl(var(--card))]/60">
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Total Keluar</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] r">Total Keluar</p>
                 <p className="font-bold text-sm text-red-500 mt-1">{formatCurrency(ytdSummary.totalExpense, currency)}</p>
               </div>
               <div className="text-center p-2 rounded-xl bg-[hsl(var(--card))]/60">
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Tersisa</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] r">Tersisa</p>
                 <p className={`font-bold text-sm mt-1 ${ytdSummary.netSavings >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                   {formatCurrency(ytdSummary.netSavings, currency)}
                 </p>

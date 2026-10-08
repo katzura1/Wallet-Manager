@@ -161,7 +161,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
       {step === "input" && (
         <div className="space-y-5">
           <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4 space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">AI Assistant</p>
+            <p className="text-sm font-semibold">Input AI/Struk</p>
             <p className="text-sm text-[hsl(var(--foreground))]">
               Pilih input teks atau scan struk. Semua hasil tetap masuk ke tahap review manual sebelum disimpan.
             </p>
@@ -242,7 +242,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
 
           {/* API Key field */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
+            <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">
               Gemini API Key{" "}
               <a
                 href="https://aistudio.google.com/app/apikey"

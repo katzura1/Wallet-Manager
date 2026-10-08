@@ -5,8 +5,9 @@ import { Card, CardContent, Button, Modal } from "@/components/ui";
 import { CategoryForm } from "@/components/forms/CategoryForm";
 import { deleteCategory } from "@/db/categories";
 import { seedMissingDefaultCategories } from "@/db/db";
-import { ChevronLeft, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronLeft, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import type { Category } from "@/types";
+import { usePageAction } from "@/components/layout/appLayoutContext";
 
 export default function Categories() {
   const { categories, refreshAll } = useWalletStore();
@@ -33,16 +34,17 @@ export default function Categories() {
     { label: "Pemasukan", color: "text-emerald-500", items: categories.filter((c) => c.type === "income") },
   ];
 
+  usePageAction({ label: "Tambah kategori", onClick: () => setCatFormOpen(true) });
+
   return (
-    <div className="px-4 pt-5 pb-24 space-y-5">
+    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
       {/* Header */}
-      <div className="rounded-[32px] border border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)] p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)]">
+      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
         <div className="flex items-start gap-3">
           <Link to="/settings" className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--card))]/75 hover:bg-[hsl(var(--surface-2))] transition-colors">
             <ChevronLeft size={18} />
           </Link>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Categories</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight">Kategori</h1>
             <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Kelola kategori pemasukan dan pengeluaran dengan struktur yang lebih rapi.</p>
           </div>
@@ -50,9 +52,6 @@ export default function Categories() {
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={handleRestoreDefault} disabled={restoring} className="gap-1.5">
             <RefreshCw size={13} className={restoring ? "animate-spin" : ""} /> Pulihkan Default
-          </Button>
-          <Button size="sm" onClick={() => setCatFormOpen(true)} className="gap-1.5">
-            <Plus size={14} /> Tambah
           </Button>
         </div>
       </div>
@@ -62,7 +61,7 @@ export default function Categories() {
       {grouped.map(({ label, color, items }) => (
         <Card key={label}>
           <CardContent className="p-5 space-y-1">
-            <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-2 ${color}`}>{label} ({items.length})</p>
+            <p className={`text-[11px] font-semibold mb-2 ${color}`}>{label} ({items.length})</p>
             {items.length === 0 && (
               <p className="text-xs text-[hsl(var(--muted-foreground))] py-2 text-center">Tidak ada kategori</p>
             )}

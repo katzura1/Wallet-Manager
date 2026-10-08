@@ -250,7 +250,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
               onKeyDown={handleKeyDown}
               placeholder="Ketik transaksi atau pertanyaan..."
               disabled={isProcessing}
-              className="flex-1 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-sm text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] disabled:opacity-50"
+              className="flex-1 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-base min-h-[44px] text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] disabled:opacity-50"
             />
             <Button
               onClick={handleSend}

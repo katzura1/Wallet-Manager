@@ -61,7 +61,7 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Type toggle */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] mb-2">Tipe</p>
+          <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-2">Tipe</p>
           <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 overflow-hidden">
             {TYPE_OPTIONS.map(({ value, label }) => (
               <button
@@ -87,7 +87,7 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
         {/* Icon + Name row */}
         <div className="flex gap-3 items-end">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Ikon</p>
+            <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">Ikon</p>
             <input
               type="text"
               value={icon}
@@ -109,7 +109,7 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
 
         {/* Color */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] mb-2">Warna</p>
+          <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-2">Warna</p>
           <div className="flex flex-wrap gap-2">
             {ACCOUNT_COLORS.map((c) => (
               <button

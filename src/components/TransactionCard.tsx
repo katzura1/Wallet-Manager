@@ -41,7 +41,7 @@ export function TransactionCard({
         : "text-amber-500";
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] backdrop-blur-sm">
+    <div className="overflow-hidden rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 shadow-sm backdrop-blur-sm">
       <div className="flex gap-3 border-b border-[hsl(var(--border))] px-4 py-3">
         <div className="flex gap-2 flex-1 min-w-0">
           <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-base flex-none ${TRANSACTION_TYPE_BG[tx.type as TransactionType]}`}>
@@ -51,7 +51,7 @@ export function TransactionCard({
             <p className="text-sm font-semibold text-[hsl(var(--foreground))] truncate leading-tight">
               {hasSplits ? `Split · ${categoryLabel?.split(" · ").pop() ?? ""}` : categoryLabel || accountName}
             </p>
-            <p className="text-[11px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))] truncate mt-1">
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate mt-1">
               {formatDate(tx.date, "dd MMM")} {tx.type === "transfer" ? "· Transfer" : ""}
             </p>
           </div>

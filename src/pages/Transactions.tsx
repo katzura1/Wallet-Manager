@@ -11,7 +11,8 @@ import { db } from "@/db/db";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getRecurringDetectionSuggestions, type RecurringDetectionSuggestion } from "@/services/recurringDetection";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
-import { Plus, Search, Filter, Pencil, Trash2, RefreshCw, Pause, Play, SkipForward, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Filter, Pencil, Trash2, RefreshCw, Pause, Play, SkipForward, ChevronDown, ChevronUp } from "lucide-react";
+import { usePageAction } from "@/components/layout/appLayoutContext";
 
 const INTERVAL_LABEL: Record<string, string> = {
   daily: "Harian", weekly: "Mingguan", monthly: "Bulanan", yearly: "Tahunan",
@@ -315,18 +316,29 @@ export default function Transactions() {
     } : null,
   ].filter((item): item is { key: string; label: string; onRemove: () => void } => item !== null);
 
+  usePageAction({
+    label: activeTab === "recurring" ? "Tambah jadwal" : "Tambah transaksi",
+    onClick: () => {
+      if (activeTab === "recurring") {
+        setRecurringDraft(null);
+        setRecurringFormOpen(true);
+      } else {
+        setAddOpen(true);
+      }
+    },
+  });
+
   return (
-    <div className="px-4 pt-5 pb-24 space-y-5">
-      <Card className="overflow-hidden rounded-3xl border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
+    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
+      <Card className="overflow-hidden">
         <CardContent className="p-5 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Ledger</p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight">Transaksi</h1>
               <p className="mt-2 max-w-xs text-sm leading-6 text-[hsl(var(--muted-foreground))]">Cari cepat, cek ringkasan harian, dan kelola jadwal berulang.</p>
             </div>
             <div className="rounded-[26px] bg-[hsl(var(--card))]/78 px-4 py-3 text-right flex-none">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Terfilter</p>
+              <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Terfilter</p>
               <p className="mt-1 text-2xl font-bold leading-none">{transactions.length}</p>
             </div>
           </div>
@@ -483,7 +495,7 @@ export default function Transactions() {
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/75 px-4 py-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Tampilan Hari</p>
+                <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Tampilan Hari</p>
                 <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Buka semua grup atau rapikan list.</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -506,21 +518,21 @@ export default function Transactions() {
                       >
                         <span className="mt-0.5 text-[hsl(var(--muted-foreground))]">{isDayExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
                         <span>
-                          <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{formatDate(date, "EEEE, dd MMM")}</span>
+                          <span className="block text-xs font-semibold text-[hsl(var(--muted-foreground))]">{formatDate(date, "EEEE, dd MMM")}</span>
                           <span className="mt-1 block text-[11px] text-[hsl(var(--muted-foreground))]">{dayTxs.length} transaksi</span>
                         </span>
                       </button>
                       <div className="grid grid-cols-3 gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-2.5 py-2 text-right">
                         <div className="min-w-12">
-                          <p className="text-[10px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Masuk</p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Masuk</p>
                           <p className="mt-1 text-[11px] font-semibold text-emerald-500">{formatCompactRupiah(dayIncome)}</p>
                         </div>
                         <div className="min-w-12">
-                          <p className="text-[10px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Keluar</p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Keluar</p>
                           <p className="mt-1 text-[11px] font-semibold text-red-500">{formatCompactRupiah(dayExpense)}</p>
                         </div>
                         <div className="min-w-12">
-                          <p className="text-[10px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Net</p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Net</p>
                           <p className={`mt-1 text-[11px] font-semibold ${getNetTone(dayIncome - dayExpense)}`}>{formatCompactRupiah(Math.abs(dayIncome - dayExpense))}</p>
                         </div>
                       </div>
@@ -845,24 +857,6 @@ export default function Transactions() {
         </div>
       </Modal>
 
-      <div className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-30 sm:right-[max(1rem,calc((100vw-36rem)/2+1rem))]">
-        <button
-          type="button"
-          onClick={() => {
-            if (activeTab === "recurring") {
-              setRecurringDraft(null);
-              setRecurringFormOpen(true);
-            } else {
-              setAddOpen(true);
-            }
-          }}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-[0_24px_50px_-24px_hsl(var(--primary))] hover:brightness-[1.06] active:scale-95 transition"
-          aria-label={activeTab === "recurring" ? "Tambah transaksi terjadwal" : "Tambah transaksi"}
-          title={activeTab === "recurring" ? "Tambah jadwal" : "Tambah transaksi"}
-        >
-          <Plus size={18} />
-        </button>
-      </div>
     </div>
   );
 }

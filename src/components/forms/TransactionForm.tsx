@@ -263,10 +263,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4 space-y-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Transaction Setup</p>
-            <p className="mt-1 text-sm text-[hsl(var(--foreground))]">
-              Pilih tipe, akun, dan kategori. Semua perubahan tetap mengikuti flow transaksi yang sama.
-            </p>
+            <p className="text-sm font-semibold">Jenis transaksi</p>
           </div>
         {/* Type Toggle */}
         <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 overflow-hidden">
@@ -309,8 +306,8 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
 
         <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-4 space-y-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Account Flow</p>
-            <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Tentukan akun sumber dan tujuan transaksi.</p>
+            <p className="text-sm font-semibold">Akun</p>
+            <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Transfer membutuhkan akun tujuan.</p>
           </div>
 
           <Select label={type === "transfer" ? "Dari Akun" : "Akun"} value={accountId} onChange={(e) => setAccountId(e.target.value)}>

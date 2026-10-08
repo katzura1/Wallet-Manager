@@ -41,8 +41,8 @@ export function ChatMessage({
             ))}
           </div>
         ) : message.type === "summary" && message.summaryData ? (
-          <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] backdrop-blur-sm p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))] mb-2">
+          <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 shadow-sm backdrop-blur-sm p-4">
+            <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-2">
               Ringkasan {message.summaryData.type === "daily" ? "Hari Ini" : message.summaryData.type === "weekly" ? "Minggu Ini" : "Bulan Ini"}
             </p>
             <p className="text-[11px] text-[hsl(var(--muted-foreground))] mb-3">{message.summaryData.period}</p>
@@ -72,7 +72,7 @@ export function ChatMessage({
             className={`rounded-3xl px-4 py-3 text-sm leading-relaxed ${
               isUser
                 ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                : "border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 text-[hsl(var(--foreground))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] backdrop-blur-sm"
+                : "border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 text-[hsl(var(--foreground))] shadow-sm backdrop-blur-sm"
             }`}
           >
             {message.content}

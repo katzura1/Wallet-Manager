@@ -158,7 +158,7 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
         {/* Type toggle */}
         <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4 space-y-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Recurring Setup</p>
+            <p className="text-sm font-semibold">Jadwal berulang</p>
             <p className="mt-1 text-sm text-[hsl(var(--foreground))]">Buat pola transaksi rutin dengan preview tanggal berikutnya.</p>
           </div>
         <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 overflow-hidden">

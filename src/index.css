@@ -3,43 +3,63 @@
 /* Enable class-based dark mode for Tailwind v4 */
 @variant dark (&:where(.dark, .dark *));
 
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-border: hsl(var(--border));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-surface-3: hsl(var(--surface-3));
+  --color-hero: hsl(var(--hero));
+  --color-hero-foreground: hsl(var(--hero-foreground));
+  --radius-card: 1.5rem;
+}
+
 @layer base {
   :root {
-    --background: 42 33% 97%;
-    --foreground: 222 28% 14%;
+    --background: 220 22% 96%;
+    --foreground: 222 29% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 222 28% 14%;
-    --border: 30 20% 88%;
-    --input: 30 20% 88%;
-    --muted: 38 24% 93%;
-    --muted-foreground: 220 12% 38%;
-    --accent: 40 30% 92%;
-    --accent-foreground: 222 28% 14%;
+    --card-foreground: 222 29% 13%;
+    --border: 220 17% 90%;
+    --input: 220 17% 90%;
+    --muted: 220 20% 94%;
+    --muted-foreground: 220 11% 41%;
+    --accent: 220 20% 94%;
+    --accent-foreground: 222 29% 13%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --primary: 199 76% 34%;
+    --primary: 228 76% 54%;
     --primary-foreground: 0 0% 100%;
-    --surface-2: 34 38% 94%;
-    --surface-3: 34 30% 91%;
-    --ring: 199 76% 40%;
+    --surface-2: 220 20% 94%;
+    --surface-3: 220 18% 91%;
+    --hero: 228 42% 16%;
+    --hero-foreground: 220 25% 98%;
+    --ring: 228 76% 54%;
   }
 
   .dark {
-    --background: 210 30% 10%;
-    --foreground: 40 23% 94%;
-    --card: 211 28% 13%;
-    --card-foreground: 40 23% 94%;
-    --border: 211 18% 22%;
-    --input: 211 18% 22%;
-    --muted: 211 20% 18%;
-    --muted-foreground: 210 18% 70%;
-    --accent: 211 20% 18%;
-    --accent-foreground: 40 23% 94%;
-    --primary: 192 72% 58%;
-    --primary-foreground: 210 30% 10%;
-    --surface-2: 211 24% 15%;
-    --surface-3: 211 22% 19%;
-    --ring: 192 72% 62%;
+    --background: 224 28% 10%;
+    --foreground: 220 24% 95%;
+    --card: 224 25% 14%;
+    --card-foreground: 220 24% 95%;
+    --border: 221 18% 24%;
+    --input: 221 18% 24%;
+    --muted: 223 22% 18%;
+    --muted-foreground: 220 13% 70%;
+    --accent: 223 22% 18%;
+    --accent-foreground: 220 24% 95%;
+    --primary: 228 78% 62%;
+    --primary-foreground: 0 0% 100%;
+    --surface-2: 223 22% 18%;
+    --surface-3: 223 22% 21%;
+    --hero: 224 30% 8%;
+    --hero-foreground: 220 24% 95%;
+    --ring: 228 78% 62%;
   }
 
   * {
@@ -56,9 +76,6 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    background-image:
-      radial-gradient(circle at top, hsl(var(--surface-2)) 0%, transparent 30%),
-      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--surface-2)) 100%);
     font-family: "Avenir Next", "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
     overscroll-behavior: none;
@@ -77,13 +94,16 @@
 
   /* Safe area padding helper for bottom nav */
   .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   .app-shell {
-    background:
-      radial-gradient(circle at top left, hsl(var(--surface-3)) 0%, transparent 28%),
-      radial-gradient(circle at top right, hsl(var(--surface-2)) 0%, transparent 24%);
+    background: hsl(var(--background));
+  }
+
+  body:has([data-modal-open="true"]) .app-floating-action,
+  body:has([data-action-sheet]) .app-floating-action {
+    display: none;
   }
 
   @media print {

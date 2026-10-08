@@ -222,9 +222,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="px-4 pt-5 pb-4 space-y-5">
-      <div className="rounded-[32px] border border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)] p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)]">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Preferences</p>
+    <div className="mx-auto max-w-5xl space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
+      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
         <h1 className="mt-1 text-2xl font-bold tracking-tight">Pengaturan</h1>
         <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Atur tampilan, backup, keamanan, AI, dan sinkronisasi cloud tanpa mengubah data inti.</p>
       </div>

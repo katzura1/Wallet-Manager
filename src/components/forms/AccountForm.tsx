@@ -77,7 +77,7 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
           }}
         />
         <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Warna</label>
+          <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">Warna</label>
           <div className="flex flex-wrap gap-2">
             {ACCOUNT_COLORS.map((c) => (
               <button

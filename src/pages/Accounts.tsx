@@ -6,7 +6,8 @@ import { AccountForm } from "@/components/forms/AccountForm";
 import { archiveAccount, deleteAccount, updateAccount } from "@/db/accounts";
 import { formatCurrency, ACCOUNT_TYPE_LABELS } from "@/lib/utils";
 import type { Account } from "@/types";
-import { Plus, Archive, Trash2, Pencil, Wallet, Layers3 } from "lucide-react";
+import { Archive, Trash2, Pencil, Wallet, Layers3 } from "lucide-react";
+import { usePageAction } from "@/components/layout/appLayoutContext";
 
 export default function Accounts() {
   const { accounts, loadAccounts } = useWalletStore();
@@ -46,6 +47,8 @@ export default function Accounts() {
   const activeAccounts = accounts.filter((a) => !a.isArchived);
   const archivedAccounts = accounts.filter((a) => a.isArchived);
   const totalBalance = activeAccounts.reduce((s, a) => s + a.currentBalance, 0);
+
+  usePageAction({ label: "Tambah akun", onClick: () => setAddOpen(true) });
 
   async function handleToggleArchive(acc: Account) {
     setBusyId(acc.id ?? null);
@@ -88,12 +91,11 @@ export default function Accounts() {
   const visibleAccounts = view === "active" ? activeAccounts : archivedAccounts;
 
   return (
-    <div className="px-4 pt-5 pb-4 space-y-5">
-      <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
+    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
+      <Card className="overflow-hidden">
         <CardContent className="p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Accounts</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight">Akun Saya</h1>
             <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Kelola akun aktif, arsip, dan ringkasan saldo dengan cepat.</p>
           </div>
@@ -104,19 +106,16 @@ export default function Accounts() {
             >
               Ledger
             </Link>
-            <Button size="sm" onClick={() => setAddOpen(true)} disabled={loading}>
-              <Plus size={16} /> Tambah
-            </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-3xl bg-[hsl(var(--card))]/75 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Wallet size={13} /> Total Saldo Aktif</p>
+            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Wallet size={13} /> Total Saldo Aktif</p>
             <p className="text-lg font-bold mt-3 truncate">{formatCurrency(totalBalance, currency)}</p>
           </div>
           <div className="rounded-3xl bg-[hsl(var(--card))]/75 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Layers3 size={13} /> Jumlah Akun</p>
+            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] flex items-center gap-1.5"><Layers3 size={13} /> Jumlah Akun</p>
             <p className="text-lg font-bold mt-3">{activeAccounts.length} aktif • {archivedAccounts.length} arsip</p>
           </div>
         </div>
@@ -160,7 +159,7 @@ export default function Accounts() {
           description={view === "active" ? "Tap Tambah untuk mulai tracking saldo akun" : "Akun yang diarsipkan akan muncul di sini"}
         />
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {visibleAccounts.map((account) => (
             <AccountCard
               key={account.id}
@@ -251,7 +250,7 @@ function AccountCard({
   busy: boolean;
 }) {
   return (
-    <div className={`rounded-[28px] border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] ${account.isArchived ? "opacity-80" : ""}`}>
+    <div className={`rounded-[28px] border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))] shadow-sm ${account.isArchived ? "opacity-80" : ""}`}>
       <div className="flex items-center gap-3 p-3 pb-2">
         <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl flex-none" style={{ background: account.color + "25" }}>
           {account.icon}

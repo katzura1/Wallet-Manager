@@ -12,8 +12,9 @@ import { predictBudgetStatus, getBudgetsForCategoriesWithInheritance } from "@/d
 import { getCategoryExpenseData } from "@/db/transactions";
 import { getCategories } from "@/db/categories";
 import { db } from "@/db/db";
-import { Plus, Settings, CreditCard, Eye, EyeOff, AlertTriangle, Target, ChevronDown, ChevronUp, MoreHorizontal, TrendingDown, TrendingUp, ArrowRightLeft, Sparkles } from "lucide-react";
+import { Plus, Settings, CreditCard, Eye, EyeOff, AlertTriangle, Target, ChevronDown, ChevronUp, MoreHorizontal, TrendingDown, TrendingUp, ArrowRightLeft, Sparkles, MessageCircle } from "lucide-react";
 import type { RecurringTransaction, Transaction } from "@/types";
+import { useAppLayout, usePageAction } from "@/components/layout/appLayoutContext";
 
 function formatCompactRupiah(value: number) {
   if (value === 0) return "Rp 0";
@@ -50,6 +51,7 @@ interface AnomalyAlertItem {
 }
 
 export default function Dashboard() {
+  const { openChat } = useAppLayout();
   const { accounts, transactions, categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -66,7 +68,6 @@ export default function Dashboard() {
   const [accountsCollapsed, setAccountsCollapsed] = useState(false);
   const [recentExpanded, setRecentExpanded] = useState(false);
   const [heroMenuOpen, setHeroMenuOpen] = useState(false);
-  const [fabOpen, setFabOpen] = useState(false);
   const heroMenuRef = useRef<HTMLDivElement | null>(null);
 
   function toggleBalanceHidden() {
@@ -240,14 +241,12 @@ export default function Dashboard() {
   }
 
   function openTransaction(type: Transaction["type"]) {
-    setFabOpen(false);
     setHeroMenuOpen(false);
     setDefaultType(type);
     setAddOpen(true);
   }
 
   function openAiTransaction() {
-    setFabOpen(false);
     setHeroMenuOpen(false);
     setAiOpen(true);
   }
@@ -257,58 +256,66 @@ export default function Dashboard() {
       label: "Pengeluaran",
       helper: "Catat belanja dan biaya",
       icon: TrendingDown,
-      className: "text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-300",
       onClick: () => openTransaction("expense"),
     },
     {
       label: "Pemasukan",
       helper: "Gaji, bonus, pemasukan lain",
       icon: TrendingUp,
-      className: "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300",
       onClick: () => openTransaction("income"),
     },
     {
       label: "Transfer",
       helper: "Pindah saldo antar akun",
       icon: ArrowRightLeft,
-      className: "text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-300",
       onClick: () => openTransaction("transfer"),
     },
     {
-      label: "AI Assistant",
-      helper: "Input cepat dari teks atau struk",
+      label: "Input AI/Struk",
+      helper: "Input dari teks atau struk",
       icon: Sparkles,
-      className: "text-[hsl(var(--primary))] bg-[hsl(var(--surface-2))]",
       onClick: openAiTransaction,
+    },
+    {
+      label: "Chat AI",
+      helper: "Tanya tentang keuanganmu",
+      icon: MessageCircle,
+      onClick: openChat,
     },
   ];
 
+  usePageAction(accounts.length > 0 ? {
+    label: "Tambah transaksi",
+    onClick: () => openTransaction("expense"),
+    mobileActions: fabActions.map(({ label, helper, icon, onClick }) => ({ label, description: helper, icon, onClick })),
+  } : null);
+
   return (
-    <div className="px-4 pt-5 pb-28 space-y-5">
-      <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
+    <div className="grid grid-cols-1 space-y-5 px-4 pt-6 pb-4 lg:grid-cols-12 lg:gap-6 lg:space-y-0 lg:px-0 lg:pt-8">
+      <Card className="overflow-hidden border-transparent bg-[hsl(var(--hero))] text-[hsl(var(--hero-foreground))] lg:col-span-12">
         <CardContent className="p-5 space-y-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Ringkasan Hari Ini</p>
-              <p className="mt-4 text-xs font-medium text-[hsl(var(--muted-foreground))]">Total saldo</p>
+              <p className="text-sm font-medium text-white/70">Ringkasan hari ini</p>
+              <p className="mt-4 text-sm font-medium text-white/70">Total saldo</p>
               <h1 className="mt-1 text-[2.15rem] font-bold tracking-tight leading-[1.05] sm:text-4xl">
-                {balanceHidden ? <span className="tracking-[0.35em] text-2xl">••••••</span> : formatCurrency(totalBalance, currency)}
+                {balanceHidden ? <span className="text-2xl">••••••</span> : formatCurrency(totalBalance, currency)}
               </h1>
-              <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">{formatDate(now.toISOString(), "EEEE, dd MMMM yyyy")}</p>
+              <p className="mt-2 text-sm text-white/70">{formatDate(now.toISOString(), "EEEE, dd MMMM yyyy")}</p>
             </div>
             <div className="flex items-center gap-2 pt-1 flex-none">
-              <button onClick={toggleBalanceHidden} className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[hsl(var(--card))]/80 text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]">
+              <button onClick={toggleBalanceHidden} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/15">
                 {balanceHidden ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
               <div ref={heroMenuRef} className="relative">
                 <button
                   onClick={() => setHeroMenuOpen((value) => !value)}
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[hsl(var(--card))]/80 text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]"
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/15"
                 >
                   <MoreHorizontal size={18} />
                 </button>
                 {heroMenuOpen && (
-                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-44 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/98 p-2 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.55)] backdrop-blur-xl">
+                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-44 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 text-[hsl(var(--foreground))] shadow-lg">
                     <Link
                       to="/accounts"
                       onClick={() => setHeroMenuOpen(false)}
@@ -329,30 +336,31 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-[22px] bg-[hsl(var(--card))]/82 p-3 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] leading-tight text-[hsl(var(--muted-foreground))]">Pemasukan</p>
+          <div className="grid grid-cols-3 gap-2 lg:max-w-3xl">
+            <div className="rounded-2xl bg-white/10 p-3 text-center">
+              <p className="text-xs font-medium leading-tight text-white/70">Pemasukan</p>
               <p className="mt-2 text-sm font-bold text-emerald-500 leading-tight">{formatCompactRupiah(monthIncome)}</p>
-              <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">bulan ini</p>
+              <p className="mt-1 text-xs text-white/65">bulan ini</p>
             </div>
-            <div className="rounded-[22px] bg-[hsl(var(--card))]/82 p-3 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] leading-tight text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
+            <div className="rounded-2xl bg-white/10 p-3 text-center">
+              <p className="text-xs font-medium leading-tight text-white/70">Pengeluaran</p>
               <p className="mt-2 text-sm font-bold text-amber-500 leading-tight">{formatCompactRupiah(monthExpense)}</p>
-              <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">bulan ini</p>
+              <p className="mt-1 text-xs text-white/65">bulan ini</p>
             </div>
-            <div className="rounded-[22px] bg-[hsl(var(--card))]/82 p-3 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] leading-tight text-[hsl(var(--muted-foreground))]">Net</p>
+            <div className="rounded-2xl bg-white/10 p-3 text-center">
+              <p className="text-xs font-medium leading-tight text-white/70">Saldo bersih</p>
               <p className={`mt-2 text-sm font-bold leading-tight ${monthIncome - monthExpense >= 0 ? "text-[hsl(var(--primary))]" : "text-red-600 dark:text-red-400"}`}>
-                {formatCompactRupiah(Math.abs(monthIncome - monthExpense))}
+                {monthIncome - monthExpense < 0 ? "−" : ""}{formatCompactRupiah(Math.abs(monthIncome - monthExpense))}
               </p>
-              <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">bulan ini</p>
+              <p className="mt-1 text-xs text-white/65">bulan ini</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      <div className="grid grid-cols-1 items-start gap-5 lg:col-span-12 lg:grid-cols-12 lg:gap-6">
       {accounts.length > 0 && (nextBill || topBudgetAlert || topAnomalyAlert) && (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden lg:col-span-5">
           <CardContent className="p-5 space-y-4">
             <div className="space-y-3">
               <div>
@@ -520,13 +528,13 @@ export default function Dashboard() {
 
       {/* Account Cards */}
       {accounts.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-3 lg:col-span-7">
           <button
             onClick={() => setAccountsCollapsed((value) => !value)}
             className="w-full flex items-center justify-between gap-3"
           >
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))] text-left">Akun Kamu</p>
+              <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] text-left">Akun Kamu</p>
               <p className="text-sm font-semibold text-left mt-1">
                 {accounts.length} akun aktif
               </p>
@@ -542,12 +550,12 @@ export default function Dashboard() {
               {accounts.map((account) => (
                 <div
                   key={account.id}
-                  className="flex-none w-40 rounded-[28px] p-4 text-white relative overflow-hidden shadow-[0_20px_55px_-28px_rgba(15,23,42,0.7)]"
-                  style={{ background: `linear-gradient(135deg, ${account.color}, ${account.color}cc)` }}
+                  className="relative flex-none w-40 overflow-hidden rounded-3xl p-4 text-white shadow-sm"
+                  style={{ background: account.color }}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xl">{account.icon}</span>
-                    <span className="text-[10px] px-2 py-1 rounded-full bg-white/15 uppercase tracking-[0.16em]">{account.type}</span>
+                    <span className="text-[10px] px-2 py-1 rounded-full bg-white/15 ">{account.type}</span>
                   </div>
                   <p className="text-xs opacity-80 mt-6 truncate">{account.name}</p>
                   <p className="font-bold text-base mt-1 leading-tight">{formatCurrency(account.currentBalance, currency)}</p>
@@ -560,10 +568,9 @@ export default function Dashboard() {
 
       {/* Recent Transactions */}
       {recentTxs.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-3 lg:col-span-7">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Activity</p>
               <p className="mt-1 text-sm font-semibold">Transaksi terbaru</p>
             </div>
             <div className="flex items-center gap-3">
@@ -598,7 +605,7 @@ export default function Dashboard() {
       )}
 
       {accounts.length === 0 && (
-        <div className="py-4 space-y-5">
+        <div className="space-y-5 py-4 lg:col-span-12">
           <div className="text-center">
             <div className="text-6xl mb-3">💰</div>
             <h2 className="text-xl font-bold">Selamat Datang!</h2>
@@ -619,13 +626,11 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl border-2 border-dashed border-[hsl(var(--border))] opacity-50">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] flex items-center justify-center text-sm font-bold flex-none">2</div>
-                <div>
-                  <p className="font-semibold text-sm">Catat transaksi pertama</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Pengeluaran, pemasukan, atau transfer antar akun</p>
-                </div>
+            <div className="flex items-center gap-3 rounded-xl border border-dashed border-[hsl(var(--border))] px-3 py-2.5 opacity-60">
+              <div className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-[hsl(var(--muted))] text-sm font-bold text-[hsl(var(--muted-foreground))]">2</div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Catat transaksi pertama</p>
+                <p className="truncate text-xs text-[hsl(var(--muted-foreground))]">Pengeluaran, pemasukan, atau transfer antar akun</p>
               </div>
             </div>
           </div>
@@ -638,40 +643,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {accounts.length > 0 && (
-        <div className="fixed bottom-[calc(6.3rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-3 sm:right-[max(1rem,calc((100vw-36rem)/2+1rem))]">
-          {fabOpen && (
-            <div className="w-[min(19rem,calc(100vw-2rem))] rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/97 p-2 shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-              <p className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Quick Actions</p>
-              <div className="mt-2 space-y-1">
-                {fabActions.map((item) => (
-                  <button
-                    key={item.label}
-                    onClick={item.onClick}
-                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-[hsl(var(--surface-2))]"
-                  >
-                    <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${item.className}`}>
-                      <item.icon size={17} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-[hsl(var(--foreground))]">{item.label}</span>
-                      <span className="mt-0.5 block text-xs text-[hsl(var(--muted-foreground))]">{item.helper}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={() => setFabOpen((value) => !value)}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-[0_24px_50px_-24px_hsl(var(--primary))] transition-transform active:scale-95"
-            aria-label="Buka quick actions"
-          >
-            <Plus size={18} className={`transition-transform ${fabOpen ? "rotate-45" : "rotate-0"}`} />
-          </button>
-        </div>
-      )}
+      </div>
 
       <TransactionForm
         open={addOpen}
@@ -710,5 +682,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-

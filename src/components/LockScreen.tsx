@@ -38,7 +38,7 @@ export function LockScreen() {
       <div className="flex flex-col items-center gap-8 w-full max-w-sm px-8">
         {/* App icon */}
         <div className="flex flex-col items-center gap-2">
-          <div className="w-18 h-18 rounded-[28px] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] flex items-center justify-center text-2xl shadow-[0_20px_50px_-28px_hsl(var(--primary))]">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(var(--primary))] text-2xl text-[hsl(var(--primary-foreground))] shadow-sm">
             💰
           </div>
           <p className="text-xl font-bold text-[hsl(var(--foreground))]">Wallet</p>
@@ -66,12 +66,12 @@ export function LockScreen() {
         )}
 
         {/* Numpad */}
-        <div className="grid grid-cols-3 gap-3 w-full rounded-[32px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-4 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)]">
+        <div className="grid w-full grid-cols-3 gap-3 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
           {["1","2","3","4","5","6","7","8","9"].map((d) => (
             <button
               key={d}
               onClick={() => press(d)}
-              className="h-16 rounded-2xl bg-[hsl(var(--card))] border border-[hsl(var(--border))] text-xl font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))] active:scale-95 transition-transform shadow-sm"
+              className="h-16 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-xl font-semibold text-[hsl(var(--foreground))] shadow-sm transition-transform hover:bg-[hsl(var(--surface-2))] active:scale-95"
             >
               {d}
             </button>
@@ -80,13 +80,13 @@ export function LockScreen() {
           <div />
           <button
             onClick={() => press("0")}
-            className="h-16 rounded-2xl bg-[hsl(var(--card))] border border-[hsl(var(--border))] text-xl font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))] active:scale-95 transition-transform shadow-sm"
+            className="h-16 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-xl font-semibold text-[hsl(var(--foreground))] shadow-sm transition-transform hover:bg-[hsl(var(--surface-2))] active:scale-95"
           >
             0
           </button>
           <button
             onClick={del}
-            className="h-16 rounded-2xl bg-[hsl(var(--card))] border border-[hsl(var(--border))] text-xl font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))] active:scale-95 transition-transform shadow-sm"
+            className="h-16 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-xl font-semibold text-[hsl(var(--foreground))] shadow-sm transition-transform hover:bg-[hsl(var(--surface-2))] active:scale-95"
           >
             ⌫
           </button>

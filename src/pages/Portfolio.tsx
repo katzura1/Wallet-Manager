@@ -6,8 +6,9 @@ import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, g
 import { syncAllPrices, searchCoins, anyPriceStale, getUsdIdr, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
-import { Eye, EyeOff, Clock, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { Eye, EyeOff, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
+import { usePageAction } from "@/components/layout/appLayoutContext";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -521,7 +522,7 @@ function AssetCard({ asset, price, currency, hidden = false, onEdit, onDelete, o
   const roiPct = gainPct; // ROI % is same as gain %
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)]">
+    <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm">
       <div className="px-4 pt-4 pb-3 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -549,9 +550,9 @@ function AssetCard({ asset, price, currency, hidden = false, onEdit, onDelete, o
 
         <div className="grid grid-cols-[1.4fr_1fr] gap-3">
           <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-3.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Nilai Saat Ini</p>
+            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Nilai Saat Ini</p>
             <p className="mt-2 text-base font-bold leading-tight text-[hsl(var(--foreground))]">
-              {hidden ? <span className="tracking-widest">•••</span> : currentValue !== null ? formatCurrency(currentValue, currency) : "—"}
+              {hidden ? <span className="st">•••</span> : currentValue !== null ? formatCurrency(currentValue, currency) : "—"}
             </p>
             <div className="mt-2 flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))]">
               <span>{hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${asset.type === "gold_physical" || asset.type === "gold_digital" ? "g" : asset.type === "deposito" ? "dep" : "u"}`}</span>
@@ -560,7 +561,7 @@ function AssetCard({ asset, price, currency, hidden = false, onEdit, onDelete, o
             </div>
           </div>
           <div className={`rounded-3xl px-4 py-3.5 ${gain !== null && gain >= 0 ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-            <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${gain !== null && gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Gain</p>
+            <p className={`text-[10px] font-semibold ${gain !== null && gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Gain</p>
             {gain !== null && gainPct !== null ? (
               <>
                 <p className={`mt-2 text-base font-bold leading-tight ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(gain)}`}>
@@ -837,6 +838,8 @@ export default function Portfolio() {
   const [usdIdrRate, setUsdIdrRate] = useState<number>(16200);
   const [historyZoomed, setHistoryZoomed] = useState(false);
 
+  usePageAction({ label: "Tambah aset", onClick: () => setAddOpen(true) });
+
   function togglePortfolioHidden() {
     setPortfolioHidden((v) => {
       localStorage.setItem("portfolio_hidden", v ? "0" : "1");
@@ -1048,13 +1051,12 @@ export default function Portfolio() {
   ];
 
   return (
-    <div className="px-4 pt-5 pb-32 space-y-5 max-w-xl mx-auto">
+    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
       {/* Header */}
-      <div className="rounded-4xl border border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)] p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)]">
+      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
         <div className="space-y-3.5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Portfolio</p>
               <h1 className="mt-1 text-[2rem] font-bold tracking-tight leading-[1.05] text-[hsl(var(--foreground))]">Portofolio</h1>
               <p className="mt-2 max-w-sm text-sm leading-6 text-[hsl(var(--muted-foreground))]">Pantau aset dan performa tanpa banyak scroll.</p>
             </div>
@@ -1073,12 +1075,12 @@ export default function Portfolio() {
           <div className="rounded-3xl bg-[hsl(var(--card))]/82 px-4 py-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Total Portofolio</p>
+                <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Total Portofolio</p>
                 <p className="mt-2 text-[2rem] font-bold leading-[1.05] text-[hsl(var(--foreground))]">
-                  {portfolioHidden ? <span className="tracking-widest">••••••</span> : formatCurrency(totalValue, currency)}
+                  {portfolioHidden ? <span className="st">••••••</span> : formatCurrency(totalValue, currency)}
                 </p>
                 <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {portfolioHidden ? <span className="tracking-widest">••••••</span> : `$${(totalValue / (usdIdrRate || 16200)).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
+                  {portfolioHidden ? <span className="st">••••••</span> : `$${(totalValue / (usdIdrRate || 16200)).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
                 </p>
                 <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{assets.length} aset aktif</p>
               </div>
@@ -1099,14 +1101,14 @@ export default function Portfolio() {
       {assets.length > 0 && (
         <>
           {/* Summary Card with Metric Tabs */}
-          <div className="rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)]">
+          <div className="rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden shadow-sm">
             <div className="p-3 pb-0">
               <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1">
               {(["Summary", "Performance"] as const).map((label, idx) => (
                 <button
                   key={idx}
                   onClick={() => setSummaryTab(idx)}
-                  className={`flex-1 rounded-xl py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                  className={`flex-1 rounded-xl py-2.5 text-[11px] font-semibold transition-colors ${
                     summaryTab === idx
                       ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
                       : "text-[hsl(var(--muted-foreground))] hover:bg-white/70 dark:hover:bg-white/5"
@@ -1126,13 +1128,13 @@ export default function Portfolio() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))] mb-1">Modal</p>
+                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] mb-1">Modal</p>
                       <p className="text-sm font-semibold leading-tight text-[hsl(var(--foreground))]">
                         {portfolioHidden ? "•••" : formatCurrency(totalCost, currency)}
                       </p>
                     </div>
                     <div className={`rounded-3xl px-4 py-4 ${totalGain >= 0 ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-                      <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] mb-1 ${totalGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Keuntungan</p>
+                      <p className={`text-[10px] font-semibold mb-1 ${totalGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Keuntungan</p>
                       {portfolioHidden ? (
                         <p className="text-sm font-bold text-[hsl(var(--muted-foreground))]">•••</p>
                       ) : (
@@ -1177,7 +1179,7 @@ export default function Portfolio() {
                 return (
                   <div className="space-y-3">
                     <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">ROI Keseluruhan</p>
+                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">ROI Keseluruhan</p>
                       <p className={`mt-2 text-2xl font-bold ${totalGainPct >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                         {portfolioHidden ? "•••" : fmtPct(totalGainPct)}
                       </p>
@@ -1185,7 +1187,7 @@ export default function Portfolio() {
                     <div className="grid grid-cols-2 gap-3">
                       {bestAsset.asset && bestAsset.pct !== null && (
                         <div className="rounded-3xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-4 py-4 min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400 mb-1">Terbaik</p>
+                          <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Terbaik</p>
                           <p className="text-sm font-bold text-[hsl(var(--foreground))] truncate">{bestAsset.asset.symbol}</p>
                           <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))] truncate">{bestAsset.asset.name}</p>
                           <p className="mt-2 text-base font-bold text-emerald-500">{fmtPct(bestAsset.pct)}</p>
@@ -1193,7 +1195,7 @@ export default function Portfolio() {
                       )}
                       {worstAsset.asset && worstAsset.pct !== null && worstAsset.pct !== Infinity && (
                         <div className="rounded-3xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-4 min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-red-600 dark:text-red-400 mb-1">Terburuk</p>
+                          <p className="text-[10px] font-semibold text-red-600 dark:text-red-400 mb-1">Terburuk</p>
                           <p className="text-sm font-bold text-[hsl(var(--foreground))] truncate">{worstAsset.asset.symbol}</p>
                           <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))] truncate">{worstAsset.asset.name}</p>
                           <p className="mt-2 text-base font-bold text-red-500">{fmtPct(worstAsset.pct)}</p>
@@ -1224,7 +1226,7 @@ export default function Portfolio() {
           </div>
 
           {/* Asset List Section */}
-          <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] space-y-4">
+          <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-sm space-y-4">
             <button
               type="button"
               onClick={toggleAssetListExpanded}
@@ -1268,7 +1270,7 @@ export default function Portfolio() {
 
           {/* Portfolio Value History */}
           {history.length > 1 && (
-            <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] space-y-4">
+            <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-sm space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
@@ -1342,7 +1344,7 @@ export default function Portfolio() {
 
           {/* Allocation Table */}
           {pieData.length > 0 && (
-            <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)] space-y-4">
+            <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-sm space-y-4">
               <button
                 type="button"
                 onClick={() => setAllocationExpanded((value) => !value)}
@@ -1358,7 +1360,24 @@ export default function Portfolio() {
               </button>
               {allocationExpanded && (
                 <div className="overflow-x-auto -mx-1">
-                  <table className="w-full text-xs">
+                  <div className="space-y-2 sm:hidden">
+                    {pieData.map((d) => {
+                      const pct = totalValue > 0 ? (d.value / totalValue) * 100 : 0;
+                      return (
+                        <div key={d.name} className="flex items-center justify-between gap-3 rounded-2xl border border-[hsl(var(--border))] p-3">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: d.color }} />
+                            <span className="truncate text-sm font-medium">{d.name}</span>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm font-semibold">{formatCurrency(d.value, currency)}</p>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">{pct.toFixed(1)}%</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <table className="hidden w-full text-xs sm:table">
                     <thead>
                       <tr className="text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))] text-left">
                         <th className="pb-2 font-medium px-1">Kategori</th>
@@ -1435,15 +1454,6 @@ export default function Portfolio() {
         finishedAt={syncFinishedAt}
       />
 
-      {/* Floating Add button */}
-      <div className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2 sm:right-[max(1rem,calc((100vw-36rem)/2+1rem))]">
-        <button
-          onClick={() => setAddOpen(true)}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-[0_24px_50px_-24px_hsl(var(--primary))] hover:brightness-[1.06] active:scale-95 transition"
-        >
-          <Plus size={18} />
-        </button>
-      </div>
     </div>
   );
 }

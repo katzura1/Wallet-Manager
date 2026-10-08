@@ -54,7 +54,7 @@ export function BudgetForm({ open, onClose, onSaved, categories, month, initialC
     <Modal open={open} onClose={onClose} title="Atur Budget">
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Budget Period</p>
+          <p className="text-sm font-semibold">Periode anggaran</p>
           <p className="mt-1 text-sm text-[hsl(var(--foreground))] capitalize">{monthLabel}</p>
           <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">Atur limit kategori untuk menjaga pengeluaran tetap terkendali.</p>
         </div>

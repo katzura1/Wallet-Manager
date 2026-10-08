@@ -14,7 +14,7 @@ function csvEscape(value: string) {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
+export function LedgerContent() {
   const { accounts, categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
   const navigate = useNavigate();
@@ -162,12 +162,11 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
   }
 
   return (
-    <div className={embedded ? "px-4 pt-5 pb-4 space-y-5" : "px-4 pt-5 pb-24 space-y-5"}>
-      <Card className="overflow-hidden border-transparent bg-[linear-gradient(135deg,hsl(var(--card))_0%,hsl(var(--surface-2))_100%)]">
+    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
+      <Card className="overflow-hidden">
         <CardContent className="p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Analytics</p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight">Laporan</h1>
               <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Baca pola cashflow, kategori, budget, dan perubahan performa bulanan.</p>
             </div>
@@ -228,11 +227,11 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
             <CardContent className="p-5 space-y-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">Ringkasan Saldo</p>
+                  <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Ringkasan Saldo</p>
                   <p className="mt-1 text-sm font-semibold break-words">{selectedAccount.name}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">Saldo Akhir</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Saldo Akhir</p>
                   <p className={`mt-1 text-lg font-bold ${ledger.closingBalance >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                     {formatCurrency(ledger.closingBalance, currency)}
                   </p>
@@ -282,7 +281,42 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
                     Belum ada transaksi pada rentang ini.
                   </div>
                 ) : (
-                  <table className="w-full divide-y divide-[hsl(var(--border))] text-xs lg:text-sm">
+                  <>
+                  <div className="space-y-4 bg-[hsl(var(--card))] p-3 sm:hidden">
+                    {groupedRows.map(([date, rows]) => (
+                      <section key={date} className="space-y-2">
+                        <h3 className="px-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]">{formatPlainDate(date)}</h3>
+                        {rows.map((row) => {
+                          const category = categories.find((item) => item.id === row.transaction.categoryId);
+                          const sourceAccount = accounts.find((item) => item.id === row.transaction.accountId);
+                          const targetAccount = accounts.find((item) => item.id === row.transaction.toAccountId);
+                          const description = row.transaction.type === "transfer"
+                            ? row.signedAmount > 0
+                              ? `Transfer masuk dari ${sourceAccount?.name ?? "akun lain"}`
+                              : `Transfer keluar ke ${targetAccount?.name ?? "akun lain"}`
+                            : row.transaction.note || "Tanpa catatan";
+                          const mutationAmount = row.debit > 0 ? row.debit : row.credit;
+                          const mutationTone = row.debit > 0 ? "text-red-500" : "text-emerald-500";
+                          return (
+                            <div key={row.transaction.id} className="rounded-2xl border border-[hsl(var(--border))] p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold">{category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "Tanpa kategori")}</p>
+                                  <p className="mt-1 break-words text-xs text-[hsl(var(--muted-foreground))]">{description}</p>
+                                </div>
+                                <p className={`shrink-0 text-right text-sm font-semibold ${mutationTone}`}>{mutationAmount > 0 ? formatCurrency(mutationAmount, currency) : "—"}</p>
+                              </div>
+                              <div className="mt-3 flex items-center justify-between border-t border-[hsl(var(--border))] pt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                                <span>Saldo berjalan</span>
+                                <span className={`font-medium ${row.balanceAfter < 0 ? "text-red-500" : "text-[hsl(var(--foreground))]"}`}>{formatCurrency(row.balanceAfter, currency)}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </section>
+                    ))}
+                  </div>
+                  <table className="hidden w-full divide-y divide-[hsl(var(--border))] text-xs sm:table lg:text-sm">
                     <thead className="bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] sticky top-0">
                       <tr>
                         <th className="px-2 sm:px-2.5 py-2 sm:py-2.5 text-left font-semibold">Keterangan</th>
@@ -294,7 +328,7 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
                       {groupedRows.map(([date, rows]) => (
                         <Fragment key={date}>
                           <tr key={`${date}-group`} className="bg-[hsl(var(--surface-2))]/70">
-                            <td className="px-2 sm:px-2.5 py-2 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]" colSpan={3}>
+                            <td className="px-2 sm:px-2.5 py-2 text-[10px] sm:text-[11px] font-semibold text-[hsl(var(--muted-foreground))]" colSpan={3}>
                               {formatPlainDate(date)}
                             </td>
                           </tr>
@@ -332,6 +366,7 @@ export function LedgerContent({ embedded = false }: { embedded?: boolean }) {
                       ))}
                     </tbody>
                   </table>
+                  </>
                 )}
               </div>
             </CardContent>
