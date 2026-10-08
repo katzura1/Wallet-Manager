@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -62,7 +62,6 @@ export default function Reports() {
   const [yoyComparison, setYoyComparison] = useState<YearOverYearComparison | null>(null);
   const [incomeCategories, setIncomeCategories] = useState<CategoryIncomeEntry[]>([]);
   const [categoryTrends, setCategoryTrends] = useState<CategoryTrend[]>([]);
-  const [activeIncomeTab, setActiveIncomeTab] = useState<"expense" | "income">("expense");
   const [showTrends, setShowTrends] = useState(false);
 
   const now = new Date();
@@ -79,13 +78,9 @@ export default function Reports() {
 
   useEffect(() => {
     void refreshAll();
-  }, []);
+  }, [refreshAll]);
 
-  useEffect(() => {
-    void loadChartData();
-  }, [selectedYear, selectedMonth, categories, mode, dateFrom, dateTo, currency]);
-
-  async function loadChartData() {
+  const loadChartData = useCallback(async () => {
     const monthStr = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
 
     let catMap: Record<number, number>;
@@ -120,7 +115,7 @@ export default function Reports() {
       .map((c) => c.id)
       .filter((id): id is number => id !== undefined);
 
-    const [bars, catMapM, sumM, prevSumM, history, bdgtList, explicitBdgts] = await Promise.all([
+    const [bars, catMapM, sumM, prevSumM, history, bdgtList, explicitBdgts, yearSummary, yearComparison, incomeData, trends] = await Promise.all([
       getMonthlyChartData(6),
       getCategoryExpenseData(selectedYear, selectedMonth),
       getMonthlySummary(selectedYear, selectedMonth),
@@ -151,10 +146,10 @@ export default function Reports() {
     setBalanceHistory(history);
     setBudgets(bdgtList);
     // Set new state values
-    setYtdSummary(ytdSummary);
-    setYoyComparison(yoyComparison);
-    setIncomeCategories(incomeCategories);
-    setCategoryTrends(categoryTrends);
+    setYtdSummary(yearSummary);
+    setYoyComparison(yearComparison);
+    setIncomeCategories(incomeData);
+    setCategoryTrends(trends);
     const pie: PieEntry[] = mergePieEntries(
       Object.entries(catMapM).map(([catId, amount]) => {
         const cat = categories.find((c) => c.id === Number(catId));
@@ -205,7 +200,11 @@ export default function Reports() {
     } finally {
       setMonthlyInsightLoading(false);
     }
-  }
+  }, [selectedYear, selectedMonth, categories, mode, dateFrom, dateTo, currency]);
+
+  useEffect(() => {
+    void loadChartData();
+  }, [loadChartData]);
 
   function openBudgetForm(catId: number) {
     const existing = budgets.find((b) => b.categoryId === catId);
@@ -321,7 +320,7 @@ export default function Reports() {
   }
 
   return (
-    <div className="grid grid-cols-1 items-start gap-4 px-4 pt-5 pb-4 lg:grid-cols-2 lg:gap-5 lg:space-y-0 lg:px-0 lg:pt-7">
+    <div className="grid grid-cols-1 [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-[hsl(var(--primary))] [&>div]:min-w-0 items-start gap-4 px-4 pt-5 pb-4 lg:grid-cols-2 lg:space-y-0 lg:px-0 lg:pt-7">
       <Card className="overflow-hidden lg:col-span-2">
         <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -332,6 +331,7 @@ export default function Reports() {
             <div className="inline-flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1 text-xs no-print">
                 <button
                   type="button"
+                  aria-current="page"
                   onClick={() => handleReportTabChange("overview")}
                   className="min-h-9 rounded-lg bg-[hsl(var(--primary))] px-3 font-medium text-[hsl(var(--primary-foreground))] transition-colors"
                 >
@@ -348,14 +348,16 @@ export default function Reports() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1 text-sm sm:flex-1">
+          <div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1 text-sm sm:w-56 sm:shrink-0">
         <button
+          aria-pressed={mode === "monthly"}
           onClick={() => setMode("monthly")}
           className={`min-h-10 flex-1 rounded-lg font-medium transition-colors ${mode === "monthly" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--card))]"}`}
         >
           📅 Bulanan
         </button>
         <button
+          aria-pressed={mode === "range"}
           onClick={() => setMode("range")}
           className={`min-h-10 flex-1 rounded-lg font-medium transition-colors ${mode === "range" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--card))]"}`}
         >
@@ -363,7 +365,7 @@ export default function Reports() {
         </button>
           </div>
           {mode === "monthly" ? (
-            <div className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-[hsl(var(--border))] px-2 sm:flex-1">
+            <div className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-[hsl(var(--border))] px-2 sm:w-64">
               <button aria-label="Bulan sebelumnya" onClick={prevMonth} className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[hsl(var(--surface-2))]"><ChevronLeft size={18} /></button>
               <p className="font-semibold capitalize text-sm">{monthLabel}</p>
               <button aria-label="Bulan berikutnya" onClick={nextMonth} className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[hsl(var(--surface-2))]"><ChevronRight size={18} /></button>
@@ -371,142 +373,367 @@ export default function Reports() {
           ) : (
             <div className="grid grid-cols-2 gap-2 rounded-xl border border-[hsl(var(--border))] p-2 sm:flex-[1.5]">
               <label className="min-w-0 text-[11px] text-[hsl(var(--muted-foreground))]">Dari
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 w-full min-w-0 bg-transparent text-sm text-[hsl(var(--foreground))] outline-none" />
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 w-full min-w-0 max-w-full rounded focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))] bg-transparent text-sm text-[hsl(var(--foreground))] outline-none" />
               </label>
               <label className="min-w-0 text-[11px] text-[hsl(var(--muted-foreground))]">Sampai
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 w-full min-w-0 bg-transparent text-sm text-[hsl(var(--foreground))] outline-none" />
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 w-full min-w-0 max-w-full rounded focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))] bg-transparent text-sm text-[hsl(var(--foreground))] outline-none" />
               </label>
             </div>
           )}
           </div>
+          <dl className="grid grid-cols-2 gap-3 border-t border-[hsl(var(--border))] pt-3 sm:grid-cols-3">
+            {[
+              { label: "Pemasukan", value: summary.income, comparison: incomeComparison, tone: "text-emerald-500", annualChange: yoyComparison?.incomeChange },
+              { label: "Pengeluaran", value: summary.expense, comparison: expenseComparison, tone: "text-red-500", annualChange: yoyComparison?.expenseChange },
+              { label: "Saldo bersih", value: summary.net, comparison: netComparison, tone: summary.net >= 0 ? "text-emerald-500" : "text-red-500", annualChange: yoyComparison?.netChange },
+            ].map(({ label, value, comparison, tone, annualChange }, index) => (
+              <div key={label} className={`min-w-0 ${index === 2 ? "col-span-2 sm:col-span-1" : ""}`}>
+                <dt className="text-xs text-[hsl(var(--muted-foreground))]">{label}</dt>
+                <dd className={`mt-1 break-words text-base font-bold tabular-nums sm:text-xl ${tone}`}>{formatCurrency(value, currency)}</dd>
+                {mode === "monthly" && comparison && <dd className={`mt-1 text-[11px] ${comparison.className}`}>{comparison.label}</dd>}
+                {mode === "monthly" && yoyComparison?.hasPreviousYearData && annualChange !== undefined && (
+                  <dd className={`mt-1 text-[11px] ${(label === "Pengeluaran" ? annualChange <= 0 : annualChange >= 0) ? "text-emerald-500" : "text-red-500"}`}>
+                    {annualChange > 0 ? "+" : ""}{annualChange}% vs {new Date(yoyComparison.previousYear, yoyComparison.currentMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" })}
+                  </dd>
+                )}
+              </div>
+            ))}
+          </dl>
+          {mode === "monthly" && ytdSummary && ytdSummary.totalIncome > 0 && (
+            <section aria-label="Ringkasan tahunan" className="border-t border-[hsl(var(--border))] pt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <h2 className="font-semibold">YTD {selectedYear} <span className="font-normal text-[hsl(var(--muted-foreground))]">· {ytdSummary.monthsIncluded} bulan berjalan</span></h2>
+                <span className={ytdSummary.savingsRate >= 20 ? "text-emerald-600 dark:text-emerald-400" : ytdSummary.savingsRate >= 10 ? "text-amber-600 dark:text-amber-400" : "text-red-500"}>Tingkat tabungan {ytdSummary.savingsRate}%</span>
+              </div>
+              <dl className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {[
+                  { label: "Total Masuk", value: ytdSummary.totalIncome, tone: "text-emerald-500" },
+                  { label: "Total Keluar", value: ytdSummary.totalExpense, tone: "text-red-500" },
+                  { label: "Tersisa", value: ytdSummary.netSavings, tone: ytdSummary.netSavings >= 0 ? "text-emerald-500" : "text-red-500" },
+                ].map(({ label, value, tone }, index) => (
+                  <div key={label} className={`min-w-0 ${index === 2 ? "col-span-2 sm:col-span-1" : ""}`}>
+                    <dt className="text-[11px] text-[hsl(var(--muted-foreground))]">{label}</dt>
+                    <dd className={`mt-1 break-words text-sm font-semibold tabular-nums ${tone}`}>{formatCurrency(value, currency)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
         </CardContent>
       </Card>
 
-      {/* Monthly summary cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:col-span-2">
-        <Card>
-          <CardContent className="p-4 flex flex-col justify-between h-full">
-            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Pemasukan</p>
-            <p className="font-bold text-lg text-emerald-500 mt-3">{formatCurrency(summary.income, currency)}</p>
-            {mode === "monthly" && incomeComparison && (
-              <p className={`text-[11px] mt-2 ${incomeComparison.className}`}>{incomeComparison.label}</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex flex-col justify-between h-full">
-            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
-            <p className="font-bold text-lg text-red-500 mt-3">{formatCurrency(summary.expense, currency)}</p>
-            {mode === "monthly" && expenseComparison && (
-              <p className={`text-[11px] mt-2 ${expenseComparison.className}`}>{expenseComparison.label}</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex flex-col justify-between h-full">
-            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Saldo bersih</p>
-            <p className={`font-bold text-lg mt-3 ${summary.net >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-              {formatCurrency(summary.net, currency)}
-            </p>
-            {mode === "monthly" && netComparison && (
-              <p className={`text-[11px] mt-2 ${netComparison.className}`}>{netComparison.label}</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Cash Flow Bar Chart — monthly only */}
+      {mode === "monthly" && <Card>
+        <CardHeader className="px-4 pt-4 pb-2">
+          <CardTitle>Arus Kas 6 Bulan</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 pt-1">
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={chartData} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip
+                  formatter={(val) => formatCurrency(Number(val), currency)}
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "12px",
+                    fontSize: "12px",
+                  }}
+                />
+                <Bar dataKey="income" name="Pemasukan" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" name="Pengeluaran" fill="#ef4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data</p>
+          )}
+        </CardContent>
+      </Card>}
 
-      {/* Year-to-Date Summary */}
-      {mode === "monthly" && ytdSummary && ytdSummary.totalIncome > 0 && (
-        <Card className="overflow-hidden lg:col-span-2">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">YTD {selectedYear}</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">{ytdSummary.monthsIncluded} bulan berjalan</p>
-              </div>
-              <div className="text-right">
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                  ytdSummary.savingsRate >= 20
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                    : ytdSummary.savingsRate >= 10
-                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    : "bg-red-500/10 text-red-600 dark:text-red-400"
-                }`}>
-                  <span>{ytdSummary.savingsRate >= 20 ? "✅" : ytdSummary.savingsRate >= 10 ? "⚠️" : "❌"}</span>
-                  Tingkat tabungan {ytdSummary.savingsRate}%
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="text-center p-2 rounded-xl bg-[hsl(var(--card))]/60">
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] r">Total Masuk</p>
-                <p className="font-bold text-sm text-emerald-500 mt-1">{formatCurrency(ytdSummary.totalIncome, currency)}</p>
-              </div>
-              <div className="text-center p-2 rounded-xl bg-[hsl(var(--card))]/60">
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] r">Total Keluar</p>
-                <p className="font-bold text-sm text-red-500 mt-1">{formatCurrency(ytdSummary.totalExpense, currency)}</p>
-              </div>
-              <div className="text-center p-2 rounded-xl bg-[hsl(var(--card))]/60">
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] r">Tersisa</p>
-                <p className={`font-bold text-sm mt-1 ${ytdSummary.netSavings >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                  {formatCurrency(ytdSummary.netSavings, currency)}
-                </p>
-              </div>
-            </div>
+      {/* Balance History — monthly only */}
+      {mode === "monthly" && balanceHistory.length > 0 && balanceHistory.some((d) => d.balance !== 0) && (
+        <Card className="min-w-0">
+          <CardHeader className="px-4 pt-4 pb-2">
+            <CardTitle>Riwayat Total Saldo</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-2">
+            <ResponsiveContainer width="100%" height={160}>
+              <AreaChart data={balanceHistory}>
+                <defs>
+                  <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip
+                  formatter={(val) => formatCurrency(Number(val), currency)}
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "12px",
+                    fontSize: "12px",
+                  }}
+                />
+                <Area dataKey="balance" name="Total Saldo" stroke="#6366f1" strokeWidth={2} fill="url(#balGrad)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       )}
 
-      {/* Year-over-Year Comparison */}
-      {mode === "monthly" && yoyComparison && yoyComparison.hasPreviousYearData && (
+      {/* Category breakdown */}
+      {(pieData.length > 0 || (mode === "monthly" && incomeCategories.length > 0)) && (
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>vs {new Date(yoyComparison.previousYear, yoyComparison.currentMonth - 1, 1).toLocaleString("id-ID", { month: "long" })} {yoyComparison.previousYear}</CardTitle>
+          <CardHeader className="px-4 pt-4 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle>Kategori</CardTitle>
+              {(pieData.length > 5 || (mode === "monthly" && incomeCategories.length > 5)) && (
+                <button type="button" onClick={() => setShowAllCategories((value) => !value)} aria-expanded={showAllCategories} className="inline-flex min-h-10 items-center gap-1 text-xs font-medium text-[hsl(var(--primary))]">
+                  {showAllCategories ? <ChevronUp size={14} /> : <ChevronDown size={14} />}{showAllCategories ? "Ringkas" : "Semua kategori"}
+                </button>
+              )}
+            </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="flex items-center gap-2 p-2 rounded-xl bg-emerald-500/5">
-                <span className={`text-lg ${yoyComparison.incomeChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                  {yoyComparison.incomeChange >= 0 ? "↑" : "↓"}
-                </span>
-                <div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Pemasukan</p>
-                  <p className={`text-sm font-bold ${yoyComparison.incomeChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                    {yoyComparison.incomeChange > 0 ? "+" : ""}{yoyComparison.incomeChange}%
-                  </p>
-                </div>
+          <CardContent className={`grid gap-4 p-4 pt-1 ${mode === "monthly" ? "lg:grid-cols-2" : ""}`}>
+              <section aria-label="Kategori Pengeluaran" className="min-w-0">
+                <h3 className="mb-2 text-sm font-semibold">Kategori Pengeluaran</h3>
+                <p className="mb-2 text-[11px] text-[hsl(var(--muted-foreground))]">Pengeluaran dan pemasukan bersih per kategori</p>
+                {pieData.length > 0 ? (
+                  <>
+                    <div className="sm:grid sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] sm:items-center sm:gap-3">
+                    <ResponsiveContainer width="100%" height={160}>
+                      <PieChart>
+                        <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={44} outerRadius={68} paddingAngle={3}>
+                          {pieData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(val) => formatCurrency(Number(val), currency)}
+                          contentStyle={{
+                            background: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+
+                    <div className="mt-2 space-y-2 lg:mt-0">
+                      {visiblePieData.map((entry) => {
+                        const pct = totalPieValue ? Math.round((entry.value / totalPieValue) * 100) : 0;
+                        return (
+                          <div key={entry.name} className="flex items-center gap-2.5">
+                            <span className="text-sm">{entry.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
+                                <span className="truncate">{entry.name}</span>
+                                <span className="max-w-full break-words font-medium tabular-nums">{formatCurrency(entry.value, currency)}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
+                                <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: entry.color }} />
+                              </div>
+                            </div>
+                            <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
+                          </div>
+                        );
+                      })}
+                      {!showAllCategories && pieData.length > visiblePieData.length && (
+                        <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                          {pieData.length - visiblePieData.length} kategori lain disembunyikan
+                        </p>
+                      )}
+                    </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data pengeluaran</p>
+                )}
+              </section>
+              {mode === "monthly" && <section aria-label="Sumber Pemasukan" className="min-w-0 lg:border-l lg:border-[hsl(var(--border))] lg:pl-4">
+                <h3 className="mb-2 text-sm font-semibold">Sumber Pemasukan</h3>
+                {incomeCategories.length > 0 ? (
+                  <div className="space-y-2">
+                    {incomeCategories.slice(0, showAllCategories ? undefined : 5).map((entry) => {
+                      const category = categories.find((c) => c.id === entry.categoryId);
+                      const totalIncome = incomeCategories.reduce((s, c) => s + c.amount, 0);
+                      const pct = totalIncome > 0 ? Math.round((entry.amount / totalIncome) * 100) : 0;
+                      return (
+                        <div key={entry.categoryId} className="flex items-center gap-2.5">
+                          <span className="text-sm">{category?.icon ?? "💰"}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
+                              <span className="truncate">{category?.name ?? "Lainnya"}</span>
+                              <span className="max-w-full break-words font-medium tabular-nums text-emerald-500">{formatCurrency(entry.amount, currency)}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
+                              <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: category?.color ?? "#22c55e" }} />
+                            </div>
+                          </div>
+                          <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                    {!showAllCategories && incomeCategories.length > 5 && (
+                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                        {incomeCategories.length - 5} kategori lain disembunyikan
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data pemasukan</p>
+                )}
+              </section>}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Budget vs Actuals — monthly only */}
+      {mode === "monthly" && budgetRows.length > 0 && (
+        <Card className="min-w-0">
+          <CardHeader className="px-4 pt-4 pb-2">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <CardTitle>Anggaran Bulan Ini</CardTitle>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Pemakaian dihitung dari pengeluaran bersih per kategori</p>
               </div>
-              <div className="flex items-center gap-2 p-2 rounded-xl bg-red-500/5">
-                <span className={`text-lg ${yoyComparison.expenseChange <= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                  {yoyComparison.expenseChange > 0 ? "↑" : "↓"}
-                </span>
-                <div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Pengeluaran</p>
-                  <p className={`text-sm font-bold ${yoyComparison.expenseChange <= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                    {yoyComparison.expenseChange > 0 ? "+" : ""}{yoyComparison.expenseChange}%
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 p-2 rounded-xl bg-indigo-500/5">
-                <span className={`text-lg ${yoyComparison.netChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                  {yoyComparison.netChange >= 0 ? "↑" : "↓"}
-                </span>
-                <div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Saldo bersih</p>
-                  <p className={`text-sm font-bold ${yoyComparison.netChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                    {yoyComparison.netChange > 0 ? "+" : ""}{yoyComparison.netChange}%
-                  </p>
-                </div>
+              <div className="flex items-center gap-2">
+                {(activeBudgetRows.length > 5 || unusedBudgetRows.length > 4) && (
+                  <button
+                    onClick={() => setShowAllBudgets((value) => !value)}
+                    className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
+                  >
+                    {showAllBudgets ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    {showAllBudgets ? "Ringkas" : "Semua anggaran"}
+                  </button>
+                )}
+                <button
+                  onClick={() => { setBudgetCategoryId(undefined); setBudgetInitialAmount(0); setBudgetFormRecurring(false); setBudgetFormOpen(true); }}
+                  className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
+                >
+                  <Target size={13} /> + Atur
+                </button>
               </div>
             </div>
+          </CardHeader>
+          <CardContent className="p-3 pt-1 space-y-2.5">
+            {visibleBudgetRows.map(({ category, actual, budget, isInherited, pct, prediction }) => {
+              const over = !!budget && actual > budget.amount;
+              return (
+                <div key={category.id} className="flex items-center gap-2.5">
+                  <span className="text-sm">{category.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
+                      <span className="truncate">{category.name}</span>
+                      <span className="max-w-full break-words font-medium tabular-nums">
+                        {formatCurrency(actual, currency)}
+                        {budget && <span className={`ml-1 ${over ? "text-red-500" : "text-[hsl(var(--muted-foreground))]"}`}>/ {formatCurrency(budget.amount, currency)}</span>}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {budget ? (
+                        <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))]">
+                          <div
+                            className="h-1.5 rounded-full transition-all"
+                            style={{ width: `${pct}%`, background: over ? "#ef4444" : pct > 80 ? "#f59e0b" : category.color }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))] relative">
+                          <div className="h-1.5 rounded-full transition-all" style={{ width: "100%", background: `${category.color}44` }} />
+                        </div>
+                      )}
+                      {isInherited && budget && (
+                        <Badge className="text-[9px] px-2 py-0.5 h-fit shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                          Inherited
+                        </Badge>
+                      )}
+                      {/* Budget Prediction */}
+                      {prediction && !over && prediction.predictedExhaustInDays !== null && prediction.predictedExhaustInDays <= 15 && (
+                        <span className="text-[9px] text-amber-500 shrink-0">
+                          ~{prediction.predictedExhaustInDays === 0 ? "habis" : `${prediction.predictedExhaustInDays}d`}
+                        </span>
+                      )}
+                    </div>
+                    {/* Over-budget warning */}
+                    {over && prediction && prediction.projectedOverrun > 0 && (
+                      <p className="text-[10px] text-red-500 mt-0.5">
+                        Proyeksi over {formatCurrency(prediction.projectedOverrun, currency)}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => openBudgetForm(category.id!)}
+                    aria-label={`Atur anggaran ${category.name}`}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                  >
+                    <Target size={12} />
+                  </button>
+                </div>
+              );
+            })}
+            {!showAllBudgets && activeBudgetRows.length > visibleBudgetRows.length && (
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                {activeBudgetRows.length - visibleBudgetRows.length} kategori budget aktif lain disembunyikan
+              </p>
+            )}
+
+            {unusedBudgetRows.length > 0 && (
+              <div className="pt-2 border-t border-[hsl(var(--border))]">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Belum terpakai bulan ini</p>
+                  <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{unusedBudgetRows.length} kategori</span>
+                </div>
+                <div className="space-y-2">
+                  {visibleUnusedBudgetRows.map(({ category, budget, isInherited }) => (
+                    <div key={category.id} className="flex items-center gap-2.5">
+                      <span className="text-sm">{category.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
+                          <span className="truncate">{category.name}</span>
+                          <span className="max-w-full break-words font-medium tabular-nums">0 / {formatCurrency(budget!.amount, currency)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))]" />
+                          {isInherited && (
+                            <Badge className="text-[9px] px-2 py-0.5 h-fit shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                              Inherited
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => openBudgetForm(category.id!)}
+                        aria-label={`Atur anggaran ${category.name}`}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                      >
+                        <Target size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {!showAllBudgets && unusedBudgetRows.length > visibleUnusedBudgetRows.length && (
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                      {unusedBudgetRows.length - visibleUnusedBudgetRows.length} budget belum terpakai disembunyikan
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
       {mode === "monthly" && (monthlyInsightLoading || monthlyInsight) && (
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
+        <Card className="min-w-0">
+          <CardHeader className="px-4 pt-4 pb-2">
+            <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <CardTitle>Insight Bulan Ini</CardTitle>
                 <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Ringkasan cepat dari angka paling penting bulan ini</p>
@@ -546,175 +773,11 @@ export default function Reports() {
         </Card>
       )}
 
-      {/* Cash Flow Bar Chart — monthly only */}
-      {mode === "monthly" && <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>Arus Kas 6 Bulan</CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 pt-1">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={chartData} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip
-                  formatter={(val) => formatCurrency(Number(val), currency)}
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "12px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Bar dataKey="income" name="Pemasukan" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" name="Pengeluaran" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data</p>
-          )}
-        </CardContent>
-      </Card>}
-
-      {/* Category Breakdown - Expense/Income tabs */}
-      {mode === "monthly" && (pieData.length > 0 || incomeCategories.length > 0) && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle>{activeIncomeTab === "expense" ? "Kategori Pengeluaran" : "Sumber Pemasukan"}</CardTitle>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                  {activeIncomeTab === "expense" ? "Pengeluaran dan pemasukan bersih per kategori" : "Sumber pemasukan utama"}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {(activeIncomeTab === "expense" ? pieData.length : incomeCategories.length) > 5 && (
-                  <button
-                    onClick={() => setShowAllCategories((v) => !v)}
-                    className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-                  >
-                    {showAllCategories ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    {showAllCategories ? "Ringkas" : "Semua"}
-                  </button>
-                )}
-                <div className="flex rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-0.5 text-xs">
-                  <button
-                    onClick={() => setActiveIncomeTab("expense")}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${activeIncomeTab === "expense" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))]"}`}
-                  >
-                    Pengeluaran
-                  </button>
-                  <button
-                    onClick={() => setActiveIncomeTab("income")}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${activeIncomeTab === "income" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))]"}`}
-                  >
-                    Pemasukan
-                  </button>
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-3 pt-1">
-            {activeIncomeTab === "expense" ? (
-              <>
-                {pieData.length > 0 ? (
-                  <>
-                    <div className="lg:grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-4">
-                    <ResponsiveContainer width="100%" height={160}>
-                      <PieChart>
-                        <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={44} outerRadius={68} paddingAngle={3}>
-                          {pieData.map((entry, i) => (
-                            <Cell key={i} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(val) => formatCurrency(Number(val), currency)}
-                          contentStyle={{
-                            background: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-
-                    <div className="mt-2 space-y-2 lg:mt-0">
-                      {visiblePieData.map((entry) => {
-                        const pct = totalPieValue ? Math.round((entry.value / totalPieValue) * 100) : 0;
-                        return (
-                          <div key={entry.name} className="flex items-center gap-2.5">
-                            <span className="text-sm">{entry.icon}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex justify-between gap-2 text-xs mb-0.5">
-                                <span className="truncate">{entry.name}</span>
-                                <span className="font-medium shrink-0">{formatCurrency(entry.value, currency)}</span>
-                              </div>
-                              <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
-                                <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: entry.color }} />
-                              </div>
-                            </div>
-                            <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
-                          </div>
-                        );
-                      })}
-                      {!showAllCategories && pieData.length > visiblePieData.length && (
-                        <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
-                          {pieData.length - visiblePieData.length} kategori lain disembunyikan
-                        </p>
-                      )}
-                    </div>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data pengeluaran</p>
-                )}
-              </>
-            ) : (
-              <>
-                {incomeCategories.length > 0 ? (
-                  <div className="space-y-2">
-                    {incomeCategories.slice(0, showAllCategories ? undefined : 5).map((entry) => {
-                      const category = categories.find((c) => c.id === entry.categoryId);
-                      const totalIncome = incomeCategories.reduce((s, c) => s + c.amount, 0);
-                      const pct = totalIncome > 0 ? Math.round((entry.amount / totalIncome) * 100) : 0;
-                      return (
-                        <div key={entry.categoryId} className="flex items-center gap-2.5">
-                          <span className="text-sm">{category?.icon ?? "💰"}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between gap-2 text-xs mb-0.5">
-                              <span className="truncate">{category?.name ?? "Lainnya"}</span>
-                              <span className="font-medium shrink-0 text-emerald-500">{formatCurrency(entry.amount, currency)}</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
-                              <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: category?.color ?? "#22c55e" }} />
-                            </div>
-                          </div>
-                          <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
-                        </div>
-                      );
-                    })}
-                    {!showAllCategories && incomeCategories.length > 5 && (
-                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
-                        {incomeCategories.length - 5} kategori lain disembunyikan
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data pemasukan</p>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Category Trends */}
       {mode === "monthly" && categoryTrends.filter((t) => t.isSignificant).length > 0 && (
-        <Card className="lg:order-3">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
+        <Card className="min-w-0">
+          <CardHeader className="px-4 pt-4 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <CardTitle>Perubahan Kategori</CardTitle>
                 <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Kategori dengan perubahan signifikan vs rata-rata</p>
@@ -754,144 +817,11 @@ export default function Reports() {
         </Card>
       )}
 
-      {/* Budget vs Actuals — monthly only */}
-      {mode === "monthly" && budgetRows.length > 0 && (
-        <Card className="lg:order-2">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle>Anggaran Bulan Ini</CardTitle>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Pemakaian dihitung dari pengeluaran bersih per kategori</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {activeBudgetRows.length > 5 && (
-                  <button
-                    onClick={() => setShowAllBudgets((value) => !value)}
-                    className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-                  >
-                    {showAllBudgets ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    {showAllBudgets ? "Ringkas" : `Semua ${activeBudgetRows.length}`}
-                  </button>
-                )}
-                <button
-                  onClick={() => { setBudgetCategoryId(undefined); setBudgetInitialAmount(0); setBudgetFormOpen(true); }}
-                  className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-                >
-                  <Target size={13} /> + Atur
-                </button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-3 pt-1 space-y-2.5">
-            {visibleBudgetRows.map(({ category, actual, budget, isInherited, pct, prediction }) => {
-              const over = !!budget && actual > budget.amount;
-              return (
-                <div key={category.id} className="flex items-center gap-2.5">
-                  <span className="text-sm">{category.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between gap-2 text-xs mb-0.5">
-                      <span className="truncate">{category.name}</span>
-                      <span className="font-medium shrink-0">
-                        {formatCurrency(actual, currency)}
-                        {budget && <span className={`ml-1 ${over ? "text-red-500" : "text-[hsl(var(--muted-foreground))]"}`}>/ {formatCurrency(budget.amount, currency)}</span>}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {budget ? (
-                        <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))]">
-                          <div
-                            className="h-1.5 rounded-full transition-all"
-                            style={{ width: `${pct}%`, background: over ? "#ef4444" : pct > 80 ? "#f59e0b" : category.color }}
-                          />
-                        </div>
-                      ) : (
-                        <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))] relative">
-                          <div className="h-1.5 rounded-full transition-all" style={{ width: "100%", background: `${category.color}44` }} />
-                        </div>
-                      )}
-                      {isInherited && budget && (
-                        <Badge className="text-[9px] px-2 py-0.5 h-fit shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
-                          Inherited
-                        </Badge>
-                      )}
-                      {/* Budget Prediction */}
-                      {prediction && !over && prediction.predictedExhaustInDays !== null && prediction.predictedExhaustInDays <= 15 && (
-                        <span className="text-[9px] text-amber-500 shrink-0">
-                          ~{prediction.predictedExhaustInDays === 0 ? "habis" : `${prediction.predictedExhaustInDays}d`}
-                        </span>
-                      )}
-                    </div>
-                    {/* Over-budget warning */}
-                    {over && prediction && prediction.projectedOverrun > 0 && (
-                      <p className="text-[10px] text-red-500 mt-0.5">
-                        Proyeksi over {formatCurrency(prediction.projectedOverrun, currency)}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => openBudgetForm(category.id!)}
-                    className="p-1.5 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                  >
-                    <Target size={12} />
-                  </button>
-                </div>
-              );
-            })}
-            {!showAllBudgets && activeBudgetRows.length > visibleBudgetRows.length && (
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
-                {activeBudgetRows.length - visibleBudgetRows.length} kategori budget aktif lain disembunyikan
-              </p>
-            )}
-
-            {unusedBudgetRows.length > 0 && (
-              <div className="pt-2 border-t border-[hsl(var(--border))]">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Belum terpakai bulan ini</p>
-                  <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{unusedBudgetRows.length} kategori</span>
-                </div>
-                <div className="space-y-2">
-                  {visibleUnusedBudgetRows.map(({ category, budget, isInherited }) => (
-                    <div key={category.id} className="flex items-center gap-2.5">
-                      <span className="text-sm">{category.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between gap-2 text-xs mb-0.5">
-                          <span className="truncate">{category.name}</span>
-                          <span className="font-medium shrink-0">0 / {formatCurrency(budget!.amount, currency)}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))]" />
-                          {isInherited && (
-                            <Badge className="text-[9px] px-2 py-0.5 h-fit shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
-                              Inherited
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => openBudgetForm(category.id!)}
-                        className="p-1.5 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                      >
-                        <Target size={12} />
-                      </button>
-                    </div>
-                  ))}
-                  {!showAllBudgets && unusedBudgetRows.length > visibleUnusedBudgetRows.length && (
-                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
-                      {unusedBudgetRows.length - visibleUnusedBudgetRows.length} budget belum terpakai disembunyikan
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Account balances */}
       {accounts.length > 0 && (
-        <Card className="lg:col-span-2 lg:order-4">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
+        <Card className="min-w-0">
+          <CardHeader className="px-4 pt-4 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle>Saldo per Akun</CardTitle>
               {accounts.filter((a) => !a.isArchived).length > 5 && (
                 <button
@@ -912,9 +842,9 @@ export default function Reports() {
                 <div key={acc.id} className="flex items-center gap-2.5">
                   <span className="text-sm">{acc.icon}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between gap-2 text-xs mb-0.5">
+                    <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
                       <span className="truncate">{acc.name}</span>
-                      <span className="font-medium shrink-0">{formatCurrency(acc.currentBalance, currency)}</span>
+                      <span className="max-w-full break-words font-medium tabular-nums">{formatCurrency(acc.currentBalance, currency)}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
                       <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: acc.color }} />
@@ -928,40 +858,6 @@ export default function Reports() {
                 {accounts.filter((a) => !a.isArchived).length - visibleAccounts.length} akun lain disembunyikan
               </p>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Balance History — monthly only */}
-      {mode === "monthly" && balanceHistory.length > 0 && balanceHistory.some((d) => d.balance !== 0) && (
-        <Card className="lg:col-span-2 lg:order-5">
-          <CardHeader>
-            <CardTitle>Riwayat Total Saldo</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-2">
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={balanceHistory}>
-                <defs>
-                  <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip
-                  formatter={(val) => formatCurrency(Number(val), currency)}
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "12px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Area dataKey="balance" name="Total Saldo" stroke="#6366f1" strokeWidth={2} fill="url(#balGrad)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
           </CardContent>
         </Card>
       )}

@@ -5,7 +5,7 @@ import { formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory, backfillPortfolioHistoryUsd, FOREIGN_CURRENCIES } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, getUsdIdr, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
-import { Eye, EyeOff, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Eye, EyeOff, Clock, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
 import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 import { getPortfolioMetrics } from "@/lib/portfolioMetrics";
@@ -128,7 +128,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
     if (!name.trim() || !symbol.trim()) { setError("Nama dan simbol wajib diisi"); return; }
     // For deposito, quantity is always 1 and locked, skip check
     if (type !== "deposito" && (!Number(quantity) || Number(quantity) <= 0)) { setError("Jumlah harus > 0"); return; }
-    
+
     // For deposito, validate the auto-calculation fields
     if (type === "deposito") {
       if (!Number(depositInitial) || Number(depositInitial) <= 0) { setError("Pokok deposito harus > 0"); return; }
@@ -152,7 +152,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
         avgBuyPrice: type === "deposito" ? Number(depositInitial) : Number(avgBuyPrice),
         manualPriceIdr: type === "deposito" ? undefined : (manualPrice ? Number(manualPrice) : undefined),
       };
-      
+
       const data: Omit<Asset, "id" | "createdAt" | "updatedAt"> = {
         ...baseData,
         ...(type === "deposito" ? {
@@ -161,7 +161,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
           depositEndDate,
         } : {}),
       };
-      
+
       if (existing?.id) {
         await updateAsset(existing.id, data);
       } else {
@@ -533,110 +533,89 @@ function DeleteModal({ name, onClose, onConfirm }: { name: string; onClose: () =
   );
 }
 
-// ─── Asset Card ───────────────────────────────────────────────────────────────
+// ─── Asset Entry ───────────────────────────────────────────────────────────────
 
-interface AssetCardProps {
+interface AssetEntryProps {
   asset: Asset;
   price: AssetPrice | undefined;
-  hidden?: boolean;
+  hidden: boolean;
+  desktop: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onHistory: () => void;
 }
 
-function AssetCard({ asset, price, hidden = false, onEdit, onDelete, onHistory }: AssetCardProps) {
+function AssetEntry({ asset, price, hidden, desktop, onEdit, onDelete, onHistory }: AssetEntryProps) {
   const currentPrice = price?.priceIdr ?? asset.manualPriceIdr ?? null;
   const currentValue = currentPrice !== null ? asset.quantity * currentPrice : null;
   const costBasis = asset.quantity * asset.avgBuyPrice;
   const gain = currentValue !== null ? currentValue - costBasis : null;
   const gainPct = gain !== null ? (gain / costBasis) * 100 : null;
-  const roiPct = gainPct; // ROI % is same as gain %
+  const money = (value: number | null) => hidden ? "•••" : value === null ? "—" : formatCurrency(value, PORTFOLIO_CURRENCY);
+  const quantity = hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${quantityUnit(asset.type, asset.symbol)}`;
+  const status = price?.lastSynced ? `Diperbarui ${fmtAge(price.lastSynced)} lalu` : asset.manualPriceIdr !== undefined ? "Harga manual" : "Belum ada harga";
+  const identity = (
+    <div className="min-w-0 break-words">
+      <p className="font-semibold text-[hsl(var(--foreground))]">{asset.symbol}</p>
+      <p className="text-xs text-[hsl(var(--muted-foreground))]">{asset.name}</p>
+      <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">{ASSET_TYPE_LABELS[asset.type]}</p>
+    </div>
+  );
+  const priceDetail = (
+    <>
+      <span>{money(currentPrice)}</span>
+      <p className={`mt-1 text-[11px] font-normal ${currentPrice === null ? "text-amber-600 dark:text-amber-400" : "text-[hsl(var(--muted-foreground))]"}`}>{status}</p>
+    </>
+  );
+  const gainDetail = (
+    <div className={hidden || gain === null ? "text-[hsl(var(--muted-foreground))]" : gainCls(gain)}>
+      <p>{money(gain)}</p>
+      <p className="mt-1 text-xs">ROI {hidden ? "•••" : gainPct === null ? "—" : fmtPct(gainPct)}</p>
+    </div>
+  );
+  const change = price?.changePercent24h;
+  const changeDetail = <span className={hidden || change === undefined ? "text-[hsl(var(--muted-foreground))]" : gainCls(change)}>{hidden ? "•••" : change === undefined ? "—" : fmtPct(change)}</span>;
+  const actionClass = "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]";
+  const actions = (
+    <div className="flex items-center justify-end gap-0.5">
+      {asset.type !== "mutual_fund" && asset.type !== "deposito" && (
+        <button type="button" onClick={onHistory} aria-label={`Riwayat harga ${asset.symbol}`} title="Riwayat harga" className={actionClass}><Clock size={16} /></button>
+      )}
+      <button type="button" onClick={onEdit} aria-label={`Edit ${asset.symbol}`} title="Edit aset" className={actionClass}><Pencil size={16} /></button>
+      <button type="button" onClick={onDelete} aria-label={`Hapus ${asset.symbol}`} title="Hapus aset" className={`${actionClass} hover:text-red-500`}><Trash2 size={16} /></button>
+    </div>
+  );
+
+  if (desktop) {
+    return (
+      <tr className="hover:bg-[hsl(var(--surface-2))]/50">
+        <th scope="row" className="w-48 min-w-40 px-3 py-3 text-left font-normal">{identity}</th>
+        <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">{quantity}</td>
+        <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">{priceDetail}</td>
+        <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">{money(costBasis)}</td>
+        <td className="px-3 py-3 text-right font-semibold tabular-nums whitespace-nowrap">{money(currentValue)}</td>
+        <td className="px-3 py-3 text-right font-semibold tabular-nums whitespace-nowrap">{gainDetail}</td>
+        <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">{changeDetail}</td>
+        <td className="px-2 py-3">{actions}</td>
+      </tr>
+    );
+  }
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm">
-      <div className="px-4 pt-4 pb-3 space-y-3">
-        <div className="flex flex-col gap-2 min-[520px]:flex-row min-[520px]:items-start min-[520px]:justify-between">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-            <span className="max-w-full break-words font-bold text-base text-[hsl(var(--foreground))]">{asset.symbol}</span>
-            <span className="text-[10px] px-2 py-1 rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] shrink-0">
-            {ASSET_TYPE_LABELS[asset.type].split(" ")[0]}
-            </span>
-            <span className="min-w-0 break-words text-xs text-[hsl(var(--muted-foreground))]">{asset.name}</span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            {price?.changePercent24h !== undefined && (
-              <span className={`text-[11px] font-semibold px-2 py-1 rounded-full bg-[hsl(var(--surface-2))] ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(price.changePercent24h)}`}>
-                {hidden ? "•••" : fmtPct(price.changePercent24h)}
-              </span>
-            )}
-            {asset.type !== "mutual_fund" && asset.type !== "deposito" && (
-              <button onClick={onHistory} aria-label={`Riwayat harga ${asset.symbol}`} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors" title="Riwayat harga">
-                <Clock size={13} />
-              </button>
-            )}
-            <button onClick={onEdit} aria-label={`Edit ${asset.symbol}`} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm">✏️</button>
-            <button onClick={onDelete} aria-label={`Hapus ${asset.symbol}`} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-red-500 transition-colors text-sm">🗑️</button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1fr] gap-3">
-          <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-3.5">
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Nilai Saat Ini</p>
-            <p className="mt-2 text-base font-bold leading-tight text-[hsl(var(--foreground))]">
-              {hidden ? "•••" : currentValue !== null ? formatCurrency(currentValue, PORTFOLIO_CURRENCY) : "—"}
-            </p>
-            <div className="mt-2 flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))]">
-              <span>{hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${quantityUnit(asset.type, asset.symbol)}`}</span>
-              <span>•</span>
-              <span>{hidden ? "•••" : currentPrice !== null ? formatCurrency(currentPrice, PORTFOLIO_CURRENCY) : "—"}</span>
-            </div>
-          </div>
-          <div className={`rounded-3xl px-4 py-3.5 ${gain === null ? "bg-[hsl(var(--surface-2))]" : gain >= 0 ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-            <p className={`text-[10px] font-semibold ${gain === null ? "text-[hsl(var(--muted-foreground))]" : gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Untung/Rugi</p>
-            {gain !== null && gainPct !== null ? (
-              <>
-                <p className={`mt-2 text-base font-bold leading-tight ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(gain)}`}>
-                  {hidden ? "•••" : formatCurrency(gain, PORTFOLIO_CURRENCY)}
-                </p>
-                <p className={`mt-1 text-[11px] font-semibold ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(gainPct)}`}>{hidden ? "•••" : fmtPct(gainPct)}</p>
-              </>
-            ) : (
-              <p className="mt-2 text-base text-[hsl(var(--muted-foreground))]">—</p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-[11px]">
-          <div className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5">
-            <p className="text-[hsl(var(--muted-foreground))]">Modal</p>
-            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{hidden ? "•••" : formatCurrency(costBasis, PORTFOLIO_CURRENCY)}</p>
-          </div>
-          <div className="rounded-2xl border border-[hsl(var(--border))] px-3 py-2.5">
-            <p className="text-[hsl(var(--muted-foreground))]">Harga / Unit</p>
-            <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">{hidden ? "•••" : currentPrice !== null ? formatCurrency(currentPrice, PORTFOLIO_CURRENCY) : "—"}</p>
-          </div>
-        </div>
+    <article className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+      <div className="flex items-start justify-between gap-2">
+        {identity}
+        {actions}
       </div>
-
-      <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-[hsl(var(--surface-2))] text-[10px] text-[hsl(var(--muted-foreground))]">
-        <div className="flex items-center gap-2">
-          {roiPct !== null ? (
-            <span className={`font-semibold ${hidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(roiPct)}`}>ROI {hidden ? "•••" : fmtPct(roiPct)}</span>
-          ) : (
-            <span>ROI —</span>
-          )}
-          <span>·</span>
-          <span className="truncate">
-            {hidden ? "•••" : `${asset.quantity.toLocaleString("id-ID")} ${quantityUnit(asset.type, asset.symbol)}`}
-          </span>
-        </div>
-        <div className="shrink-0">
-          {price?.lastSynced && <span>{fmtAge(price.lastSynced)}</span>}
-          {!price && asset.manualPriceIdr && <span className="italic">manual</span>}
-          {!price && !asset.manualPriceIdr && <span className="text-amber-500">Belum ada harga</span>}
-        </div>
-      </div>
-    </div>
+      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 border-t border-[hsl(var(--border))] pt-3 text-xs [&_dd]:mt-1 [&_dd]:break-words [&_dd]:font-semibold [&_dd]:tabular-nums [&_dt]:text-[hsl(var(--muted-foreground))]">
+        <div><dt>Nilai sekarang</dt><dd className="text-sm">{money(currentValue)}</dd></div>
+        <div><dt>Untung/rugi</dt><dd className="text-sm">{gainDetail}</dd></div>
+        <div><dt>Jumlah</dt><dd>{quantity}</dd></div>
+        <div><dt>Harga/unit</dt><dd>{priceDetail}</dd></div>
+        <div><dt>Modal</dt><dd>{money(costBasis)}</dd></div>
+        <div><dt>24 jam</dt><dd>{changeDetail}</dd></div>
+      </dl>
+    </article>
   );
 }
 
@@ -845,8 +824,14 @@ export default function Portfolio() {
   // Per-asset price history modal
   const [historyTarget, setHistoryTarget] = useState<Asset | null>(null);
 
-  // Tab 0 shows the summary; tab 1 shows performance.
-  const [summaryTab, setSummaryTab] = useState(0);
+  const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const updateDesktop = () => setDesktop(media.matches);
+    media.addEventListener("change", updateDesktop);
+    return () => media.removeEventListener("change", updateDesktop);
+  }, []);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [allocationExpanded, setAllocationExpanded] = useState(false);
   const [assetListExpanded, setAssetListExpanded] = useState(() => localStorage.getItem("portfolio_assetListExpanded") !== "0");
@@ -1051,176 +1036,62 @@ export default function Portfolio() {
   ];
 
   return (
-    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
-      {/* Header */}
-      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-        <div className="space-y-3.5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="mt-1 text-[2rem] font-bold tracking-tight leading-[1.05] text-[hsl(var(--foreground))]">Portofolio</h1>
-              <p className="mt-2 max-w-sm text-sm leading-6 text-[hsl(var(--muted-foreground))]">Pantau nilai, alokasi, dan performa portofolio.</p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleSync()}
-              disabled={syncing || !assets.some((asset) => asset.type !== "mutual_fund")}
-              className="h-11 rounded-2xl gap-2 self-start bg-[hsl(var(--card))]/72 px-3.5"
-            >
-              <span className={syncing ? "animate-spin" : ""}>🔄</span>
-              <span className="leading-tight">{syncing ? "Menyinkronkan…" : "Sinkronkan Harga"}</span>
+    <div className="space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-6">
+      <section aria-label="Ringkasan dan performa portofolio" className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-2xl font-bold tracking-tight">Portofolio</h1>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" onClick={() => handleSync()} disabled={syncing || !assets.some((asset) => asset.type !== "mutual_fund")} className="min-h-10 gap-2">
+              <span className={syncing ? "animate-spin" : ""} aria-hidden="true">🔄</span>
+              {syncing ? "Menyinkronkan…" : "Sinkronkan Harga"}
             </Button>
-          </div>
-
-          <div className="rounded-3xl bg-[hsl(var(--card))]/82 px-4 py-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Total Portofolio</p>
-                <p className="mt-2 text-xl sm:text-[2rem] font-bold leading-[1.05] text-[hsl(var(--foreground))]">
-                  {portfolioHidden ? "••••••" : formatCurrency(totalValue, PORTFOLIO_CURRENCY)}
-                </p>
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {portfolioHidden ? "••••••" : `Estimasi $${(totalValue / (usdIdrRate || 16200)).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
-                </p>
-                {metrics.hasMissingPrices && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Nilai sebagian · {metrics.unpricedAssetCount} aset belum ada harga</p>}
-                <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{assets.length} aset aktif</p>
-              </div>
-              <button onClick={togglePortfolioHidden} aria-label={portfolioHidden ? "Tampilkan nilai portofolio" : "Sembunyikan nilai portofolio"} aria-pressed={portfolioHidden} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
-                {portfolioHidden ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-            </div>
+            <button type="button" onClick={togglePortfolioHidden} aria-label={portfolioHidden ? "Tampilkan nilai portofolio" : "Sembunyikan nilai portofolio"} aria-pressed={portfolioHidden} className="flex h-10 w-10 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]">
+              {portfolioHidden ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
         </div>
-      </div>
+        <dl className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-[1.5fr_1fr_1fr] [&_dd]:break-words [&_dd]:tabular-nums">
+          <div className="col-span-2 lg:col-span-1">
+            <dt className="text-xs text-[hsl(var(--muted-foreground))]">Total portofolio</dt>
+            <dd className="mt-1 text-2xl font-bold sm:text-3xl">{portfolioHidden ? "••••••" : formatCurrency(totalValue, PORTFOLIO_CURRENCY)}</dd>
+            <dd className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{portfolioHidden ? "••••••" : `Estimasi $${(totalValue / (usdIdrRate || 16200)).toLocaleString("en-US", { maximumFractionDigits: 0 })}`} · {assets.length} aset aktif</dd>
+          </div>
+          {assets.length > 0 && (
+            <>
+              <div>
+                <dt className="text-xs text-[hsl(var(--muted-foreground))]">Modal</dt>
+                <dd className="mt-1 text-sm font-semibold sm:text-lg">{portfolioHidden ? "•••" : formatCurrency(totalCost, PORTFOLIO_CURRENCY)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[hsl(var(--muted-foreground))]">Untung/rugi</dt>
+                <dd className={`mt-1 text-sm font-semibold sm:text-lg ${portfolioHidden || totalGain === null ? "text-[hsl(var(--muted-foreground))]" : gainCls(totalGain)}`}>{portfolioHidden ? "•••" : totalGain === null ? "—" : `${totalGain >= 0 ? "+" : ""}${formatCurrency(totalGain, PORTFOLIO_CURRENCY)}`}</dd>
+                <dd className={`mt-1 text-xs font-semibold ${portfolioHidden || totalGainPct === null ? "text-[hsl(var(--muted-foreground))]" : gainCls(totalGainPct)}`}>ROI keseluruhan {portfolioHidden ? "•••" : totalGainPct === null ? "—" : fmtPct(totalGainPct)}</dd>
+              </div>
+            </>
+          )}
+        </dl>
+        {metrics.hasMissingPrices && <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">Nilai sebagian · {metrics.unpricedAssetCount} aset belum ada harga. Lengkapi harga semua aset untuk menghitung performa keseluruhan.</p>}
+        {performanceAssets.length > 0 && (
+          <div className="mt-4 grid grid-cols-1 gap-3 border-t border-[hsl(var(--border))] pt-3 sm:grid-cols-2">
+            {[{ label: "Terbaik", item: performanceAssets[0] }, { label: "Terburuk", item: performanceAssets[performanceAssets.length - 1] }].map(({ label, item }) => (
+              <div key={label} className="flex min-w-0 items-center justify-between gap-3 text-xs">
+                <div className="min-w-0 break-words">
+                  <span className="text-[hsl(var(--muted-foreground))]">{label} </span><span className="font-semibold">{item.asset.symbol}</span>
+                  <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">{item.asset.name}</p>
+                </div>
+                <span className={`shrink-0 font-semibold tabular-nums ${portfolioHidden ? "text-[hsl(var(--muted-foreground))]" : gainCls(item.pct)}`}>{portfolioHidden ? "•••" : fmtPct(item.pct)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
-      {syncMsg && (
-        <p className="text-xs px-4 py-3 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))]">
-          {syncMsg}
-        </p>
-      )}
-
-      <p className="-mt-2 text-center text-[11px] text-[hsl(var(--muted-foreground))]">Harga pasar memakai Yahoo Finance; pencarian kripto memakai CoinGecko. Harga segar dilewati selama 6 jam.</p>
+      {syncMsg && <p role="status" className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">{syncMsg}</p>}
 
       {assets.length > 0 && (
         <>
-          {/* Ringkasan portofolio dengan tab metrik */}
-          <div className="rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden shadow-sm">
-            <div className="p-3 pb-0">
-              <div role="tablist" aria-label="Ringkasan portofolio" className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1">
-              {(["Ringkasan", "Performa"] as const).map((label, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  role="tab"
-                  aria-selected={summaryTab === idx}
-                  id={`portfolio-tab-${idx}`}
-                  aria-controls="portfolio-tab-panel"
-                  onClick={() => setSummaryTab(idx)}
-                  className={`flex-1 rounded-xl py-2.5 text-[11px] font-semibold transition-colors ${
-                    summaryTab === idx
-                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                      : "text-[hsl(var(--muted-foreground))] hover:bg-white/70 dark:hover:bg-white/5"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            </div>
-
-            {/* Tab Content */}
-            <div id="portfolio-tab-panel" role="tabpanel" aria-labelledby={`portfolio-tab-${summaryTab}`} className="p-5 pt-4 space-y-4">
-
-              {/* Tab 0: Ringkasan */}
-              {summaryTab === 0 && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-4">
-                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] mb-1">Modal</p>
-                      <p className="text-sm font-semibold leading-tight text-[hsl(var(--foreground))]">
-                        {portfolioHidden ? "•••" : formatCurrency(totalCost, PORTFOLIO_CURRENCY)}
-                      </p>
-                    </div>
-                    <div className={`rounded-3xl px-4 py-4 ${totalGain === null ? "bg-[hsl(var(--surface-2))]" : totalGain >= 0 ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-                      <p className={`text-[10px] font-semibold mb-1 ${totalGain === null ? "text-[hsl(var(--muted-foreground))]" : totalGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>Untung/Rugi</p>
-                      {portfolioHidden ? (
-                        <p className="text-sm font-bold text-[hsl(var(--muted-foreground))]">•••</p>
-                      ) : totalGain === null || totalGainPct === null ? (
-                        <p className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">—</p>
-                      ) : (
-                        <>
-                          <p className={`text-sm font-bold leading-tight ${totalGain >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                            {totalGain >= 0 ? "+" : ""}{formatCurrency(totalGain, PORTFOLIO_CURRENCY)}
-                          </p>
-                          <p className={`mt-1 text-[11px] font-semibold ${totalGain >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                            {fmtPct(totalGainPct)}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 1: Performa (ROI dan aset terbaik/terendah) */}
-              {summaryTab === 1 && (() => {
-                const bestAsset = performanceAssets[0];
-                const worstAsset = performanceAssets.at(-1);
-
-                return (
-                  <div className="space-y-3">
-                    <div className="rounded-3xl bg-[hsl(var(--surface-2))] px-4 py-4">
-                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">ROI Keseluruhan</p>
-                      <p className={`mt-2 text-2xl font-bold ${totalGainPct === null ? "text-[hsl(var(--muted-foreground))]" : totalGainPct >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                        {portfolioHidden ? "•••" : totalGainPct === null ? "—" : fmtPct(totalGainPct)}
-                      </p>
-                      {metrics.hasMissingPrices && <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Lengkapi harga semua aset untuk menghitung performa keseluruhan.</p>}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {bestAsset && (
-                        <div className="rounded-3xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-4 py-4 min-w-0">
-                          <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Terbaik</p>
-                          <p className="text-sm font-bold text-[hsl(var(--foreground))] truncate">{bestAsset.asset.symbol}</p>
-                          <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))] truncate">{bestAsset.asset.name}</p>
-                          <p className="mt-2 text-base font-bold text-emerald-500">{portfolioHidden ? "•••" : fmtPct(bestAsset.pct)}</p>
-                        </div>
-                      )}
-                      {worstAsset && (
-                        <div className="rounded-3xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-4 min-w-0">
-                          <p className="text-[10px] font-semibold text-red-600 dark:text-red-400 mb-1">Terburuk</p>
-                          <p className="text-sm font-bold text-[hsl(var(--foreground))] truncate">{worstAsset.asset.symbol}</p>
-                          <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))] truncate">{worstAsset.asset.name}</p>
-                          <p className="mt-2 text-base font-bold text-red-500">{portfolioHidden ? "•••" : fmtPct(worstAsset.pct)}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Filter aset */}
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
-            {filterOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={filter === option.value}
-                onClick={() => setFilter(option.value)}
-                className={`px-3.5 py-2.5 rounded-2xl font-medium text-xs whitespace-nowrap transition-colors ${
-                  filter === option.value
-                    ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                    : "bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-
           {/* Asset List Section */}
-          <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-sm space-y-4">
+          <div className="min-w-0 rounded-2xl border border-[hsl(var(--border))] p-3 sm:p-4 bg-[hsl(var(--card))] space-y-3">
             <button
               type="button"
               onClick={toggleAssetListExpanded}
@@ -1228,29 +1099,41 @@ export default function Portfolio() {
               className="flex w-full items-center justify-between gap-3 text-left"
             >
               <div>
-                <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Daftar Aset</p>
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{filtered.length} aset dalam filter ini.</p>
+                <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Daftar Aset <span className="ml-1 text-xs font-normal text-[hsl(var(--muted-foreground))]">({filtered.length})</span></p>
               </div>
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))]">
                 {assetListExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </span>
             </button>
+            <div role="group" aria-label="Filter jenis aset" className="flex gap-1.5 overflow-x-auto pb-1">
+              {filterOptions.map((option) => (
+                <button key={option.value} type="button" aria-pressed={filter === option.value} onClick={() => setFilter(option.value)} className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--primary))] ${filter === option.value ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
             {assetListExpanded && (
               <>
                 {filtered.length > 0 ? (
-                  <div className="space-y-2">
-                    {filtered.map((asset) => (
-                      <AssetCard
-                        key={asset.id}
-                        asset={asset}
-                        price={prices[asset.symbol]}
-                        hidden={portfolioHidden}
-                        onEdit={() => setEditTarget(asset)}
-                        onDelete={() => setDeleteTarget(asset)}
-                        onHistory={() => setHistoryTarget(asset)}
-                      />
-                    ))}
-                  </div>
+                  desktop ? (
+                    <div role="region" aria-label="Tabel daftar aset" tabIndex={0} className="overflow-x-auto rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]">
+                      <table className="w-full text-xs">
+                        <caption className="sr-only">Daftar aset portofolio</caption>
+                        <thead className="border-b border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]">
+                          <tr>
+                            {["Aset", "Jumlah", "Harga/unit", "Modal", "Nilai sekarang", "Untung/rugi", "24 jam", "Aksi"].map((label, index) => <th key={label} scope="col" className={`px-3 py-2 font-medium whitespace-nowrap ${index === 0 ? "text-left" : "text-right"}`}>{label}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[hsl(var(--border))]">
+                          {filtered.map((asset) => <AssetEntry key={asset.id} asset={asset} price={prices[asset.symbol]} hidden={portfolioHidden} desktop onEdit={() => setEditTarget(asset)} onDelete={() => setDeleteTarget(asset)} onHistory={() => setHistoryTarget(asset)} />)}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {filtered.map((asset) => <AssetEntry key={asset.id} asset={asset} price={prices[asset.symbol]} hidden={portfolioHidden} desktop={false} onEdit={() => setEditTarget(asset)} onDelete={() => setDeleteTarget(asset)} onHistory={() => setHistoryTarget(asset)} />)}
+                    </div>
+                  )
                 ) : (
                   <div className="rounded-[28px] border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-5 py-16 text-center text-[hsl(var(--muted-foreground))]">
                     <div className="text-5xl mb-3">📈</div>
@@ -1262,152 +1145,152 @@ export default function Portfolio() {
             )}
           </div>
 
-          {/* Portfolio Value History */}
-          {history.length > 1 && (
-            <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-sm space-y-4">
-              <div className="flex items-center justify-between gap-3">
+          <div className="grid items-start gap-3 lg:grid-cols-2">
+            {/* Portfolio Value History */}
+            {history.length > 1 && (
+              <div className="min-w-0 rounded-2xl border border-[hsl(var(--border))] p-3 sm:p-4 bg-[hsl(var(--card))] space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryExpanded((value) => !value)}
+                    aria-expanded={historyExpanded}
+                    className="flex flex-1 items-center justify-between gap-3 text-left"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Riwayat Nilai Portofolio</p>
+                    </div>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] shrink-0">
+                      {historyExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </span>
+                  </button>
+                  {historyExpanded && (
+                    <button
+                      onClick={() => setHistoryZoomed((v) => !v)}
+                      aria-label={historyZoomed ? "Perkecil grafik" : "Perbesar grafik"}
+                      className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm font-semibold shrink-0"
+                      title={historyZoomed ? "Perkecil grafik" : "Perbesar grafik"}
+                    >
+                      {historyZoomed ? "−" : "+"}
+                    </button>
+                  )}
+                </div>
+                {historyExpanded && (portfolioHidden ? (
+                  <p className="py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">Grafik disembunyikan saat nilai portofolio disembunyikan.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={historyZoomed ? 420 : 280}>
+                    <AreaChart data={history} margin={{ top: 4, right: 4, left: 4, bottom: 20 }}>
+                      <defs>
+                        <linearGradient id="portGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="usdGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 9 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(d: string) => d.slice(5)}
+                        interval={historyZoomed ? "preserveStartEnd" : Math.max(Math.ceil(history.length / 4) - 1, 0)}
+                      />
+                      <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickFormatter={(v: number) => `Rp ${(v / 1e6).toFixed(0)}M`} width={45} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickFormatter={(v: number) => `$${(v / 1e3).toFixed(0)}K`} width={45} />
+                      <Tooltip
+                        formatter={(val, name) => {
+                          if (name === "Nilai IDR") return [formatCurrency(Number(val), PORTFOLIO_CURRENCY), name];
+                          if (name === "Estimasi USD") return [`$${Number(val).toLocaleString("en-US", { maximumFractionDigits: 0 })}`, name];
+                          return [formatCurrency(Number(val), PORTFOLIO_CURRENCY), String(name)];
+                        }}
+                        labelFormatter={(label) => String(label)}
+                        contentStyle={{
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: "12px" }} />
+                      <Area yAxisId="left" dataKey="totalValue" name="Nilai IDR" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#portGrad)" dot={false} />
+                      <Area yAxisId="right" dataKey="totalValueUsd" name="Estimasi USD" stroke="#22c55e" strokeWidth={2.5} fill="url(#usdGrad)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ))}
+              </div>
+            )}
+
+            {/* Allocation Table */}
+            {pieData.length > 0 && (
+              <div className={`min-w-0 rounded-2xl border border-[hsl(var(--border))] p-3 sm:p-4 bg-[hsl(var(--card))] space-y-3 ${history.length <= 1 ? "lg:col-span-2" : ""}`}>
                 <button
                   type="button"
-                  onClick={() => setHistoryExpanded((value) => !value)}
-                  aria-expanded={historyExpanded}
-                  className="flex flex-1 items-center justify-between gap-3 text-left"
+                  onClick={() => setAllocationExpanded((value) => !value)}
+                  aria-expanded={allocationExpanded}
+                  className="flex w-full items-center justify-between gap-3 text-left"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Riwayat Nilai Portofolio</p>
-                    <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Pergerakan total nilai aset dari snapshot harian.</p>
+                    <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Alokasi Portofolio</p>
                   </div>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] shrink-0">
-                    {historyExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))]">
+                    {allocationExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </span>
                 </button>
-                {historyExpanded && (
-                  <button
-                    onClick={() => setHistoryZoomed((v) => !v)}
-                    aria-label={historyZoomed ? "Perkecil grafik" : "Perbesar grafik"}
-                    className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm font-semibold shrink-0"
-                    title={historyZoomed ? "Perkecil grafik" : "Perbesar grafik"}
-                  >
-                    {historyZoomed ? "−" : "+"}
-                  </button>
-                )}
-              </div>
-              {historyExpanded && (portfolioHidden ? (
-                <p className="py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">Grafik disembunyikan saat nilai portofolio disembunyikan.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={historyZoomed ? 420 : 280}>
-                  <AreaChart data={history} margin={{ top: 4, right: 4, left: 4, bottom: 20 }}>
-                    <defs>
-                      <linearGradient id="portGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="usdGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 9 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(d: string) => d.slice(5)}
-                      interval={historyZoomed ? "preserveStartEnd" : Math.max(Math.ceil(history.length / 4) - 1, 0)}
-                    />
-                    <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickFormatter={(v: number) => `Rp ${(v / 1e6).toFixed(0)}M`} width={45} />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickFormatter={(v: number) => `$${(v / 1e3).toFixed(0)}K`} width={45} />
-                    <Tooltip
-                      formatter={(val, name) => {
-                        if (name === "Nilai IDR") return [formatCurrency(Number(val), PORTFOLIO_CURRENCY), name];
-                        if (name === "Estimasi USD") return [`$${Number(val).toLocaleString("en-US", { maximumFractionDigits: 0 })}`, name];
-                        return [formatCurrency(Number(val), PORTFOLIO_CURRENCY), String(name)];
-                      }}
-                      labelFormatter={(label) => String(label)}
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "12px" }} />
-                    <Area yAxisId="left" dataKey="totalValue" name="Nilai IDR" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#portGrad)" dot={false} />
-                    <Area yAxisId="right" dataKey="totalValueUsd" name="Estimasi USD" stroke="#22c55e" strokeWidth={2.5} fill="url(#usdGrad)" dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ))}
-            </div>
-          )}
-
-          {/* Allocation Table */}
-          {pieData.length > 0 && (
-            <div className="rounded-[28px] border border-[hsl(var(--border))] p-5 bg-[hsl(var(--card))] shadow-sm space-y-4">
-              <button
-                type="button"
-                onClick={() => setAllocationExpanded((value) => !value)}
-                aria-expanded={allocationExpanded}
-                className="flex w-full items-center justify-between gap-3 text-left"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Alokasi Portofolio</p>
-                  <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Distribusi nilai aset berdasarkan kategori utama.</p>
-                </div>
-                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))]">
-                  {allocationExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </span>
-              </button>
-              {allocationExpanded && (
-                <div className="overflow-x-auto -mx-1">
-                  <div className="space-y-2 sm:hidden">
-                    {pieData.map((d) => {
-                      const pct = totalValue > 0 ? (d.value / totalValue) * 100 : 0;
-                      return (
-                        <div key={d.name} className="flex items-center justify-between gap-3 rounded-2xl border border-[hsl(var(--border))] p-3">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: d.color }} />
-                            <span className="truncate text-sm font-medium">{d.name}</span>
-                          </div>
-                          <div className="shrink-0 text-right">
-                            <p className="text-sm font-semibold">{portfolioHidden ? "•••" : formatCurrency(d.value, PORTFOLIO_CURRENCY)}</p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))">{portfolioHidden ? "•••" : `${pct.toFixed(1)}%`}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <table className="hidden w-full text-xs sm:table">
-                    <thead>
-                      <tr className="text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))] text-left">
-                        <th className="pb-2 font-medium px-1">Kategori</th>
-                        <th className="pb-2 font-medium text-right px-1">Nilai</th>
-                        <th className="pb-2 font-medium text-right px-1">Alokasi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[hsl(var(--border))]">
+                {allocationExpanded && (
+                  <div className="overflow-x-auto -mx-1">
+                    <div className="space-y-2 sm:hidden">
                       {pieData.map((d) => {
                         const pct = totalValue > 0 ? (d.value / totalValue) * 100 : 0;
                         return (
-                          <tr key={d.name} className="hover:bg-[hsl(var(--muted))] transition-colors">
-                            <td className="py-2 px-1 flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
-                              <span className="font-medium text-[hsl(var(--foreground))]">{d.name}</span>
-                            </td>
-                            <td className="py-2 px-1 text-right font-semibold text-[hsl(var(--foreground))]">
-                              {portfolioHidden ? "•••" : formatCurrency(d.value, PORTFOLIO_CURRENCY)}
-                            </td>
-                            <td className="py-2 px-1 text-right text-[hsl(var(--muted-foreground))]">
-                              {portfolioHidden ? "•••" : `${pct.toFixed(1)}%`}
-                            </td>
-                          </tr>
+                          <div key={d.name} className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] py-2 last:border-0">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: d.color }} />
+                              <span className="truncate text-sm font-medium">{d.name}</span>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className="text-sm font-semibold">{portfolioHidden ? "•••" : formatCurrency(d.value, PORTFOLIO_CURRENCY)}</p>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))">{portfolioHidden ? "•••" : `${pct.toFixed(1)}%`}</p>
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+                    </div>
+                    <table className="hidden w-full text-xs sm:table">
+                      <thead>
+                        <tr className="text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))] text-left">
+                          <th className="pb-2 font-medium px-1">Kategori</th>
+                          <th className="pb-2 font-medium text-right px-1">Nilai</th>
+                          <th className="pb-2 font-medium text-right px-1">Alokasi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[hsl(var(--border))]">
+                        {pieData.map((d) => {
+                          const pct = totalValue > 0 ? (d.value / totalValue) * 100 : 0;
+                          return (
+                            <tr key={d.name} className="hover:bg-[hsl(var(--muted))] transition-colors">
+                              <td className="py-2 px-1 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
+                                <span className="font-medium text-[hsl(var(--foreground))]">{d.name}</span>
+                              </td>
+                              <td className="py-2 px-1 text-right font-semibold text-[hsl(var(--foreground))]">
+                                {portfolioHidden ? "•••" : formatCurrency(d.value, PORTFOLIO_CURRENCY)}
+                              </td>
+                              <td className="py-2 px-1 text-right text-[hsl(var(--muted-foreground))]">
+                                {portfolioHidden ? "•••" : `${pct.toFixed(1)}%`}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -1419,12 +1302,15 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* Sumber harga saham */}
-      {assets.some((a) => a.type === "stock_us" || a.type === "stock" || a.type === "stock_idx") && (
-        <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">
-          Harga saham AS dan IDX disinkronkan dari Yahoo Finance melalui layanan proxy. Harga beli dan jumlah dicatat dalam IDR per lembar.
-        </p>
-      )}
+      <div className="space-y-1 text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">
+        <p>Harga pasar memakai Yahoo Finance; pencarian kripto memakai CoinGecko. Harga segar dilewati selama 6 jam.</p>
+        {/* Sumber harga saham */}
+        {assets.some((a) => a.type === "stock_us" || a.type === "stock" || a.type === "stock_idx") && (
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            Harga saham AS dan IDX disinkronkan dari Yahoo Finance melalui layanan proxy. Harga beli dan jumlah dicatat dalam IDR per lembar.
+          </p>
+        )}
+      </div>
 
       {/* Modals */}
       <AssetForm key={addOpen ? "add-open" : "add-closed"} open={addOpen} onClose={() => setAddOpen(false)} onSaved={loadAll} />
