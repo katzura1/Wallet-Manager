@@ -222,42 +222,45 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
-      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-        <h1 className="mt-1 text-2xl font-bold tracking-tight">Pengaturan</h1>
-        <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Atur tampilan, backup, keamanan, AI, dan sinkronisasi cloud tanpa mengubah data inti.</p>
+    <div className="mx-auto max-w-6xl space-y-4 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Pengaturan</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Tampilan, keamanan, dan cadangan data.</p>
+        </div>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">Preferensi tersimpan di perangkat ini</p>
       </div>
 
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <div className="contents lg:block lg:space-y-4">
       {/* Theme */}
-      <Card>
+      <Card role="region" aria-labelledby="preferences-heading" className="order-1">
         <CardContent className="p-4 space-y-3">
-          <p className="text-sm font-semibold">Tampilan</p>
-          <div className="flex gap-3">
+          <h2 id="preferences-heading" className="text-base font-semibold">Tampilan &amp; kategori</h2>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">Tema dan mata uang diterapkan langsung.</p>
+          <div className="flex gap-2" role="group" aria-label="Tema">
             <button
+              aria-pressed={theme === "light"}
               onClick={() => setTheme("light")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${
                 theme === "light" ? "border-[hsl(var(--primary))] bg-[hsl(var(--surface-2))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
               }`}
             >
-              <Sun size={16} /> Light
+              <Sun size={16} /> Terang
             </button>
             <button
+              aria-pressed={theme === "dark"}
               onClick={() => setTheme("dark")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${
                 theme === "dark" ? "border-[hsl(var(--primary))] bg-[hsl(var(--surface-2))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
               }`}
             >
-              <Moon size={16} /> Dark
+              <Moon size={16} /> Gelap
             </button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Currency */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <p className="text-sm font-semibold">Mata Uang</p>
-          <div className="flex gap-2 flex-wrap">
+          <div className="border-t border-[hsl(var(--border))] pt-3">
+          <p className="text-xs font-medium">Mata uang</p>
+          <div className="flex gap-2 flex-wrap mt-2" role="group" aria-label="Mata uang">
             {[
               { code: "IDR", label: "IDR (Rp)" },
               { code: "USD", label: "USD ($)" },
@@ -266,8 +269,9 @@ export default function Settings() {
             ].map(({ code, label }) => (
               <button
                 key={code}
+                aria-pressed={currency === code}
                 onClick={() => setCurrency(code)}
-                className={`px-3 py-1.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                className={`px-3 py-2 rounded-xl border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${
                   currency === code ? "border-[hsl(var(--primary))] bg-[hsl(var(--surface-2))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
                 }`}
               >
@@ -275,15 +279,141 @@ export default function Settings() {
               </button>
             ))}
           </div>
+          </div>
+          <div className="border-t border-[hsl(var(--border))] pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold">Kategori</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Kelola kategori pengeluaran &amp; pemasukan</p>
+            </div>
+            <Link
+              to="/categories"
+              className="inline-flex min-h-9 items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+            >
+              <Tag size={13} /> Kelola kategori
+            </Link>
+          </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Backup */}
-      <Card>
+      {/* PIN Lock */}
+      <Card role="region" aria-labelledby="pin-heading" className="order-2">
         <CardContent className="p-4 space-y-3">
-          <p className="text-sm font-semibold">Backup & Restore Data</p>
+          <div className="flex items-center gap-2">
+            <Lock size={15} />
+            <h2 id="pin-heading" className="text-base font-semibold">Kunci PIN</h2>
+            {pin && <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-400 font-medium">Aktif</span>}
+          </div>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">PIN 4 digit dikunci saat tab ditutup lalu dibuka kembali.</p>
+
+          {pinStep === null ? (
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 gap-1" onClick={startSetPin}>
+                <Lock size={13} /> {pin ? "Ubah PIN" : "Aktifkan PIN"}
+              </Button>
+              {pin && (
+                <Button variant="destructive" className="flex-1" onClick={() => setPin(null)}>
+                  Hapus PIN
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3 max-w-xs mx-auto">
+              <p className="text-xs font-medium text-[hsl(var(--foreground))]">
+                {pinStep === "enter" ? "Masukkan PIN baru (4 digit)" : "Konfirmasi PIN"}
+              </p>
+              {/* Dots */}
+              <div className="flex gap-3 justify-center" role="status" aria-label={`${pinInput.length} dari 4 digit terisi`}>
+                {Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${i < pinInput.length ? "bg-indigo-600 border-indigo-600" : "border-[hsl(var(--border))]"}`} />
+                ))}
+              </div>
+              {pinError && <p role="alert" className="text-xs text-red-500 text-center">{pinError}</p>}
+              {/* Mini numpad */}
+              <div className="grid grid-cols-3 gap-2">
+                {["1","2","3","4","5","6","7","8","9"].map((d) => (
+                  <button key={d} onClick={() => handlePinDigit(d)}
+                    className="h-11 rounded-xl bg-[hsl(var(--muted))] text-sm font-semibold hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+                    {d}
+                  </button>
+                ))}
+                <button onClick={cancelPin} className="h-11 rounded-xl bg-[hsl(var(--muted))] text-xs text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">Batal</button>
+                <button onClick={() => handlePinDigit("0")} className="h-11 rounded-xl bg-[hsl(var(--muted))] text-sm font-semibold hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">0</button>
+                <button aria-label="Hapus digit PIN" onClick={handlePinDel} className="h-11 rounded-xl bg-[hsl(var(--muted))] text-sm font-semibold hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">⌫</button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Gemini AI */}
+      <Card role="region" aria-labelledby="ai-heading" className="order-5">
+        <CardContent className="p-4 space-y-3">
+          <div>
+            <h2 id="ai-heading" className="text-base font-semibold">Gemini AI</h2>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+              Diperlukan untuk fitur "Catat dari Teks", "Scan Struk", dan insight naratif.
+            </p>
+          </div>
+          <p className={`text-xs flex items-center gap-2 ${aiOnline ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}>
+            Status AI: {aiOnline ? "Online" : "Offline"}. Fitur AI hanya aktif saat perangkat terhubung internet.
+          </p>
+          <div className="space-y-1">
+            <label htmlFor="gemini-api-key" className="text-sm font-medium text-[hsl(var(--foreground))]">Gemini API Key</label>
+            <div className="relative">
+              <input
+                id="gemini-api-key"
+                autoComplete="off"
+                spellCheck={false}
+                type={showGeminiKey ? "text" : "password"}
+                value={geminiKey}
+                onChange={(e) => setGeminiKey(e.target.value)}
+                placeholder="AIza..."
+                className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-24"
+              />
+              <button
+                type="button"
+                aria-label={showGeminiKey ? "Sembunyikan API key" : "Tampilkan API key"}
+                aria-pressed={showGeminiKey}
+                onClick={() => setShowGeminiKey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] px-2 py-1"
+              >
+                {showGeminiKey ? "Sembunyikan" : "Lihat"}
+              </button>
+            </div>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              Dapatkan API key di{" "}
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[hsl(var(--primary))] underline"
+              >
+                Google AI Studio
+              </a>.
+              Key disimpan lokal di perangkatmu.
+            </p>
+          </div>
+          <div className="border-l-2 border-amber-500/60 pl-3 py-1 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+            <p className="font-medium">Privasi AI</p>
+            <p>Teks atau foto struk yang kamu kirim ke fitur AI akan diproses oleh layanan Google Gemini.</p>
+            <p>Jangan kirim data sensitif (nomor kartu, PIN, OTP, atau informasi rahasia lain).</p>
+          </div>
+          <Button onClick={handleSaveGeminiKey} className="w-full">
+            {geminiSaved ? "✅ Tersimpan!" : "Simpan API Key"}
+          </Button>
+        </CardContent>
+      </Card>
+
+        </div>
+        <div className="contents lg:block lg:space-y-4">
+      {/* Backup */}
+      <Card role="region" aria-labelledby="local-backup-heading" className="order-3">
+        <CardContent className="p-4 space-y-3">
+          <h2 id="local-backup-heading" className="text-base font-semibold">Backup lokal</h2>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Data tersimpan di perangkat ini (IndexedDB). Export secara rutin untuk backup.
+            Unduh salinan data atau pulihkan dari file JSON di perangkatmu.
           </p>
 
           <div className="grid grid-cols-2 gap-2">
@@ -297,18 +427,20 @@ export default function Settings() {
 
           <div className="space-y-2 border-t border-[hsl(var(--border))] pt-3">
             <p className="text-xs font-medium">Mode Import</p>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="group" aria-label="Mode import lokal">
               <button
+                aria-pressed={importMode === "merge"}
                 onClick={() => setImportMode("merge")}
-                className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-colors ${
+                className={`flex-1 py-2 rounded-xl border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${
                   importMode === "merge" ? "border-[hsl(var(--primary))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
                 }`}
               >
                 Merge (gabungkan)
               </button>
               <button
+                aria-pressed={importMode === "replace"}
                 onClick={() => setImportMode("replace")}
-                className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-colors ${
+                className={`flex-1 py-2 rounded-xl border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${
                   importMode === "replace" ? "border-red-500 text-red-600" : "border-[hsl(var(--border))]"
                 }`}
               >
@@ -316,7 +448,7 @@ export default function Settings() {
               </button>
             </div>
 
-            <label className="block">
+            <label className="relative block rounded-xl focus-within:ring-2 focus-within:ring-[hsl(var(--ring))]">
               <div
                 className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed text-sm font-medium cursor-pointer transition-colors ${
                   importing ? "opacity-50 pointer-events-none" : "hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--surface-2))]"
@@ -324,21 +456,21 @@ export default function Settings() {
               >
                 <Upload size={15} /> {importing ? "Mengimport..." : "Import JSON"}
               </div>
-              <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+              <input type="file" aria-label="Import JSON" accept=".json" disabled={importing} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={handleImport} />
             </label>
 
-            {importMsg && <p className="text-xs text-center py-2">{importMsg}</p>}
+            {importMsg && <p role="status" className="text-xs text-center py-2">{importMsg}</p>}
           </div>
         </CardContent>
       </Card>
 
       {/* Cloud Backup */}
-      <Card>
+      <Card role="region" aria-labelledby="cloud-backup-heading" className="order-4">
         <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Cloud size={15} />
-            <p className="text-sm font-semibold">Cloud Backup (Google Drive)</p>
-            {cloudAuth.isSignedIn && <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-400 font-medium">✅ Tersambung</span>}
+            <h2 id="cloud-backup-heading" className="text-base font-semibold">Google Drive</h2>
+            {cloudAuth.isSignedIn && <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-400 font-medium">Tersambung</span>}
           </div>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
             Simpan backup JSON ke Google Drive. Restore tetap bisa dipilih mode merge atau replace.
@@ -346,7 +478,7 @@ export default function Settings() {
 
           {!cloudAuth.isConfigured && (
             <p className="text-xs rounded-xl border border-amber-400/40 bg-amber-100/50 dark:bg-amber-900/20 px-3 py-2 text-amber-700 dark:text-amber-300">
-              VITE_GOOGLE_CLIENT_ID belum diatur. Tambahkan dulu di environment agar fitur cloud aktif.
+              Backup cloud belum tersedia. Konfigurasi Google Drive perlu disiapkan oleh pengelola aplikasi.
             </p>
           )}
 
@@ -374,15 +506,19 @@ export default function Settings() {
             <p className="text-xs font-medium">Backup Otomatis</p>
             <div className="flex items-center gap-2">
               <button
+                role="switch"
+                aria-label="Backup otomatis"
+                aria-checked={cloudSettings.enabled}
                 onClick={() => saveCloudConfig({ ...cloudSettings, enabled: !cloudSettings.enabled })}
                 disabled={!cloudAuth.isConfigured}
-                className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-colors ${
+                className={`flex-1 py-2 rounded-xl border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${
                   cloudSettings.enabled ? "border-emerald-500 text-emerald-600" : "border-[hsl(var(--border))]"
                 }`}
               >
                 {cloudSettings.enabled ? "Aktif" : "Nonaktif"}
               </button>
               <select
+                aria-label="Interval backup otomatis"
                 value={cloudSettings.intervalHours}
                 onChange={(e) => saveCloudConfig({ ...cloudSettings, intervalHours: Number(e.target.value) })}
                 disabled={!cloudAuth.isConfigured}
@@ -423,137 +559,17 @@ export default function Settings() {
             )}
           </div>
 
-          {cloudMsg && <p className="text-xs text-center py-1">{cloudMsg}</p>}
+          {cloudMsg && <p role="status" className="text-xs text-center py-1">{cloudMsg}</p>}
         </CardContent>
       </Card>
 
-      {/* Categories */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold">Kategori</p>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Kelola kategori pengeluaran &amp; pemasukan</p>
-            </div>
-            <Link
-              to="/categories"
-              className="flex items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
-            >
-              <Tag size={13} /> Kelola →
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* PIN Lock */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Lock size={15} />
-            <p className="text-sm font-semibold">Kunci PIN</p>
-            {pin && <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-400 font-medium">✅ Aktif</span>}
-          </div>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">PIN 4 digit dikunci saat tab ditutup lalu dibuka kembali.</p>
-
-          {pinStep === null ? (
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 gap-1" onClick={startSetPin}>
-                <Lock size={13} /> {pin ? "Ubah PIN" : "Aktifkan PIN"}
-              </Button>
-              {pin && (
-                <Button variant="destructive" className="flex-1" onClick={() => setPin(null)}>
-                  Hapus PIN
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs font-medium text-[hsl(var(--foreground))]">
-                {pinStep === "enter" ? "Masukkan PIN baru (4 digit)" : "Konfirmasi PIN"}
-              </p>
-              {/* Dots */}
-              <div className="flex gap-3 justify-center">
-                {Array.from({ length: 4 }, (_, i) => (
-                  <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${i < pinInput.length ? "bg-indigo-600 border-indigo-600" : "border-[hsl(var(--border))]"}`} />
-                ))}
-              </div>
-              {pinError && <p className="text-xs text-red-500 text-center">{pinError}</p>}
-              {/* Mini numpad */}
-              <div className="grid grid-cols-3 gap-2">
-                {["1","2","3","4","5","6","7","8","9"].map((d) => (
-                  <button key={d} onClick={() => handlePinDigit(d)}
-                    className="h-11 rounded-xl bg-[hsl(var(--muted))] text-sm font-semibold hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform">
-                    {d}
-                  </button>
-                ))}
-                <button onClick={cancelPin} className="h-11 rounded-xl bg-[hsl(var(--muted))] text-xs text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform">Batal</button>
-                <button onClick={() => handlePinDigit("0")} className="h-11 rounded-xl bg-[hsl(var(--muted))] text-sm font-semibold hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform">0</button>
-                <button onClick={handlePinDel} className="h-11 rounded-xl bg-[hsl(var(--muted))] text-sm font-semibold hover:bg-[hsl(var(--accent))] active:scale-95 transition-transform">⌫</button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Gemini AI */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div>
-            <p className="text-sm font-semibold">✨ Gemini AI — Catat dari Teks</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              Diperlukan untuk fitur "Catat dari Teks", "Scan Struk", dan insight naratif.
-            </p>
-          </div>
-          <p className={`text-xs rounded-xl border px-3 py-2 ${aiOnline ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
-            Status AI: {aiOnline ? "Online" : "Offline"}. Fitur AI hanya aktif saat perangkat terhubung internet.
-          </p>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-[hsl(var(--foreground))]">Gemini API Key</label>
-            <div className="relative">
-              <input
-                type={showGeminiKey ? "text" : "password"}
-                value={geminiKey}
-                onChange={(e) => setGeminiKey(e.target.value)}
-                placeholder="AIza..."
-                className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-24"
-              />
-              <button
-                type="button"
-                onClick={() => setShowGeminiKey((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] px-2 py-1"
-              >
-                {showGeminiKey ? "Sembunyikan" : "Lihat"}
-              </button>
-            </div>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              Dapatkan API key gratis di{" "}
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[hsl(var(--primary))] underline"
-              >
-                Google AI Studio
-              </a>.
-              Key disimpan lokal di perangkatmu.
-            </p>
-          </div>
-          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
-            <p className="font-medium">Privacy Warning</p>
-            <p>Teks atau foto struk yang kamu kirim ke fitur AI akan diproses oleh layanan Google Gemini.</p>
-            <p>Jangan kirim data sensitif (nomor kartu, PIN, OTP, atau informasi rahasia lain).</p>
-          </div>
-          <Button onClick={handleSaveGeminiKey} className="w-full">
-            {geminiSaved ? "✅ Tersimpan!" : "Simpan API Key"}
-          </Button>
-        </CardContent>
-      </Card>
-
+        </div>
+      </div>
       {/* Danger zone */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <p className="text-sm font-semibold text-red-500">Zona Bahaya</p>
-          <Button variant="destructive" className="w-full gap-2" onClick={() => setClearConfirm(true)}>
+      <Card role="region" aria-labelledby="danger-heading" className="border-red-500/30">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div><h2 id="danger-heading" className="text-sm font-semibold text-red-600 dark:text-red-400">Hapus data perangkat</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Menghapus akun dan transaksi secara permanen. Unduh backup terlebih dahulu.</p></div>
+          <Button variant="destructive" className="w-full gap-2 sm:w-auto" onClick={() => setClearConfirm(true)}>
             <Trash2 size={15} /> Hapus Semua Data
           </Button>
         </CardContent>
@@ -569,16 +585,18 @@ export default function Settings() {
 
           <div className="flex gap-2">
             <button
+              aria-pressed={cloudImportMode === "merge"}
               onClick={() => setCloudImportMode("merge")}
-                className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-colors ${
+                className={`flex-1 py-2 rounded-xl border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${
                   cloudImportMode === "merge" ? "border-[hsl(var(--primary))] text-[hsl(var(--primary))]" : "border-[hsl(var(--border))]"
               }`}
             >
               Merge (gabungkan)
             </button>
             <button
+              aria-pressed={cloudImportMode === "replace"}
               onClick={() => setCloudImportMode("replace")}
-              className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-colors ${
+              className={`flex-1 py-2 rounded-xl border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${
                 cloudImportMode === "replace" ? "border-red-500 text-red-600" : "border-[hsl(var(--border))]"
               }`}
             >

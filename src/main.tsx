@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
+import { useWalletStore } from "./stores/walletStore";
 import { seedDefaultCategories, seedDefaultSettings } from "./db/db";
 import { processRecurringTransactions } from "./db/recurring";
 import { startCloudBackupScheduler } from "./services/cloudBackupScheduler";
@@ -10,6 +11,7 @@ import { startCloudBackupScheduler } from "./services/cloudBackupScheduler";
 async function init() {
   await seedDefaultCategories();
   await seedDefaultSettings();
+  await useWalletStore.getState().loadCategories();
   await processRecurringTransactions();
   startCloudBackupScheduler();
   const theme = localStorage.getItem("theme") as "light" | "dark" | null;

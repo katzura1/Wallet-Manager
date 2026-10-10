@@ -24,83 +24,77 @@ export default function Categories() {
       const added = await seedMissingDefaultCategories();
       await refreshAll();
       setRestoreMsg(added > 0 ? `✅ ${added} kategori dipulihkan.` : "✅ Semua kategori default sudah ada.");
+    } catch (error) {
+      setRestoreMsg("Gagal memulihkan kategori: " + (error instanceof Error ? error.message : "Coba lagi."));
     } finally {
       setRestoring(false);
     }
   }
 
   const grouped = [
-    { label: "Pengeluaran", color: "text-red-500", items: categories.filter((c) => c.type === "expense" || c.type === "both") },
-    { label: "Pemasukan", color: "text-emerald-500", items: categories.filter((c) => c.type === "income") },
+    { type: "expense", label: "Pengeluaran", color: "text-red-600 dark:text-red-400", items: categories.filter((c) => c.type === "expense") },
+    { type: "income", label: "Pemasukan", color: "text-emerald-600 dark:text-emerald-400", items: categories.filter((c) => c.type === "income") },
+    { type: "both", label: "Keduanya", color: "text-[hsl(var(--primary))]", items: categories.filter((c) => c.type === "both") },
   ];
 
   usePageAction({ label: "Tambah kategori", onClick: () => setCatFormOpen(true) });
 
   return (
-    <div className="space-y-5 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
-      {/* Header */}
-      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-        <div className="flex items-start gap-3">
-          <Link to="/settings" className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--card))]/75 hover:bg-[hsl(var(--surface-2))] transition-colors">
+    <div className="space-y-4 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Link to="/settings" aria-label="Kembali ke pengaturan" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
             <ChevronLeft size={18} />
           </Link>
-          <div className="flex-1 min-w-0">
-            <h1 className="mt-1 text-2xl font-bold tracking-tight">Kategori</h1>
-            <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Kelola kategori pemasukan dan pengeluaran dengan struktur yang lebih rapi.</p>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Kategori</h1>
+            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{categories.length} kategori · {categories.filter((cat) => cat.isDefault).length} bawaan · {categories.filter((cat) => !cat.isDefault).length} buatan sendiri</p>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={handleRestoreDefault} disabled={restoring} className="gap-1.5">
-            <RefreshCw size={13} className={restoring ? "animate-spin" : ""} /> Pulihkan Default
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={handleRestoreDefault} disabled={restoring} className="gap-1.5">
+          <RefreshCw size={14} className={restoring ? "animate-spin" : ""} /> {restoring ? "Memulihkan…" : "Pulihkan Default"}
+        </Button>
       </div>
 
-      {restoreMsg && <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">{restoreMsg}</p>}
+      {restoreMsg && <p role="status" className="text-xs text-[hsl(var(--muted-foreground))]">{restoreMsg}</p>}
 
-      {grouped.map(({ label, color, items }) => (
-        <Card key={label}>
-          <CardContent className="p-5 space-y-1">
-            <p className={`text-[11px] font-semibold mb-2 ${color}`}>{label} ({items.length})</p>
-            {items.length === 0 && (
-              <p className="text-xs text-[hsl(var(--muted-foreground))] py-2 text-center">Tidak ada kategori</p>
-            )}
-            {items.map((cat) => (
-              <div key={cat.id} className="flex items-center gap-3 py-3 px-3 rounded-2xl hover:bg-[hsl(var(--surface-2))]">
-                <span
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-base flex-none"
-                  style={{ background: `${cat.color}22` }}
-                >
-                  {cat.icon}
-                </span>
-                <span className="flex-1 text-sm font-medium truncate">{cat.name}</span>
-                {cat.type === "both" && (
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full font-medium flex-none"
-                    style={{ background: `${cat.color}22`, color: cat.color }}
-                  >
-                    Keduanya
-                  </span>
-                )}
-                <button
-                  onClick={() => setEditCat(cat)}
-                  className="p-2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] rounded-xl hover:bg-[hsl(var(--surface-2))]"
-                >
-                  <Pencil size={13} />
-                </button>
-                {!cat.isDefault && (
-                  <button
-                    onClick={() => setDeleteCatId(cat.id!)}
-                    className="p-2 text-[hsl(var(--muted-foreground))] hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        {[grouped.slice(0, 1), grouped.slice(1)].map((column, index) => (
+          <div key={index} className="contents lg:block lg:space-y-4">
+        {column.map(({ type, label, color, items }) => (
+          <Card key={type} role="region" aria-labelledby={`category-${type}`}>
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border))] px-4 py-3">
+                <h2 id={`category-${type}`} className={`text-sm font-semibold ${color}`}>{label}</h2>
+                <span className="text-xs tabular-nums text-[hsl(var(--muted-foreground))]">{items.length}</span>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      ))}
+              {items.length === 0 && <p className="p-4 text-xs text-[hsl(var(--muted-foreground))]">Belum ada kategori {label.toLowerCase()}. Pilih Tambah kategori untuk membuatnya.</p>}
+              <ul className="divide-y divide-[hsl(var(--border))]">
+                {items.map((cat) => (
+                  <li key={cat.id} className="flex items-center gap-2 px-3 py-2.5 hover:bg-[hsl(var(--surface-2))]">
+                    <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base" style={{ background: `${cat.color}22` }}>{cat.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-medium">{cat.name}</p>
+                      {cat.isDefault && <p className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">Bawaan</p>}
+                    </div>
+                    <div className="flex shrink-0 items-center">
+                      <button onClick={() => setEditCat(cat)} aria-label={`Edit ${cat.name}`} title="Edit kategori" className="flex h-9 w-9 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+                        <Pencil size={15} />
+                      </button>
+                      {!cat.isDefault && <button onClick={() => setDeleteCatId(cat.id!)} aria-label={`Hapus ${cat.name}`} title="Hapus kategori" className="flex h-9 w-9 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-red-500/10 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+                        <Trash2 size={15} />
+                      </button>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ))}
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-[hsl(var(--muted-foreground))]">Kategori Keduanya dapat dipakai untuk pemasukan dan pengeluaran. Kategori bawaan bisa diedit; hanya kategori buatan sendiri yang bisa dihapus.</p>
 
       <CategoryForm
         open={catFormOpen || editCat !== null}

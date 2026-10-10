@@ -67,6 +67,7 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
               <button
                 key={value}
                 type="button"
+                aria-pressed={type === value}
                 onClick={() => setType(value)}
                 className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-colors ${
                   type === value
@@ -90,15 +91,17 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
             <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">Ikon</p>
             <input
               type="text"
+              aria-label="Ikon kategori"
               value={icon}
               onChange={(e) => setIcon(e.target.value)}
               maxLength={2}
               className="w-14 h-12 text-2xl text-center rounded-2xl border border-[hsl(var(--border))] bg-transparent focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
             />
           </div>
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <Input
               label="Nama Kategori"
+              aria-label="Nama Kategori"
               value={name}
               onChange={(e) => { setName(e.target.value); setError(""); }}
               placeholder="mis. Makan & Minum"
@@ -115,6 +118,8 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
               <button
                 key={c}
                 type="button"
+                aria-label={`Warna ${c}`}
+                aria-pressed={color === c}
                 onClick={() => setColor(c)}
                 className="w-8 h-8 rounded-full transition-transform active:scale-90"
                 style={{ background: c, outline: color === c ? `3px solid ${c}` : "none", outlineOffset: "2px" }}
@@ -131,9 +136,9 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
           >
             {icon}
           </span>
-          <span className="text-sm font-medium">{name || "Contoh Kategori"}</span>
+          <span className="min-w-0 flex-1 break-words text-sm font-medium">{name || "Contoh Kategori"}</span>
           <span
-            className="ml-auto text-xs px-2 py-0.5 rounded-full font-medium"
+            className="ml-auto shrink-0 text-xs px-2 py-0.5 rounded-full font-medium"
             style={{ background: `${color}22`, color }}
           >
             {TYPE_OPTIONS.find((o) => o.value === type)?.label}
