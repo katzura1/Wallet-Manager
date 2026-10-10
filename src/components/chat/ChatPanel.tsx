@@ -99,6 +99,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
       // Prepare recent transactions for context
       const recentTxs = transactions.slice(0, 30).map((tx) => ({
         type: tx.type,
+        debtId: tx.debtId,
         amount: tx.amount,
         date: tx.date,
       }));

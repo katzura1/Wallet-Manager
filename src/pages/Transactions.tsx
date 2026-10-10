@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Button, Input, Select, EmptyState, Modal, Badge, Spinner, Card, CardContent } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
@@ -27,6 +27,7 @@ function getNetTone(value: number) {
 }
 
 export default function Transactions() {
+  const navigate = useNavigate();
   const { accounts, transactions, categories, filter, setFilter, refreshAll, isLoading } = useWalletStore();
   const { currency } = useSettingsStore();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -119,6 +120,11 @@ export default function Transactions() {
 
     const target = transactions.find((item) => item.id === targetId);
     if (!target) return;
+    if (target.debtId) {
+      pendingFocusTxId.current = null;
+      navigate("/debts");
+      return;
+    }
 
     setExpandedDates((prev) => ({ ...prev, [target.date]: true }));
     setEditTarget(target);
@@ -130,7 +136,7 @@ export default function Transactions() {
       nextParams.delete("tab");
     }
     setSearchParams(nextParams, { replace: true });
-  }, [transactions, searchParams, setSearchParams]);
+  }, [transactions, searchParams, setSearchParams, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -282,10 +288,10 @@ export default function Transactions() {
     const totals = { income: 0, expense: 0, transfer: 0 };
     const dayTotals: Record<string, { income: number; expense: number; count: number }> = {};
     for (const tx of transactions) {
-      totals[tx.type] += tx.amount;
+      if (!tx.debtId) totals[tx.type] += tx.amount;
       const day = dayTotals[tx.date] ??= { income: 0, expense: 0, count: 0 };
       day.count++;
-      if (tx.type !== "transfer") day[tx.type] += tx.amount;
+      if (!tx.debtId && tx.type !== "transfer") day[tx.type] += tx.amount;
     }
     return { sortedDates: Object.keys(dayTotals).sort((a, b) => b.localeCompare(a)), totals, dayTotals };
   }, [transactions]);
@@ -389,8 +395,8 @@ export default function Transactions() {
             hasSplits={hasSplits}
             isExpanded={isExpanded}
             onExpandSplits={() => setExpandedSplitId(isExpanded ? null : tx.id!)}
-            onEdit={() => setEditTarget(tx)}
-            onDelete={() => setDeleteTxId(tx.id!)}
+            onEdit={() => tx.debtId ? navigate("/debts") : setEditTarget(tx)}
+            onDelete={() => tx.debtId ? navigate("/debts") : setDeleteTxId(tx.id!)}
           />
           {hasSplits && isExpanded && (
             desktop ? <tr><td colSpan={6}>{renderSplits(tx, txSplits)}</td></tr> : renderSplits(tx, txSplits)

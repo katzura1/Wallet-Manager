@@ -50,6 +50,8 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
       }
       onSaved();
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan.");
     } finally {
       setLoading(false);
     }
@@ -138,6 +140,8 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
       await payDebt(debt.id!, amountNum, date, note, accountId ? Number(accountId) : undefined);
       onSaved();
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan.");
     } finally {
       setLoading(false);
     }
@@ -195,6 +199,7 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
   const [editDate, setEditDate] = useState("");
   const [editNote, setEditNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState("");
 
   function reload() {
     getDebtPayments(debt.id!).then(setPayments);
@@ -205,6 +210,7 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
   }, [open, debt.id]);
 
   function startEdit(p: DebtPayment) {
+    setEditError("");
     setEditingId(p.id!);
     setEditAmount(String(p.amount));
     setEditDate(p.date);
@@ -213,13 +219,16 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
 
   async function saveEdit(p: DebtPayment) {
     const amountNum = Number(editAmount);
-    if (!amountNum || amountNum <= 0) return;
+    if (!Number.isFinite(amountNum) || amountNum <= 0) { setEditError("Jumlah harus lebih dari 0."); return; }
+    setEditError("");
     setSaving(true);
     try {
       await updateDebtPayment(p.id!, { amount: amountNum, date: editDate, note: editNote });
       setEditingId(null);
       reload();
       onPaymentChanged();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Gagal menyimpan pembayaran.");
     } finally {
       setSaving(false);
     }
@@ -227,13 +236,18 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
 
   async function handleDelete(p: DebtPayment) {
     if (!confirm(`Hapus pembayaran ${formatCurrency(p.amount, currency)} pada ${formatDate(p.date)}?`)) return;
-    await deleteDebtPayment(p.id!);
-    reload();
-    onPaymentChanged();
+    try {
+      await deleteDebtPayment(p.id!);
+      reload();
+      onPaymentChanged();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Gagal menghapus pembayaran.");
+    }
   }
 
   return (
     <Modal open={open} onClose={onClose} title={`Riwayat: ${debt.name}`}>
+      {editError && <p role="alert" className="mb-3 text-xs text-red-500">{editError}</p>}
       {payments.length === 0 ? (
         <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-4">Belum ada pembayaran</p>
       ) : (
@@ -245,12 +259,14 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
                   <div className="flex gap-1.5">
                     <input
                       type="number"
+                      aria-label="Jumlah pembayaran"
                       className="flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                       value={editAmount}
                       onChange={(e) => setEditAmount(e.target.value)}
                     />
                     <input
                       type="date"
+                      aria-label="Tanggal pembayaran"
                       className="flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
@@ -258,6 +274,7 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
                   </div>
                   <input
                     type="text"
+                    aria-label="Catatan pembayaran"
                     placeholder="Catatan (opsional)"
                     className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                     value={editNote}
@@ -279,8 +296,8 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <span className="font-semibold text-emerald-500 text-xs">{formatCurrency(p.amount, currency)}</span>
-                    <button onClick={() => startEdit(p)} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
-                    <button onClick={() => handleDelete(p)} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
+                    <button aria-label="Edit pembayaran" onClick={() => startEdit(p)} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
+                    <button aria-label="Hapus pembayaran" onClick={() => handleDelete(p)} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
                   </div>
                 </div>
               )}
@@ -390,7 +407,9 @@ export default function Debts() {
   const [deleteTarget, setDeleteTarget] = useState<Debt | null>(null);
 
   async function load() {
+    await useWalletStore.getState().refreshAll();
     setDebts(await getDebts(showSettled));
+    if (historyDebt?.id) setHistoryDebt((await getDebts(true)).find((debt) => debt.id === historyDebt.id) ?? null);
   }
 
   useEffect(() => { load(); }, [showSettled]);

@@ -172,56 +172,58 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
 
     setLoading(true);
     try {
-      if (existing?.id) {
-        await updateTransaction(existing.id, {
-          type,
-          amount: amountNum,
-          accountId: Number(accountId),
-          toAccountId: type === "transfer" ? Number(toAccountId) : undefined,
-          categoryId: splitMode ? undefined : categoryId ? Number(categoryId) : undefined,
-          date,
-          note,
-        });
-        // Update splits: delete old rows then re-insert
-        await db.transactionSplits.where("transactionId").equals(existing.id).delete();
-        if (splitMode && type !== "transfer") {
+      await db.transaction("rw", db.transactions, db.transactionSplits, db.accounts, async () => {
+        if (existing?.id) {
+          await updateTransaction(existing.id, {
+            type,
+            amount: amountNum,
+            accountId: Number(accountId),
+            toAccountId: type === "transfer" ? Number(toAccountId) : undefined,
+            categoryId: splitMode ? undefined : categoryId ? Number(categoryId) : undefined,
+            date,
+            note,
+          });
+          // Update splits: delete old rows then re-insert
+          await db.transactionSplits.where("transactionId").equals(existing.id).delete();
+          if (splitMode && type !== "transfer") {
+            await db.transactionSplits.bulkAdd(
+              splits.map((r) => ({
+                transactionId: existing.id!,
+                categoryId: Number(r.categoryId),
+                amount: Number(r.amount),
+                note: "",
+              })),
+            );
+          }
+        } else if (type === "transfer") {
+          await addTransfer(Number(accountId), Number(toAccountId), amountNum, date, note);
+        } else if (splitMode) {
+          const txId = await addTransaction({
+            type,
+            amount: amountNum,
+            accountId: Number(accountId),
+            date,
+            note,
+          });
           await db.transactionSplits.bulkAdd(
             splits.map((r) => ({
-              transactionId: existing.id!,
+              transactionId: txId as number,
               categoryId: Number(r.categoryId),
               amount: Number(r.amount),
               note: "",
             })),
           );
+        } else {
+          await addTransaction({
+            type,
+            amount: amountNum,
+            accountId: Number(accountId),
+            categoryId: categoryId ? Number(categoryId) : undefined,
+            date,
+            note,
+          });
         }
-      } else if (type === "transfer") {
-        await addTransfer(Number(accountId), Number(toAccountId), amountNum, date, note);
-      } else if (splitMode) {
-        const txId = await addTransaction({
-          type,
-          amount: amountNum,
-          accountId: Number(accountId),
-          date,
-          note,
-        });
-        await db.transactionSplits.bulkAdd(
-          splits.map((r) => ({
-            transactionId: txId as number,
-            categoryId: Number(r.categoryId),
-            amount: Number(r.amount),
-            note: "",
-          })),
-        );
-      } else {
-        await addTransaction({
-          type,
-          amount: amountNum,
-          accountId: Number(accountId),
-          categoryId: categoryId ? Number(categoryId) : undefined,
-          date,
-          note,
-        });
-      }
+      });
 
       if (!existing) {
         const stored = readTransactionDefaults();

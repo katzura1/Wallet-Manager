@@ -243,9 +243,9 @@ export interface ChatParseResult {
   raw?: string;
 }
 
-function buildRecentSummary(transactions: { type: string; amount: number; categoryId?: number; date: string }[]): string {
+function buildRecentSummary(transactions: { type: string; debtId?: number; amount: number; categoryId?: number; date: string }[]): string {
   const recent = transactions
-    .filter((tx) => tx.type === "expense" || tx.type === "income")
+    .filter((tx) => !tx.debtId && (tx.type === "expense" || tx.type === "income"))
     .slice(0, 20);
 
   if (recent.length === 0) return "(belum ada transaksi)";
@@ -260,7 +260,7 @@ function buildChatPrompt(
   text: string,
   accounts: Account[],
   categories: Category[],
-  recentTransactions: { type: string; amount: number; date: string }[],
+  recentTransactions: { type: string; debtId?: number; amount: number; date: string }[],
 ): string {
   const accountList = buildAccountList(accounts);
   const categoryList = buildCategoryList(categories);
@@ -322,7 +322,7 @@ export async function parseChatMessage(
   apiKey: string,
   accounts: Account[],
   categories: Category[],
-  recentTransactions: { type: string; amount: number; date: string }[],
+  recentTransactions: { type: string; debtId?: number; amount: number; date: string }[],
   modelName = "gemini-2.5-flash",
 ): Promise<ChatParseResult> {
   if (!apiKey.trim()) {
@@ -388,8 +388,8 @@ export async function parseChatMessage(
       periodTransactions = recentTransactions.filter((tx) => new Date(tx.date) >= weekAgo);
     }
 
-    const income = periodTransactions.filter((tx) => tx.type === "income").reduce((sum, tx) => sum + tx.amount, 0);
-    const expense = periodTransactions.filter((tx) => tx.type === "expense").reduce((sum, tx) => sum + tx.amount, 0);
+    const income = periodTransactions.filter((tx) => !tx.debtId && tx.type === "income").reduce((sum, tx) => sum + tx.amount, 0);
+    const expense = periodTransactions.filter((tx) => !tx.debtId && tx.type === "expense").reduce((sum, tx) => sum + tx.amount, 0);
 
     return {
       type: "summary",

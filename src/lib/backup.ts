@@ -1,3 +1,4 @@
+import { normalizeDebtPayments } from "@/db/normalizeDebtPayments";
 import { db } from "@/db/db";
 import { seedMissingDefaultCategories } from "@/db/db";
 import { z } from "zod";
@@ -34,6 +35,7 @@ const TransactionSchema = z.object({
   accountId: z.number(),
   toAccountId: z.number().optional(),
   transferPairId: z.number().optional(),
+  debtId: z.number().int().positive().optional(),
   categoryId: z.number().optional(),
   date: z.string(),
   note: z.string(),
@@ -93,6 +95,7 @@ const DebtSchema = z.object({
 
 const DebtPaymentSchema = z.object({
   id: z.number().optional(),
+  transactionId: z.number().int().positive().optional(),
   debtId: z.number(),
   amount: z.number(),
   date: z.string(),
@@ -341,7 +344,7 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
   ] as const;
 
   if (mode === "replace") {
-    await db.transaction("rw", allTables, async () => {
+    await db.transaction("rw", allTables, async (scope) => {
       await Promise.all(allTables.map((t) => t.clear()));
       await db.accounts.bulkAdd(accounts);
       await db.categories.bulkAdd(categories);
@@ -356,12 +359,13 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
       await db.assetPrices.bulkPut(assetPrices);
       await db.portfolioHistory.bulkAdd(portfolioHistory);
       await db.syncLog.bulkAdd(syncLog);
+      await normalizeDebtPayments(scope);
     });
     // Re-seed any missing default categories (so app always has full category list)
     await seedMissingDefaultCategories();
   } else {
     // Merge: skip records that already exist by id
-    await db.transaction("rw", allTables, async () => {
+    await db.transaction("rw", allTables, async (scope) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mergeTable = async (table: any, items: any[]) => {
         for (const item of items) {
@@ -404,6 +408,7 @@ export async function importJSON(file: File, mode: "replace" | "merge"): Promise
         }
       }
       await mergeTable(db.syncLog, syncLog);
+      await normalizeDebtPayments(scope);
     });
   }
 }

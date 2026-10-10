@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Card, CardContent, Modal, Button, Badge } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
@@ -43,6 +43,7 @@ interface AnomalyAlertItem {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { openChat } = useAppLayout();
   const { accounts, categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
@@ -193,8 +194,8 @@ export default function Dashboard() {
   const now = new Date();
 
   const thisMonthTxs = transactions.filter((t) => t.date.startsWith(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`));
-  const monthIncome = thisMonthTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const monthExpense = thisMonthTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const monthIncome = thisMonthTxs.filter((t) => !t.debtId && t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const monthExpense = thisMonthTxs.filter((t) => !t.debtId && t.type === "expense").reduce((s, t) => s + t.amount, 0);
 
   const recentTxs = recentExpanded ? transactions.slice(0, 6) : transactions.slice(0, 3);
   const upcomingBills = recurringItems
@@ -438,8 +439,8 @@ export default function Dashboard() {
                       currency={currency}
                       hidden={balanceHidden}
                       hasSplits={splitTxIds.has(tx.id!)}
-                      onEdit={() => setEditTx(tx)}
-                      onDelete={() => setDeleteTargetId(tx.id!)}
+                      onEdit={() => tx.debtId ? navigate("/debts") : setEditTx(tx)}
+                      onDelete={() => tx.debtId ? navigate("/debts") : setDeleteTargetId(tx.id!)}
                     />
                   ))}
                 </div>

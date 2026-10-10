@@ -100,7 +100,7 @@ export async function getRecurringDetectionSuggestions(limit = 3, referenceDate 
     db.transactions
       .where("date")
       .between(lookbackFrom, referenceKey, true, true)
-      .filter((tx) => tx.type === "income" || tx.type === "expense")
+      .filter((tx) => !tx.debtId && (tx.type === "income" || tx.type === "expense"))
       .toArray(),
     db.recurring.toArray(),
   ]);

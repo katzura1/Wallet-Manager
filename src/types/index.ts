@@ -30,6 +30,7 @@ export interface Transaction {
   amount: number;
   accountId: number;
   toAccountId?: number; // for transfer: destination account
+  debtId?: number; // debt cash flow, excluded from income/expense reports
   transferPairId?: number; // for transfer: links the two transactions together
   categoryId?: number;
   date: string; // ISO date string YYYY-MM-DD

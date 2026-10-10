@@ -36,7 +36,7 @@ export function TransactionCard({
   onDelete,
 }: TransactionCardProps) {
   const displayLabel = tx.note || (hasSplits ? "Split Kategori" : categoryLabel) || accountName;
-  const detailLabel = tx.note
+  const detailLabel = tx.debtId ? "Utang/Piutang" : tx.note
     ? hasSplits ? `Split · ${categoryLabel?.split(" · ").pop() ?? "Kategori"}` : categoryLabel ?? "Transaksi"
     : tx.type === "income" ? "Pemasukan" : tx.type === "expense" ? "Pengeluaran" : "Transfer";
   const displayIcon = hasSplits ? "✂️" : categoryIcon || (tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️");
@@ -54,10 +54,10 @@ export function TransactionCard({
           {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
         </button>
       )}
-      <button onClick={onEdit} aria-label={`Edit ${displayLabel}`} title="Edit" className="flex h-9 w-9 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+      <button onClick={onEdit} aria-label={`Edit ${displayLabel}`} title={tx.debtId ? "Kelola di Utang/Piutang" : "Edit"} className="flex h-9 w-9 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
         <Pencil size={15} />
       </button>
-      <button onClick={onDelete} aria-label={`Hapus ${displayLabel}`} title="Hapus" className="flex h-9 w-9 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-red-500/10 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+      <button onClick={onDelete} aria-label={`Hapus ${displayLabel}`} title={tx.debtId ? "Kelola di Utang/Piutang" : "Hapus"} className="flex h-9 w-9 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-red-500/10 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
         <Trash2 size={15} />
       </button>
     </div>
@@ -71,7 +71,7 @@ export function TransactionCard({
           <span className="mr-2" aria-hidden="true">{displayIcon}</span>
           <span className="font-medium">{displayLabel}</span>
         </td>
-        <td className="px-3 py-2.5 text-[hsl(var(--muted-foreground))]">{tx.type === "income" ? "Pemasukan" : tx.type === "expense" ? "Pengeluaran" : "Transfer"}</td>
+        <td className="px-3 py-2.5 text-[hsl(var(--muted-foreground))]">{tx.debtId ? "Utang/Piutang" : tx.type === "income" ? "Pemasukan" : tx.type === "expense" ? "Pengeluaran" : "Transfer"}</td>
         <td className="px-3 py-2.5 max-w-52 break-words">{categoryLabel ?? "—"}</td>
         <td className="px-3 py-2.5 max-w-60 break-words">{accountName}{toAccountName ? ` → ${toAccountName}` : ""}</td>
         <td className={`px-3 py-2.5 text-right whitespace-nowrap font-semibold tabular-nums ${amountColor}`}>{amount}</td>

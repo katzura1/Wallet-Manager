@@ -1,3 +1,4 @@
+import { normalizeDebtPayments } from "./normalizeDebtPayments";
 import Dexie, { type EntityTable } from "dexie";
 import type { Account, Transaction, Category, Settings, Budget, RecurringTransaction, TransactionSplit, Debt, DebtPayment, Asset, AssetPrice, PortfolioHistory, SyncLogEntry } from "@/types";
 
@@ -50,6 +51,9 @@ class WalletDB extends Dexie {
     this.version(8).stores({
       budgets: "++id, categoryId, month",
     });
+    this.version(9).stores({
+      transactions: "++id, type, accountId, toAccountId, transferPairId, categoryId, date, createdAt, debtId",
+    }).upgrade(normalizeDebtPayments);
   }
 }
 

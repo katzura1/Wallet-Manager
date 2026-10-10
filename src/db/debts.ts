@@ -1,5 +1,6 @@
+import { recalculateAccountBalance } from "./accounts";
 import { db } from "./db";
-import { addTransaction, deleteTransaction } from "./transactions";
+import { addTransaction } from "./transactions";
 import { todayISO } from "@/lib/utils";
 import type { Debt, DebtPayment } from "@/types";
 
@@ -10,27 +11,32 @@ export async function getDebts(includeSettled = false): Promise<Debt[]> {
 }
 
 export async function addDebt(data: Omit<Debt, "id" | "createdAt" | "updatedAt">): Promise<number | undefined> {
-  const now = new Date().toISOString();
-  const debtId = await db.debts.add({ ...data, remaining: data.amount, createdAt: now, updatedAt: now });
+  return db.transaction("rw", db.debts, db.transactions, db.accounts, async () => {
+    if (!Number.isFinite(data.amount) || data.amount <= 0) throw new Error("Jumlah harus lebih dari 0.");
+    if (data.accountId && !await db.accounts.get(data.accountId)) throw new Error("Akun tidak ditemukan.");
+    const now = new Date().toISOString();
+    const debtId = await db.debts.add({ ...data, remaining: data.amount, createdAt: now, updatedAt: now });
 
-  // Auto-create a transaction to reflect the account balance immediately
-  if (data.accountId) {
-    // owe = kita terima pinjaman = income (akun bertambah)
-    // owed = kita pinjamkan ke orang = expense (akun berkurang)
-    const txType = data.type === "owe" ? "income" : "expense";
-    const defaultNote = data.type === "owe"
-      ? `Pinjaman dari: ${data.name}`
-      : `Dipinjamkan ke: ${data.name}`;
-    await addTransaction({
-      type: txType,
-      amount: data.amount,
-      accountId: data.accountId,
-      date: todayISO(),
-      note: data.note || defaultNote,
-    });
-  }
+    // Auto-create a transaction to reflect the account balance immediately
+    if (data.accountId) {
+      // owe = kita terima pinjaman = income (akun bertambah)
+      // owed = kita pinjamkan ke orang = expense (akun berkurang)
+      const txType = data.type === "owe" ? "income" : "expense";
+      const defaultNote = data.type === "owe"
+        ? `Pinjaman dari: ${data.name}`
+        : `Dipinjamkan ke: ${data.name}`;
+      await addTransaction({
+        type: txType,
+        debtId,
+        amount: data.amount,
+        accountId: data.accountId,
+        date: todayISO(),
+        note: data.note || defaultNote,
+      });
+    }
 
-  return debtId;
+    return debtId;
+  });
 }
 
 export async function updateDebt(id: number, data: Partial<Omit<Debt, "id">>): Promise<void> {
@@ -53,16 +59,29 @@ export async function updateDebtPayment(
   paymentId: number,
   data: Pick<DebtPayment, "amount" | "date" | "note">,
 ): Promise<void> {
-  const payment = await db.debtPayments.get(paymentId);
-  if (!payment) return;
-  await db.debtPayments.update(paymentId, { amount: data.amount, date: data.date, note: data.note });
-  // Recalculate remaining from scratch
-  const payments = await db.debtPayments.where("debtId").equals(payment.debtId).toArray();
-  const debt = await db.debts.get(payment.debtId);
-  if (!debt) return;
-  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-  const newRemaining = Math.max(debt.amount - totalPaid, 0);
-  await db.debts.update(debt.id!, { remaining: newRemaining, isSettled: newRemaining <= 0, updatedAt: new Date().toISOString() });
+  await db.transaction("rw", db.debtPayments, db.debts, db.transactions, db.accounts, async () => {
+    const payment = await db.debtPayments.get(paymentId);
+    if (!payment) throw new Error("Pembayaran tidak ditemukan.");
+    const debt = await db.debts.get(payment.debtId);
+    if (!debt) throw new Error("Utang tidak ditemukan.");
+    if (!Number.isFinite(data.amount) || data.amount <= 0) throw new Error("Jumlah harus lebih dari 0.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date) || Number.isNaN(Date.parse(data.date)) || new Date(data.date).toISOString().slice(0, 10) !== data.date) {
+      throw new Error("Tanggal pembayaran tidak valid.");
+    }
+    const payments = await db.debtPayments.where("debtId").equals(payment.debtId).toArray();
+    const totalPaid = payments.reduce((sum, row) => sum + (row.id === paymentId ? data.amount : row.amount), 0);
+    if (totalPaid > debt.amount) throw new Error("Total pembayaran melebihi jumlah utang.");
+    if (payment.transactionId) {
+      const tx = await db.transactions.get(payment.transactionId);
+      if (!tx || tx.type === "transfer") throw new Error("Transaksi pembayaran tidak ditemukan atau tidak valid. Perubahan dibatalkan.");
+      if (!await db.accounts.get(tx.accountId)) throw new Error("Akun pembayaran tidak ditemukan.");
+      await db.transactions.update(payment.transactionId, { ...data, debtId: payment.debtId, updatedAt: new Date().toISOString() });
+      await recalculateAccountBalance(tx.accountId);
+    }
+    await db.debtPayments.update(paymentId, data);
+    const remaining = debt.amount - totalPaid;
+    await db.debts.update(debt.id!, { remaining, isSettled: remaining === 0, updatedAt: new Date().toISOString() });
+  });
 }
 
 /**
@@ -70,21 +89,23 @@ export async function updateDebtPayment(
  * Also deletes any associated transaction if it exists.
  */
 export async function deleteDebtPayment(paymentId: number): Promise<void> {
-  const payment = await db.debtPayments.get(paymentId);
-  if (!payment) return;
-  
-  // Delete the associated transaction if it exists
-  if (payment.transactionId) {
-    await deleteTransaction(payment.transactionId);
-  }
-  
-  await db.debtPayments.delete(paymentId);
-  const payments = await db.debtPayments.where("debtId").equals(payment.debtId).toArray();
-  const debt = await db.debts.get(payment.debtId);
-  if (!debt) return;
-  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-  const newRemaining = Math.max(debt.amount - totalPaid, 0);
-  await db.debts.update(debt.id!, { remaining: newRemaining, isSettled: newRemaining <= 0, updatedAt: new Date().toISOString() });
+  await db.transaction("rw", [db.debtPayments, db.debts, db.transactions, db.transactionSplits, db.accounts], async () => {
+    const payment = await db.debtPayments.get(paymentId);
+    if (!payment) return;
+    if (payment.transactionId) {
+      const tx = await db.transactions.get(payment.transactionId);
+      if (!tx) throw new Error("Transaksi pembayaran tidak ditemukan. Penghapusan dibatalkan.");
+      await db.transactions.delete(payment.transactionId);
+      await db.transactionSplits.where("transactionId").equals(payment.transactionId).delete();
+      await recalculateAccountBalance(tx.accountId);
+    }
+    await db.debtPayments.delete(paymentId);
+    const debt = await db.debts.get(payment.debtId);
+    if (!debt) return;
+    const payments = await db.debtPayments.where("debtId").equals(payment.debtId).toArray();
+    const remaining = Math.max(debt.amount - payments.reduce((sum, row) => sum + row.amount, 0), 0);
+    await db.debts.update(debt.id!, { remaining, isSettled: remaining === 0, updatedAt: new Date().toISOString() });
+  });
 }
 
 /**
@@ -99,41 +120,29 @@ export async function payDebt(
   note = "",
   accountId?: number,
 ): Promise<void> {
-  const debt = await db.debts.get(debtId);
-  if (!debt) return;
-
-  const actualAmount = Math.min(amount, debt.remaining);
-  const newRemaining = Math.max(debt.remaining - actualAmount, 0);
-
-  let transactionId: number | undefined;
-  
-  // Create transaction first if accountId is provided
-  if (accountId) {
-    // owe = kita bayar hutang = pengeluaran; owed = kita terima pembayaran = pemasukan
-    const txType = debt.type === "owe" ? "expense" : "income";
-    transactionId = await addTransaction({
-      type: txType,
-      amount: actualAmount,
-      accountId,
-      date,
-      note: note || `Pembayaran: ${debt.name}`,
-    });
-  }
-
-  // Then create the payment record with the transactionId
-  await db.debtPayments.add({ 
-    debtId, 
-    amount: actualAmount, 
-    date, 
-    note, 
-    accountId,
-    transactionId,
-    createdAt: new Date().toISOString() 
-  });
-  
-  await db.debts.update(debtId, {
-    remaining: newRemaining,
-    isSettled: newRemaining <= 0,
-    updatedAt: new Date().toISOString(),
+  await db.transaction("rw", db.debtPayments, db.debts, db.transactions, db.accounts, async () => {
+    const debt = await db.debts.get(debtId);
+    if (!debt) throw new Error("Utang tidak ditemukan.");
+    if (!Number.isFinite(amount) || amount <= 0 || amount > debt.remaining) {
+      throw new Error("Jumlah pembayaran tidak valid atau melebihi sisa utang.");
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) {
+      throw new Error("Tanggal pembayaran tidak valid.");
+    }
+    if (accountId && !await db.accounts.get(accountId)) throw new Error("Akun tidak ditemukan.");
+    let transactionId: number | undefined;
+    if (accountId) {
+      transactionId = await addTransaction({
+        type: debt.type === "owe" ? "expense" : "income",
+        debtId,
+        amount,
+        accountId,
+        date,
+        note,
+      });
+    }
+    await db.debtPayments.add({ debtId, amount, date, note, accountId, transactionId, createdAt: new Date().toISOString() });
+    const remaining = debt.remaining - amount;
+    await db.debts.update(debtId, { remaining, isSettled: remaining === 0, updatedAt: new Date().toISOString() });
   });
 }
