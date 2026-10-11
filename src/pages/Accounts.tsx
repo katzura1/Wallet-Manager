@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Button, EmptyState, Badge, Modal, Spinner, Card, CardContent } from "@/components/ui";
+import { ReconcileAccountForm } from "@/components/forms/ReconcileAccountForm";
 import { AccountForm } from "@/components/forms/AccountForm";
 import { archiveAccount, deleteAccount, updateAccount } from "@/db/accounts";
 import { formatCurrency, ACCOUNT_TYPE_LABELS } from "@/lib/utils";
@@ -13,6 +14,7 @@ export default function Accounts() {
   const { accounts, loadAccounts } = useWalletStore();
   const { currency } = useSettingsStore();
   const [addOpen, setAddOpen] = useState(false);
+  const [reconcileTarget, setReconcileTarget] = useState<Account | null>(null);
   const [editTarget, setEditTarget] = useState<Account | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Account | null>(null);
@@ -22,17 +24,7 @@ export default function Accounts() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  useEffect(() => {
-    void hydrate();
-  }, []);
-
-  useEffect(() => {
-    if (!feedback) return;
-    const timer = window.setTimeout(() => setFeedback(null), 2200);
-    return () => window.clearTimeout(timer);
-  }, [feedback]);
-
-  async function hydrate() {
+  const hydrate = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -42,7 +34,17 @@ export default function Accounts() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [loadAccounts]);
+
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
+
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = window.setTimeout(() => setFeedback(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
 
   const activeAccounts = accounts.filter((a) => !a.isArchived);
   const archivedAccounts = accounts.filter((a) => a.isArchived);
@@ -165,6 +167,7 @@ export default function Accounts() {
               key={account.id}
               account={account}
               currency={currency}
+              onReconcile={() => setReconcileTarget(account)}
               onEdit={() => setEditTarget(account)}
               onArchive={() => setArchiveTarget(account)}
               onDelete={() => setDeleteTarget(account)}
@@ -172,6 +175,18 @@ export default function Accounts() {
             />
           ))}
         </div>
+      )}
+
+      {reconcileTarget && (
+        <ReconcileAccountForm
+          account={reconcileTarget}
+          currency={currency}
+          onClose={() => setReconcileTarget(null)}
+          onSaved={(difference) => {
+            void useWalletStore.getState().refreshAll().catch(() => setFeedback({ type: "error", text: "Penyesuaian tersimpan. Muat ulang untuk melihat saldo terbaru." }));
+            setFeedback({ type: "success", text: difference === 0 ? "Saldo sudah cocok. Tidak ada transaksi baru." : "Penyesuaian saldo tersimpan." });
+          }}
+        />
       )}
 
       <AccountForm
@@ -238,6 +253,7 @@ function AccountCard({
   account,
   currency,
   onEdit,
+  onReconcile,
   onArchive,
   onDelete,
   busy,
@@ -245,6 +261,7 @@ function AccountCard({
   account: Account;
   currency: string;
   onEdit: () => void;
+  onReconcile: () => void;
   onArchive: () => void;
   onDelete: () => void;
   busy: boolean;
@@ -268,6 +285,11 @@ function AccountCard({
           <p className="text-base font-bold mt-0.5">{formatCurrency(account.currentBalance, currency)}</p>
         </div>
       </div>
+      {!account.isArchived && (
+        <button type="button" onClick={onReconcile} disabled={busy} aria-label={`Cocokkan saldo ${account.name}`} className="mx-2.5 mb-2 flex min-h-10 w-[calc(100%-1.25rem)] items-center justify-center rounded-xl border border-[hsl(var(--border))] text-xs font-medium text-[hsl(var(--primary))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+          Cocokkan saldo
+        </button>
+      )}
       <div className="grid grid-cols-3 gap-1.5 px-2.5 pb-2.5">
         <button
           onClick={onEdit}

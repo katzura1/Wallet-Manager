@@ -66,7 +66,7 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
           ))}
         </Select>
         <Input
-          label={existing ? "Saldo Awal (ubah jika perlu koreksi)" : "Saldo Awal"}
+          label="Saldo Awal"
           type="text"
           inputMode="numeric"
           placeholder="0"
@@ -76,6 +76,7 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
             setInitialBalance(cleanValue);
           }}
         />
+        {existing && <p className="text-xs text-[hsl(var(--muted-foreground))]">Untuk mencocokkan saldo saat ini, gunakan Cocokkan saldo di halaman Akun.</p>}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">Warna</label>
           <div className="flex flex-wrap gap-2">

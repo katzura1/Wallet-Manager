@@ -1,5 +1,27 @@
 # Wallet Manager PWA
 
+## Deploy via FTP
+
+Isi `.env.ftp` sesuai `.env.ftp.example`, lalu jalankan:
+
+```bash
+npm run deploy -- --dry-run # build dan cek daftar file tanpa upload
+npm run deploy            # build lalu upload dist ke FTP_REMOTE_DIR
+```
+
+Butuh Node.js 22.12+ dan `curl` dengan dukungan FTP/FTPS. Script berhenti jika
+build atau upload gagal. Kredensial hanya dibaca lokal, bukan di-upload.
+`FTP_SECURE` default `true` (FTPS/TLS dengan verifikasi sertifikat); jika server
+hanya menyediakan FTP biasa, isi `FTP_SECURE=false` di `.env.ftp` (login dan file
+dikirim tanpa enkripsi). Password yang mengandung `#` perlu dibungkus tanda kutip.
+
+`FTP_REMOTE_DIR` relatif terhadap direktori login FTP; awali `/` untuk path
+absolut. File dengan nama sama ditimpa, file lama tidak dihapus. Upload assets
+lebih dulu, kemudian `index.html` dan `sw.js`. Deploy tidak atomik; jika gagal,
+jalankan ulang. Aplikasi saat ini memakai URL root `/`; folder FTP harus menjadi
+document root domain/subdomain. Hosting juga perlu fallback SPA ke `index.html`
+agar refresh pada route seperti `/accounts` bekerja.
+
 ## Google Drive Backup Setup
 
 Fitur Cloud Backup di halaman Settings membutuhkan OAuth Client ID dari Google Cloud.

@@ -194,8 +194,8 @@ export default function Dashboard() {
   const now = new Date();
 
   const thisMonthTxs = transactions.filter((t) => t.date.startsWith(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`));
-  const monthIncome = thisMonthTxs.filter((t) => !t.debtId && t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const monthExpense = thisMonthTxs.filter((t) => !t.debtId && t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const monthIncome = thisMonthTxs.filter((t) => !t.debtId && !t.isAdjustment && t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const monthExpense = thisMonthTxs.filter((t) => !t.debtId && !t.isAdjustment && t.type === "expense").reduce((s, t) => s + t.amount, 0);
 
   const recentTxs = recentExpanded ? transactions.slice(0, 6) : transactions.slice(0, 3);
   const upcomingBills = recurringItems
@@ -439,7 +439,7 @@ export default function Dashboard() {
                       currency={currency}
                       hidden={balanceHidden}
                       hasSplits={splitTxIds.has(tx.id!)}
-                      onEdit={() => tx.debtId ? navigate("/debts") : setEditTx(tx)}
+                      onEdit={() => tx.isAdjustment ? navigate("/accounts") : tx.debtId ? navigate("/debts") : setEditTx(tx)}
                       onDelete={() => tx.debtId ? navigate("/debts") : setDeleteTargetId(tx.id!)}
                     />
                   ))}

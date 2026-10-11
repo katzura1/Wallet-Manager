@@ -95,9 +95,9 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
     const defaultAccountId = String(accounts[0]?.id ?? "");
 
     if (nextType === "transfer") {
-      const fromAccount = accountExists(stored.transfer?.accountId) ? stored.transfer?.accountId! : defaultAccountId;
+      const fromAccount = accountExists(stored.transfer?.accountId) ? (stored.transfer?.accountId ?? defaultAccountId) : defaultAccountId;
       const toAccount = accountExists(stored.transfer?.toAccountId) && stored.transfer?.toAccountId !== fromAccount
-        ? stored.transfer?.toAccountId!
+        ? (stored.transfer?.toAccountId ?? "")
         : String(accounts.find((account) => String(account.id) !== fromAccount)?.id ?? "");
       setType("transfer");
       setAccountId(fromAccount);
@@ -106,9 +106,9 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
     } else {
       const defaults = stored[nextType];
       setType(nextType);
-      setAccountId(accountExists(defaults?.accountId) ? defaults?.accountId! : defaultAccountId);
+      setAccountId(accountExists(defaults?.accountId) ? (defaults?.accountId ?? defaultAccountId) : defaultAccountId);
       setToAccountId("");
-      setCategoryId(categoryExists(defaults?.categoryId) ? defaults?.categoryId! : "");
+      setCategoryId(categoryExists(defaults?.categoryId) ? (defaults?.categoryId ?? "") : "");
     }
 
     setAmount("");

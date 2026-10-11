@@ -58,37 +58,18 @@ export async function getOrInheritBudget(categoryId: number, month: string): Pro
     return explicit;
   }
   
-  // No explicit budget; search backward for most recent recurring budget
-  const [year, monthNum] = month.split("-").map(Number);
-  let searchYear = year;
-  let searchMonth = monthNum;
-  
-  // Search back up to 12 months
-  for (let i = 0; i < 12; i++) {
-    searchMonth--;
-    if (searchMonth < 1) {
-      searchMonth = 12;
-      searchYear--;
-    }
-    
-    const searchMonthStr = `${searchYear}-${String(searchMonth).padStart(2, "0")}`;
-    const recurring = await db.budgets
-      .filter((b) => b.categoryId === categoryId && b.month === searchMonthStr && b.recurring === true)
-      .first();
-    
-    if (recurring) {
-      return recurring;
-    }
-  }
-  
-  return null;
+  const recurring = await db.budgets
+    .where("categoryId").equals(categoryId)
+    .filter((b) => b.month < month && b.recurring === true)
+    .sortBy("month");
+  return recurring.at(-1) ?? null;
 }
 
 export async function setBudget(
   categoryId: number,
   month: string,
   amount: number,
-  recurring?: boolean
+  recurring = true
 ): Promise<void> {
   const existing = await db.budgets
     .filter((b) => b.categoryId === categoryId && b.month === month)
@@ -97,14 +78,14 @@ export async function setBudget(
     if (amount <= 0) {
       await db.budgets.delete(existing.id!);
     } else {
-      await db.budgets.update(existing.id!, { amount, recurring: recurring ?? false });
+      await db.budgets.update(existing.id!, { amount, recurring });
     }
   } else if (amount > 0) {
     await db.budgets.add({
       categoryId,
       month,
       amount,
-      recurring: recurring ?? false,
+      recurring,
       createdAt: new Date().toISOString(),
     });
   }

@@ -51,7 +51,7 @@ export function AppLayout() {
 
   return (
     <div className="app-shell min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
-      <header className="hidden border-b border-[hsl(var(--border))] bg-[hsl(var(--background))] lg:block">
+      <header className="sticky top-0 z-40 hidden border-b border-[hsl(var(--border))] bg-[hsl(var(--background))] lg:block">
         <div className="mx-auto flex h-20 max-w-[1440px] items-center justify-between gap-4 px-5 xl:gap-8 xl:px-8">
           <Link to="/" className="flex shrink-0 items-center gap-3 font-semibold tracking-tight" aria-label="Wallet, ke dashboard">
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">

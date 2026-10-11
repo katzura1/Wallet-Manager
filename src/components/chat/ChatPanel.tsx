@@ -22,7 +22,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { accounts, categories, transactions, refreshAll } = useWalletStore();
+  const { accounts, categories, refreshAll } = useWalletStore();
   const currency = localStorage.getItem("wallet_currency") ?? "IDR";
 
   useEffect(() => {
@@ -96,20 +96,11 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
     setIsProcessing(true);
 
     try {
-      // Prepare recent transactions for context
-      const recentTxs = transactions.slice(0, 30).map((tx) => ({
-        type: tx.type,
-        debtId: tx.debtId,
-        amount: tx.amount,
-        date: tx.date,
-      }));
-
       const result = await parseChatMessage(
         text,
         apiKey,
         accounts,
         categories,
-        recentTxs,
         model,
       );
 

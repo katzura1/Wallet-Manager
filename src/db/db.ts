@@ -54,6 +54,11 @@ class WalletDB extends Dexie {
     this.version(9).stores({
       transactions: "++id, type, accountId, toAccountId, transferPairId, categoryId, date, createdAt, debtId",
     }).upgrade(normalizeDebtPayments);
+    this.version(10).stores({
+      budgets: "++id, categoryId, month",
+    }).upgrade(async (tx) => {
+      await tx.table("budgets").toCollection().modify({ recurring: true });
+    });
   }
 }
 

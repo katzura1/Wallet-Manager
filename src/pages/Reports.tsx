@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent, Badge } from "@/components/ui";
-import { getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween, getYearToDateSummary, getYearOverYearComparison, getCategoryIncomeData, getCategoryTrends, type YearToDateSummary, type YearOverYearComparison, type CategoryIncomeEntry, type CategoryTrend } from "@/db/transactions";
+import { getTransactions, getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween, getYearToDateSummary, getYearOverYearComparison, getCategoryIncomeData, getCategoryTrends, type YearToDateSummary, type YearOverYearComparison, type CategoryIncomeEntry, type CategoryTrend } from "@/db/transactions";
 import { getBudgetsForMonth, getBudgetsForCategoriesWithInheritance, predictBudgetStatus } from "@/db/budgets";
 import { BudgetForm } from "@/components/forms/BudgetForm";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, todayISO } from "@/lib/utils";
 import { generateMonthlyInsight, type MonthlyInsightResult } from "@/lib/monthlyInsight";
 import { LedgerContent } from "@/pages/Ledger";
 import { ChevronLeft, ChevronRight, Target, ChevronDown, ChevronUp } from "lucide-react";
@@ -52,10 +52,11 @@ export default function Reports() {
   const [budgetFormOpen, setBudgetFormOpen] = useState(false);
   const [budgetCategoryId, setBudgetCategoryId] = useState<number | undefined>();
   const [budgetInitialAmount, setBudgetInitialAmount] = useState<number>(0);
-  const [budgetFormRecurring, setBudgetFormRecurring] = useState<boolean>(false);
+  const [budgetFormRecurring, setBudgetFormRecurring] = useState<boolean>(true);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [showAllBudgets, setShowAllBudgets] = useState(false);
   const [showAllAccounts, setShowAllAccounts] = useState(false);
+  const insightRequestId = useRef(0);
   const [monthlyInsight, setMonthlyInsight] = useState<MonthlyInsightResult | null>(null);
   const [monthlyInsightLoading, setMonthlyInsightLoading] = useState(false);
   const [ytdSummary, setYtdSummary] = useState<YearToDateSummary | null>(null);
@@ -81,6 +82,7 @@ export default function Reports() {
   }, [refreshAll]);
 
   const loadChartData = useCallback(async () => {
+    const requestId = ++insightRequestId.current;
     const monthStr = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
 
     let catMap: Record<number, number>;
@@ -165,10 +167,21 @@ export default function Reports() {
 
     setMonthlyInsightLoading(true);
     try {
+      const asOf = todayISO();
+      const currentMonth = asOf.slice(0, 7);
+      const periodStatus = monthStr === currentMonth ? "ongoing" : monthStr < currentMonth ? "completed" : "future";
+      const prevPrefix = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+      const [previousTransactions, insightSummary, insightCategoryMap] = await Promise.all([
+        getTransactions({ dateFrom: `${prevPrefix}-01`, dateTo: `${prevPrefix}-${new Date(prevYear, prevMonth, 0).getDate()}` }),
+        periodStatus === "ongoing" ? getSummaryBetween(`${monthStr}-01`, asOf) : Promise.resolve(sumM),
+        periodStatus === "ongoing" ? getCategoryExpenseBetween(`${monthStr}-01`, asOf) : Promise.resolve(catMapM),
+      ]);
+      if (requestId !== insightRequestId.current) return;
+      const hasPreviousActivity = previousTransactions.some((tx) => !tx.debtId && !tx.isAdjustment && tx.type !== "transfer");
       const budgetRows = categories
         .filter((category) => category.type === "expense" || category.type === "both")
         .map((category) => {
-          const actual = pie.find((entry) => entry.name === category.name)?.value ?? 0;
+          const actual = category.id !== undefined ? insightCategoryMap[category.id] ?? 0 : 0;
           const budget = bdgtList.find((item) => item.categoryId === category.id);
           return {
             category,
@@ -182,23 +195,31 @@ export default function Reports() {
       const insight = await generateMonthlyInsight({
         monthLabel: new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" }),
         currency,
-        summary: sumM,
-        previousSummary: prevSumM,
-        topCategories: pie.slice(0, 3).map((entry) => ({
-          name: entry.name,
-          value: entry.value,
-          icon: entry.icon,
-        })),
+        period: { status: periodStatus, asOf },
+        summary: insightSummary,
+        previousSummary: hasPreviousActivity ? prevSumM : null,
+        topCategories: Object.entries(insightCategoryMap).map(([id, value]) => {
+          const category = categories.find((item) => item.id === Number(id));
+          return { name: category?.name ?? "Lainnya", value, icon: category?.icon ?? "📦" };
+        }).sort((a, b) => b.value - a.value).slice(0, 3),
         budget: {
           overBudgetCount: budgetRows.filter((row) => row.budget && row.actual > row.budget.amount).length,
           nearLimitCount: budgetRows.filter((row) => row.budget && row.actual <= row.budget.amount && row.pct >= 80).length,
           trackedCategoryCount: budgetRows.filter((row) => !!row.budget).length,
           unusedBudgetCount: budgetRows.filter((row) => row.budget && row.actual === 0).length,
+          categories: budgetRows.flatMap((row) => row.budget ? [{
+            categoryId: row.budget.categoryId,
+            name: row.category.name,
+            limit: row.budget.amount,
+            actual: row.actual,
+            remaining: row.budget.amount - row.actual,
+            usagePercent: row.pct,
+          }] : []).sort((a, b) => b.usagePercent - a.usagePercent),
         },
       });
-      setMonthlyInsight(insight);
+      if (requestId === insightRequestId.current) setMonthlyInsight(insight);
     } finally {
-      setMonthlyInsightLoading(false);
+      if (requestId === insightRequestId.current) setMonthlyInsightLoading(false);
     }
   }, [selectedYear, selectedMonth, categories, mode, dateFrom, dateTo, currency]);
 
@@ -212,7 +233,7 @@ export default function Reports() {
     setBudgetInitialAmount(existing?.amount ?? 0);
     setBudgetFormOpen(true);
     // Store recurring flag for BudgetForm via a temporary state
-    setBudgetFormRecurring(existing?.recurring ?? false);
+    setBudgetFormRecurring(existing?.recurring ?? true);
   }
 
   const currentMonth = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
@@ -615,7 +636,7 @@ export default function Reports() {
                   </button>
                 )}
                 <button
-                  onClick={() => { setBudgetCategoryId(undefined); setBudgetInitialAmount(0); setBudgetFormRecurring(false); setBudgetFormOpen(true); }}
+                  onClick={() => { setBudgetCategoryId(undefined); setBudgetInitialAmount(0); setBudgetFormRecurring(true); setBudgetFormOpen(true); }}
                   className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
                 >
                   <Target size={13} /> + Atur
@@ -735,8 +756,8 @@ export default function Reports() {
           <CardHeader className="px-4 pt-4 pb-2">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <CardTitle>Insight Bulan Ini</CardTitle>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Ringkasan cepat dari angka paling penting bulan ini</p>
+                <CardTitle>Insight {new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" })}</CardTitle>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Ringkasan dari transaksi yang tercatat pada periode terpilih</p>
               </div>
               {monthlyInsight && (
                 <Badge className={monthlyInsight.source === "ai" ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"}>

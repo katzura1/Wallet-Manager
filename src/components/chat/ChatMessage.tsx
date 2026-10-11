@@ -60,7 +60,7 @@ export function ChatMessage({
                 </span>
               </div>
               <div className="border-t border-[hsl(var(--border))] pt-2 flex justify-between items-center">
-                <span className="text-sm font-semibold text-[hsl(var(--foreground))]">Saldo</span>
+                <span className="text-sm font-semibold text-[hsl(var(--foreground))]">Selisih</span>
                 <span className={`text-sm font-bold ${message.summaryData.net >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                   {formatCurrency(message.summaryData.net, currency)}
                 </span>

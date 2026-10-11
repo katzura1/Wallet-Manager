@@ -203,6 +203,10 @@ test('split reports, debt cash flows, payment atomicity, migration and restore',
     await dialog.getByLabel('Catatan pembayaran', { exact: true }).fill('UI edited');
     await dialog.getByRole('button', { name: 'Simpan', exact: true }).click();
     await dialog.getByText('UI edited', { exact: true }).waitFor();
+    await page.waitForFunction(async () => {
+      const { useWalletStore } = await import('/src/stores/walletStore.ts');
+      return useWalletStore.getState().accounts[0]?.currentBalance === 1350000;
+    });
     const state = await page.evaluate(async () => {
       const { db } = await import('/src/db/db.ts');
       const { useWalletStore } = await import('/src/stores/walletStore.ts');

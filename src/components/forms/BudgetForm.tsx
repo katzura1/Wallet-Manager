@@ -15,7 +15,7 @@ interface BudgetFormProps {
   initialRecurring?: boolean;
 }
 
-export function BudgetForm({ open, onClose, onSaved, categories, month, initialCategoryId, initialAmount = 0, initialRecurring = false }: BudgetFormProps) {
+export function BudgetForm({ open, onClose, onSaved, categories, month, initialCategoryId, initialAmount = 0, initialRecurring = true }: BudgetFormProps) {
   const [categoryId, setCategoryId] = useState(String(initialCategoryId ?? ""));
   const [amount, setAmount] = useState(String(initialAmount || ""));
   const [recurring, setRecurring] = useState(initialRecurring);

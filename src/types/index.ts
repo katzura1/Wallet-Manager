@@ -30,6 +30,7 @@ export interface Transaction {
   amount: number;
   accountId: number;
   toAccountId?: number; // for transfer: destination account
+  isAdjustment?: boolean; // balance correction, excluded from income/expense reports
   debtId?: number; // debt cash flow, excluded from income/expense reports
   transferPairId?: number; // for transfer: links the two transactions together
   categoryId?: number;

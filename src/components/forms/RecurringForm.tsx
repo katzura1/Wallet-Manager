@@ -91,11 +91,11 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
 
   useEffect(() => {
     if (!categoryId) return;
-    const stillValid = filteredCategories.some((c) => String(c.id) === categoryId);
+    const stillValid = categories.some((c) => (c.type === type || c.type === "both") && String(c.id) === categoryId);
     if (!stillValid) {
       setCategoryId("");
     }
-  }, [type]);
+  }, [type, categoryId, categories]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

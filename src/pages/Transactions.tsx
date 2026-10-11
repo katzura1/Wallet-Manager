@@ -82,7 +82,7 @@ export default function Transactions() {
   useEffect(() => {
     void refreshAll();
     void loadRecurring();
-  }, []);
+  }, [refreshAll]);
 
   useEffect(() => {
     if (!recurringFeedback) return;
@@ -108,11 +108,12 @@ export default function Transactions() {
     cancelSearch();
     setShowFilter(false);
 
-    if (filter.search || filter.type || filter.categoryId !== undefined || filter.dateFrom || filter.dateTo || (filter.accountIds?.length ?? 0) > 0) {
+    const currentFilter = useWalletStore.getState().filter;
+    if (currentFilter.search || currentFilter.type || currentFilter.categoryId !== undefined || currentFilter.dateFrom || currentFilter.dateTo || (currentFilter.accountIds?.length ?? 0) > 0) {
       setSearch("");
       setFilter({});
     }
-  }, [searchParams]);
+  }, [searchParams, setFilter]);
 
   useEffect(() => {
     const targetId = pendingFocusTxId.current;
@@ -120,9 +121,9 @@ export default function Transactions() {
 
     const target = transactions.find((item) => item.id === targetId);
     if (!target) return;
-    if (target.debtId) {
+    if (target.debtId || target.isAdjustment) {
       pendingFocusTxId.current = null;
-      navigate("/debts");
+      navigate(target.isAdjustment ? "/accounts" : "/debts");
       return;
     }
 
@@ -288,10 +289,10 @@ export default function Transactions() {
     const totals = { income: 0, expense: 0, transfer: 0 };
     const dayTotals: Record<string, { income: number; expense: number; count: number }> = {};
     for (const tx of transactions) {
-      if (!tx.debtId) totals[tx.type] += tx.amount;
+      if (!tx.debtId && !tx.isAdjustment) totals[tx.type] += tx.amount;
       const day = dayTotals[tx.date] ??= { income: 0, expense: 0, count: 0 };
       day.count++;
-      if (!tx.debtId && tx.type !== "transfer") day[tx.type] += tx.amount;
+      if (!tx.debtId && !tx.isAdjustment && tx.type !== "transfer") day[tx.type] += tx.amount;
     }
     return { sortedDates: Object.keys(dayTotals).sort((a, b) => b.localeCompare(a)), totals, dayTotals };
   }, [transactions]);
@@ -395,7 +396,7 @@ export default function Transactions() {
             hasSplits={hasSplits}
             isExpanded={isExpanded}
             onExpandSplits={() => setExpandedSplitId(isExpanded ? null : tx.id!)}
-            onEdit={() => tx.debtId ? navigate("/debts") : setEditTarget(tx)}
+            onEdit={() => tx.isAdjustment ? navigate("/accounts") : tx.debtId ? navigate("/debts") : setEditTarget(tx)}
             onDelete={() => tx.debtId ? navigate("/debts") : setDeleteTxId(tx.id!)}
           />
           {hasSplits && isExpanded && (

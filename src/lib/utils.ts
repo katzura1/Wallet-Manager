@@ -65,7 +65,7 @@ export function formatDate(dateStr: string, fmt = "dd MMM yyyy"): string {
 }
 
 export function todayISO(): string {
-  return new Date().toISOString().split("T")[0];
+  return format(new Date(), "yyyy-MM-dd");
 }
 
 export const ACCOUNT_TYPE_LABELS: Record<string, string> = {

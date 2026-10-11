@@ -125,7 +125,7 @@ export function LedgerContent() {
       return [
         row.transaction.date,
         description,
-        category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-"),
+        row.transaction.isAdjustment ? "Penyesuaian saldo" : category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-"),
         row.debit ? String(row.debit) : "",
         row.credit ? String(row.credit) : "",
         String(row.balanceAfter),
@@ -284,7 +284,7 @@ export function LedgerContent() {
                             <div key={row.transaction.id} className="rounded-2xl border border-[hsl(var(--border))] p-3">
                               <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold">{category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "Tanpa kategori")}</p>
+                                  <p className="truncate text-sm font-semibold">{row.transaction.isAdjustment ? "Penyesuaian saldo" : category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "Tanpa kategori")}</p>
                                   <p className="mt-1 break-words text-xs text-[hsl(var(--muted-foreground))]">{description}</p>
                                 </div>
                                 <p className={`shrink-0 text-right text-sm font-semibold ${mutationTone}`}>{mutationAmount > 0 ? formatCurrency(mutationAmount, currency) : "—"}</p>
@@ -332,7 +332,7 @@ export function LedgerContent() {
                               <tr key={row.transaction.id} className="align-top">
                                 <td className="px-2 sm:px-2.5 py-2 sm:py-2.5 whitespace-normal break-words">
                                   <div className="space-y-1">
-                                    <p className="font-medium leading-5 break-words text-xs sm:text-sm">{category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-")}</p>
+                                    <p className="font-medium leading-5 break-words text-xs sm:text-sm">{row.transaction.isAdjustment ? "Penyesuaian saldo" : category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-")}</p>
                                     <p className="text-[10px] sm:text-xs text-[hsl(var(--muted-foreground))] break-words">{description}</p>
                                   </div>
                                 </td>

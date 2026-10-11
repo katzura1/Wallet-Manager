@@ -49,7 +49,7 @@ function calculateMedian(values: number[]) {
 }
 
 async function getCategoryEntries(transactions: Transaction[]) {
-  const eligible = transactions.filter((tx) => !tx.debtId && tx.type !== "transfer");
+  const eligible = transactions.filter((tx) => !tx.debtId && !tx.isAdjustment && tx.type !== "transfer");
   const splits = eligible.length
     ? await db.transactionSplits.where("transactionId").anyOf(eligible.map((tx) => tx.id!)).toArray()
     : [];
@@ -240,6 +240,7 @@ export async function addTransfer(fromAccountId: number, toAccountId: number, am
 export async function updateTransaction(id: number, data: Partial<Omit<Transaction, "id">>) {
   const existing = await db.transactions.get(id);
   if (!existing) return;
+  if (existing.isAdjustment) throw new Error("Cocokkan kembali saldo melalui halaman Akun.");
   if (existing.debtId) throw new Error("Ubah transaksi ini melalui halaman Utang/Piutang.");
   await db.transactions.update(id, { ...data, updatedAt: new Date().toISOString() });
   await recalculateAccountBalance(existing.accountId);
@@ -272,7 +273,7 @@ export async function getMonthlySummary(year: number, month: number) {
   let income = 0;
   let expense = 0;
   for (const tx of transactions) {
-    if (tx.debtId) continue;
+    if (tx.debtId || tx.isAdjustment) continue;
     if (tx.type === "income") income += tx.amount;
     if (tx.type === "expense") expense += tx.amount;
   }
@@ -285,7 +286,7 @@ export async function getSummaryBetween(from: string, to: string) {
     .toArray();
   let income = 0, expense = 0;
   for (const tx of transactions) {
-    if (tx.debtId) continue;
+    if (tx.debtId || tx.isAdjustment) continue;
     if (tx.type === "income") income += tx.amount;
     if (tx.type === "expense") expense += tx.amount;
   }
@@ -295,7 +296,7 @@ export async function getSummaryBetween(from: string, to: string) {
 export async function getCategoryExpenseBetween(from: string, to: string) {
   const transactions = await db.transactions
     .where("date").between(from, to, true, true)
-    .filter((t) => !t.debtId && (t.type === "expense" || t.type === "income"))
+    .filter((t) => !t.debtId && !t.isAdjustment && (t.type === "expense" || t.type === "income"))
     .toArray();
   return buildNetCategoryExpenseMap(transactions);
 }
@@ -321,7 +322,7 @@ export async function getCategoryExpenseData(year: number, month: number) {
   const transactions = await db.transactions
     .where("date")
     .startsWith(prefix)
-    .filter((t) => !t.debtId && (t.type === "expense" || t.type === "income"))
+    .filter((t) => !t.debtId && !t.isAdjustment && (t.type === "expense" || t.type === "income"))
     .toArray();
 
   return buildNetCategoryExpenseMap(transactions);
@@ -336,7 +337,7 @@ export async function getRecentSpendingAnomalies(limit = 3, referenceDate = new 
   const expenses = await db.transactions
     .where("date")
     .between(lookbackFrom, windowEndKey, true, true)
-    .filter((tx) => !tx.debtId && tx.type === "expense" && !!tx.categoryId)
+    .filter((tx) => !tx.debtId && !tx.isAdjustment && tx.type === "expense" && !!tx.categoryId)
     .toArray();
 
   const byCategory = new Map<number, Transaction[]>();
@@ -457,7 +458,7 @@ export async function getYearToDateSummary(year: number, upToMonth: number) {
   let totalIncome = 0;
   let totalExpense = 0;
   for (const tx of transactions) {
-    if (tx.debtId) continue;
+    if (tx.debtId || tx.isAdjustment) continue;
     if (tx.type === "income") totalIncome += tx.amount;
     if (tx.type === "expense") totalExpense += tx.amount;
   }
@@ -558,7 +559,7 @@ export async function getCategoryIncomeData(year: number, month: number): Promis
   const transactions = await db.transactions
     .where("date")
     .startsWith(prefix)
-    .filter((t) => !t.debtId && t.type === "income")
+    .filter((t) => !t.debtId && !t.isAdjustment && t.type === "income")
     .toArray();
 
   const categoryTotals = new Map<number, number>();

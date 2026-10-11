@@ -1,8 +1,9 @@
 import { db } from "./db";
+import { todayISO } from "@/lib/utils";
 import type { Account } from "@/types";
 
 export async function getAccounts(includeArchived = false) {
-  let q = db.accounts.orderBy("createdAt");
+  const q = db.accounts.orderBy("createdAt");
   if (!includeArchived) {
     return q.filter((a) => !a.isArchived).toArray();
   }
@@ -58,4 +59,36 @@ export async function recalculateAccountBalance(accountId: number) {
 
   await db.accounts.update(accountId, { currentBalance: balance, updatedAt: new Date().toISOString() });
   return balance;
+}
+
+export async function reconcileAccount(accountId: number, actualBalance: number, expectedBalance: number, note: string) {
+  if (!Number.isFinite(actualBalance) || Math.abs(actualBalance) > Number.MAX_SAFE_INTEGER) {
+    throw new Error("Saldo aktual tidak valid.");
+  }
+  return db.transaction("rw", db.accounts, db.transactions, async () => {
+    const account = await db.accounts.get(accountId);
+    if (!account || account.isArchived) throw new Error("Akun tidak ditemukan atau sudah diarsipkan.");
+    const balance = await recalculateAccountBalance(accountId);
+    if (balance !== expectedBalance) {
+      throw new Error("Saldo berubah. Periksa saldo terbaru, lalu cocokkan kembali.");
+    }
+    const difference = actualBalance - balance;
+    if (!Number.isFinite(difference) || Math.abs(difference) > Number.MAX_SAFE_INTEGER) {
+      throw new Error("Selisih saldo terlalu besar.");
+    }
+    if (difference === 0) return 0;
+    const now = new Date().toISOString();
+    await db.transactions.add({
+      type: difference > 0 ? "income" : "expense",
+      isAdjustment: true,
+      amount: Math.abs(difference),
+      accountId,
+      date: todayISO(),
+      note: note.trim() || "Penyesuaian saldo",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await recalculateAccountBalance(accountId);
+    return difference;
+  });
 }

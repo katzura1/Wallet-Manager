@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button, Input, Select, Textarea, Modal } from "@/components/ui";
 import { getDebts, addDebt, updateDebt, deleteDebt, payDebt, getDebtPayments, updateDebtPayment, deleteDebtPayment } from "@/db/debts";
 import { formatCurrency, formatDate, formatNumberWithSeparator, todayISO } from "@/lib/utils";
@@ -201,13 +201,13 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
-  function reload() {
-    getDebtPayments(debt.id!).then(setPayments);
-  }
+  const reload = useCallback(() => {
+    return getDebtPayments(debt.id!).then(setPayments);
+  }, [debt.id]);
 
   useEffect(() => {
-    if (open) { reload(); setEditingId(null); }
-  }, [open, debt.id]);
+    if (open) void reload().then(() => setEditingId(null));
+  }, [open, reload]);
 
   function startEdit(p: DebtPayment) {
     setEditError("");
@@ -406,13 +406,14 @@ export default function Debts() {
   const [historyDebt, setHistoryDebt] = useState<Debt | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Debt | null>(null);
 
-  async function load() {
-    await useWalletStore.getState().refreshAll();
-    setDebts(await getDebts(showSettled));
-    if (historyDebt?.id) setHistoryDebt((await getDebts(true)).find((debt) => debt.id === historyDebt.id) ?? null);
-  }
+  const load = useCallback(() => {
+    return useWalletStore.getState().refreshAll().then(() => getDebts(true)).then((allDebts) => {
+      setDebts(showSettled ? allDebts : allDebts.filter((debt) => !debt.isSettled));
+      setHistoryDebt((current) => current ? allDebts.find((debt) => debt.id === current.id) ?? null : null);
+    });
+  }, [showSettled]);
 
-  useEffect(() => { load(); }, [showSettled]);
+  useEffect(() => { void load(); }, [load]);
 
   async function handleDelete() {
     if (!deleteTarget?.id) return;

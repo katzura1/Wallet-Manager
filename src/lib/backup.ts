@@ -36,6 +36,7 @@ const TransactionSchema = z.object({
   toAccountId: z.number().optional(),
   transferPairId: z.number().optional(),
   debtId: z.number().int().positive().optional(),
+  isAdjustment: z.boolean().optional(),
   categoryId: z.number().optional(),
   date: z.string(),
   note: z.string(),
@@ -49,6 +50,7 @@ const BudgetSchema = z.object({
   amount: z.number(),
   month: z.string(),
   createdAt: z.string(),
+  recurring: z.boolean().default(true),
 });
 
 const SettingsSchema = z.object({
@@ -245,7 +247,7 @@ export async function createBackupData(): Promise<BackupData> {
     categories,
     transactions,
     settings,
-    budgets,
+    budgets: budgets.map((budget) => ({ ...budget, recurring: budget.recurring ?? true })),
     recurring,
     transactionSplits,
     debts,
@@ -280,7 +282,7 @@ export async function exportCSV(): Promise<void> {
   const header = ["Tanggal", "Tipe", "Jumlah", "Akun", "Ke Akun", "Kategori", "Catatan"];
   const rows = transactions.map((tx) => [
     tx.date,
-    tx.type,
+    tx.isAdjustment ? "adjustment" : tx.type,
     tx.amount,
     accountMap[tx.accountId] ?? tx.accountId,
     tx.toAccountId ? (accountMap[tx.toAccountId] ?? tx.toAccountId) : "",
