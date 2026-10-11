@@ -11,7 +11,9 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
     await page.clock.setFixedTime(new Date('2026-10-10T17:30:00Z')); // Sunday 00:30 Jakarta.
     let payload = { type: 'summary', period: 'weekly' };
     const requests = [];
+    const requestUrls = [];
     await page.route('https://generativelanguage.googleapis.com/**', async route => {
+      requestUrls.push(route.request().url());
       requests.push(route.request().postDataJSON());
       await route.fulfill({ json: { candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(payload) }] }, finishReason: 'STOP' }] } });
     });
@@ -96,7 +98,10 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
     assert.ok(!instructions.includes('1.250.000'));
 
     // Exercise the caller and summary/text rendering, not only the parser.
-    await page.evaluate(() => localStorage.setItem('gemini_api_key', 'test-key'));
+    await page.evaluate(() => {
+      localStorage.setItem('gemini_api_key', 'test-key');
+      localStorage.setItem('gemini_model', 'gemini-2.5-flash');
+    });
     await page.reload();
     await page.getByRole('banner').getByRole('button', { name: 'Chat AI', exact: true }).click();
     payload = { type: 'summary', period: 'weekly' };
@@ -109,6 +114,20 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
     await page.getByPlaceholder('Ketik transaksi atau pertanyaan...').fill('gimana mengurangi pengeluaran?');
     await page.getByPlaceholder('Ketik transaksi atau pertanyaan...').press('Enter');
     await page.getByText(payload.text, { exact: true }).waitFor();
+
+    payload = [draft];
+    const parsed = await page.evaluate(async () => {
+      const { parseTransactionText, parseReceiptImage } = await import('/src/lib/geminiParser.ts');
+      const { db } = await import('/src/db/db.ts');
+      const accounts = await db.accounts.toArray();
+      const categories = await db.categories.toArray();
+      return [
+        await parseTransactionText('beli kopi 25rb', 'test-key', accounts, categories, 'gemini-2.5-flash'),
+        await parseReceiptImage({ mimeType: 'image/png', base64Data: 'aW1hZ2U=' }, 'test-key', accounts, categories),
+      ];
+    });
+    assert.ok(parsed.every(result => result.transactions[0].amount === 25000));
+    assert.ok(requestUrls.every(url => new URL(url).pathname.endsWith('/models/gemini-3.8-flash:generateContent')));
 
   } finally {
     await browser.close();

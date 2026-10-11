@@ -18,7 +18,6 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const apiKey = localStorage.getItem("gemini_api_key") ?? "";
-  const model = localStorage.getItem("gemini_model") ?? "gemini-2.5-flash";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -101,7 +100,6 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
         apiKey,
         accounts,
         categories,
-        model,
       );
 
       if (result.type === "transaction" && result.transactions) {

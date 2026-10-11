@@ -2,6 +2,7 @@ import { z } from "zod";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { formatCompactCurrency } from "@/lib/utils";
 import { assertAIRequestAllowed, isAIOnline } from "@/lib/aiGuard";
+import { getGeminiModel } from "@/lib/geminiModel";
 
 interface InsightCategoryFact {
   name: string;
@@ -181,7 +182,7 @@ function parseAIInsight(raw: string) {
 
 export async function generateMonthlyInsight(input: MonthlyInsightInput): Promise<MonthlyInsightResult> {
   const apiKey = localStorage.getItem("gemini_api_key")?.trim() ?? "";
-  const modelName = localStorage.getItem("gemini_model")?.trim() || "gemini-2.5-flash";
+  const modelName = getGeminiModel();
   const requestKey = JSON.stringify({
     input,
     hasApiKey: Boolean(apiKey),

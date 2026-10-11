@@ -16,7 +16,7 @@ test('monthly insight uses period context, category IDs and validated AI output'
     await page.route('https://generativelanguage.googleapis.com/**', async (route) => {
       const request = route.request().postDataJSON();
       const prompt = request.contents[0].parts[0].text;
-      prompts.push({ prompt, input: JSON.parse(prompt.split('Data laporan:\n')[1]) });
+      prompts.push({ prompt, input: JSON.parse(prompt.split('Data laporan:\n')[1]), url: route.request().url() });
       await route.fulfill({ json: { candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(payload) }] }, finishReason: 'STOP' }] } });
     });
     await page.goto(url);
@@ -45,10 +45,14 @@ test('monthly insight uses period context, category IDs and validated AI output'
     await page.getByText(/Data sampai 2026-10-10; bulan belum selesai/).waitFor();
     await page.getByText('Insight Oktober 2026', { exact: true }).waitFor();
     assert.equal(prompts.length, 0);
-    await page.evaluate(() => localStorage.setItem('gemini_api_key', 'test-key'));
+    await page.evaluate(() => {
+      localStorage.setItem('gemini_api_key', 'test-key');
+      localStorage.setItem('gemini_model', 'gemini-2.5-flash');
+    });
     await page.reload();
     await page.getByText(payload.headline, { exact: true }).waitFor();
     const { input, prompt } = prompts[0];
+    assert.ok(new URL(prompts[0].url).pathname.endsWith('/models/gemini-3.8-flash:generateContent'));
     assert.deepEqual(input.period, { status: 'ongoing', asOf: '2026-10-10' });
     assert.deepEqual(input.summary, { income: 10000, expense: 100000, net: -90000 });
     assert.equal(input.previousSummary, null);

@@ -12,6 +12,7 @@ import { getGoogleAccessToken, getGoogleAuthState, signOutGoogleDrive } from "@/
 import { downloadBackupFromDrive, listBackupsFromDrive, uploadBackupToDrive } from "@/services/googleDrive";
 import { getCloudBackupSettings, saveCloudBackupSettings } from "@/services/cloudBackupScheduler";
 import { isAIOnline } from "@/lib/aiGuard";
+import { getGeminiModel } from "@/lib/geminiModel";
 
 export default function Settings() {
   const { theme, currency, setTheme, setCurrency } = useSettingsStore();
@@ -54,7 +55,7 @@ export default function Settings() {
   const [importMsg, setImportMsg] = useState("");
   const [clearConfirm, setClearConfirm] = useState(false);
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
-  const geminiModel = localStorage.getItem("gemini_model") ?? "gemini-2.5-flash";
+  const geminiModel = getGeminiModel();
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [geminiSaved, setGeminiSaved] = useState(false);
   const [aiOnline, setAiOnline] = useState(() => isAIOnline());

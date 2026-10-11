@@ -5,6 +5,7 @@ import { getSummaryBetween } from "@/db/transactions";
 import type { Account, Category } from "@/types";
 import { todayISO } from "@/lib/utils";
 import { assertAIRequestAllowed, isAIOnline } from "@/lib/aiGuard";
+import { getGeminiModel } from "@/lib/geminiModel";
 
 export interface ParsedTransaction {
   type: "income" | "expense" | "transfer";
@@ -163,7 +164,7 @@ export async function parseTransactionText(
   apiKey: string,
   accounts: Account[],
   categories: Category[],
-  modelName = "gemini-2.5-flash",
+  modelName = getGeminiModel(),
 ): Promise<ParseResult> {
   if (!apiKey.trim()) {
     throw new Error("Gemini API key belum diset. Silakan set API key di Pengaturan.");
@@ -178,7 +179,7 @@ export async function parseTransactionText(
   assertAIRequestAllowed("ai-parse-text", 2000);
 
   const genAI = new GoogleGenerativeAI(apiKey.trim());
-  const model = genAI.getGenerativeModel({ model: modelName });
+  const model = genAI.getGenerativeModel({ model: getGeminiModel(modelName) });
 
   const prompt = buildPrompt(text, accounts, categories);
   const result = await model.generateContent(prompt);
@@ -199,7 +200,7 @@ export async function parseReceiptImage(
   apiKey: string,
   accounts: Account[],
   categories: Category[],
-  modelName = "gemini-2.5-flash",
+  modelName = getGeminiModel(),
 ): Promise<ParseResult> {
   if (!apiKey.trim()) {
     throw new Error("Gemini API key belum diset. Silakan set API key di Pengaturan.");
@@ -214,7 +215,7 @@ export async function parseReceiptImage(
   assertAIRequestAllowed("ai-parse-receipt", 3000);
 
   const genAI = new GoogleGenerativeAI(apiKey.trim());
-  const model = genAI.getGenerativeModel({ model: modelName });
+  const model = genAI.getGenerativeModel({ model: getGeminiModel(modelName) });
   const prompt = buildReceiptPrompt(accounts, categories);
   const result = await model.generateContent([
     prompt,
@@ -305,7 +306,7 @@ export async function parseChatMessage(
   apiKey: string,
   accounts: Account[],
   categories: Category[],
-  modelName = "gemini-2.5-flash",
+  modelName = getGeminiModel(),
 ): Promise<ChatParseResult> {
   if (!apiKey.trim()) {
     throw new Error("Gemini API key belum diset. Silakan set API key di Pengaturan.");
@@ -321,7 +322,7 @@ export async function parseChatMessage(
 
   const genAI = new GoogleGenerativeAI(apiKey.trim());
   const model = genAI.getGenerativeModel({
-    model: modelName,
+    model: getGeminiModel(modelName),
     systemInstruction: buildChatPrompt(accounts, categories),
     generationConfig: { responseMimeType: "application/json" },
   });

@@ -23,7 +23,6 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
   const [inputMode, setInputMode] = useState<InputMode>("text");
   const [text, setText] = useState("");
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
-  const model = localStorage.getItem("gemini_model") ?? "gemini-2.5-flash";
   const [showApiKey, setShowApiKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -72,11 +71,11 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
     setLoading(true);
     try {
       const result = inputMode === "text"
-        ? await parseTransactionText(text, apiKey, accounts, categories, model)
+        ? await parseTransactionText(text, apiKey, accounts, categories)
         : await parseReceiptImage({
             mimeType: receiptMimeType,
             base64Data: receiptBase64,
-          }, apiKey, accounts, categories, model);
+          }, apiKey, accounts, categories);
       setParsed(result.transactions);
       setStep("review");
     } catch (e) {
