@@ -25,3 +25,6 @@ dist-ssr
 .env
 .claude
 .env.ftp
+
+# Local account migration backups
+/account-migration/
