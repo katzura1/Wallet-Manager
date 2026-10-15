@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { formatCompactCurrency } from "@/lib/utils";
 import { assertAIRequestAllowed, isAIOnline } from "@/lib/aiGuard";
-import { getGeminiModel } from "@/lib/geminiModel";
+import { getAIModel } from "@/lib/geminiModel";
+import { callAI } from "@/lib/aiClient";
 
 interface InsightCategoryFact {
   name: string;
@@ -182,7 +182,7 @@ function parseAIInsight(raw: string) {
 
 export async function generateMonthlyInsight(input: MonthlyInsightInput): Promise<MonthlyInsightResult> {
   const apiKey = localStorage.getItem("gemini_api_key")?.trim() ?? "";
-  const modelName = getGeminiModel();
+  const modelName = getAIModel();
   const requestKey = JSON.stringify({
     input,
     hasApiKey: Boolean(apiKey),
@@ -204,7 +204,7 @@ export async function generateMonthlyInsight(input: MonthlyInsightInput): Promis
     let result: MonthlyInsightResult;
 
     if (!apiKey) {
-      result = buildLocalInsight(input, "Mode lokal: tambahkan Gemini API key untuk narasi AI.");
+      result = buildLocalInsight(input, "Mode lokal: tambahkan API key untuk narasi AI.");
       insightResultCache.set(requestKey, result);
       return result;
     }
@@ -217,10 +217,8 @@ export async function generateMonthlyInsight(input: MonthlyInsightInput): Promis
 
     try {
       assertAIRequestAllowed("ai-monthly-insight", 3000);
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const response = await model.generateContent(buildPrompt(input));
-      const payload = parseAIInsight(response.response.text().trim());
+      const raw = await callAI({ apiKey, model: modelName, content: buildPrompt(input) });
+      const payload = parseAIInsight(raw);
       const localInsight = buildLocalInsight(input, "Narasi AI dibuat dari agregat laporan lokal.");
 
       result = {

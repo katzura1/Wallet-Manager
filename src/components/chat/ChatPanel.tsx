@@ -88,7 +88,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
 
     // Check API key
     if (!apiKey.trim()) {
-      addErrorMessage("Gemini API key belum diset. Silakan set API key di Pengaturan.");
+      addErrorMessage("API key belum diset. Silakan set API key di Pengaturan.");
       return;
     }
 

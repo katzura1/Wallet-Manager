@@ -12,10 +12,12 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
     let payload = { type: 'summary', period: 'weekly' };
     const requests = [];
     const requestUrls = [];
-    await page.route('https://generativelanguage.googleapis.com/**', async route => {
+    const requestHeaders = [];
+    await page.route('https://semeru.gaionix.com/api/gateway/anthropic/**', async route => {
       requestUrls.push(route.request().url());
       requests.push(route.request().postDataJSON());
-      await route.fulfill({ json: { candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(payload) }] }, finishReason: 'STOP' }] } });
+      requestHeaders.push(route.request().headers());
+      await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify(payload) }] } });
     });
     await page.goto(process.env.WALLET_TEST_URL || 'http://127.0.0.1:5174');
     await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
@@ -88,9 +90,10 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
     assert.equal(await page.evaluate(async () => (await import('/src/db/db.ts')).db.transactions.count()), 48);
 
     const request = requests[0];
-    const instructions = request.systemInstruction.parts[0].text;
-    assert.equal(request.generationConfig.responseMimeType, 'application/json');
-    assert.deepEqual(JSON.parse(request.contents[0].parts[0].text), { text: 'berapa pengeluaran minggu ini?' });
+    const instructions = request.system;
+    assert.equal(request.model, 'sonnet');
+    assert.equal(requestHeaders[0]['x-api-key'], 'test-key');
+    assert.deepEqual(JSON.parse(request.messages[0].content), { text: 'berapa pengeluaran minggu ini?' });
     assert.ok(instructions.includes('Tanggal lokal hari ini: 2026-10-11'));
     assert.ok(instructions.includes('Jangan mengarang nominal'));
     assert.ok(instructions.includes('Rencana'));
@@ -127,7 +130,8 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
       ];
     });
     assert.ok(parsed.every(result => result.transactions[0].amount === 25000));
-    assert.ok(requestUrls.every(url => new URL(url).pathname.endsWith('/models/gemini-3.8-flash:generateContent')));
+    assert.ok(requestUrls.every(url => new URL(url).pathname.endsWith('/api/gateway/anthropic/v1/messages')));
+    assert.ok(requests.every(r => r.model === 'sonnet'));
 
   } finally {
     await browser.close();

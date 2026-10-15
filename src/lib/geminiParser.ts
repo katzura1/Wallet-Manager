@@ -1,11 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { format, isMatch, startOfMonth, startOfWeek } from "date-fns";
 import { z } from "zod";
 import { getSummaryBetween } from "@/db/transactions";
 import type { Account, Category } from "@/types";
 import { todayISO } from "@/lib/utils";
 import { assertAIRequestAllowed, isAIOnline } from "@/lib/aiGuard";
-import { getGeminiModel } from "@/lib/geminiModel";
+import { getAIModel } from "@/lib/geminiModel";
+import { callAI } from "@/lib/aiClient";
 
 export interface ParsedTransaction {
   type: "income" | "expense" | "transfer";
@@ -140,7 +140,7 @@ function extractTransactions(raw: string) {
   const endIdx = raw.lastIndexOf("]");
 
   if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
-    throw new Error("Gemini tidak mengembalikan format yang valid. Coba lagi.");
+    throw new Error("AI tidak mengembalikan format yang valid. Coba lagi.");
   }
 
   const jsonStr = raw.substring(startIdx, endIdx + 1);
@@ -149,7 +149,7 @@ function extractTransactions(raw: string) {
   try {
     parsed = JSON.parse(jsonStr);
   } catch {
-    throw new Error("Gagal memparse respons Gemini. Coba lagi.");
+    throw new Error("Gagal memparse respons AI. Coba lagi.");
   }
 
   if (!Array.isArray(parsed) || parsed.length === 0) {
@@ -164,10 +164,10 @@ export async function parseTransactionText(
   apiKey: string,
   accounts: Account[],
   categories: Category[],
-  modelName = getGeminiModel(),
+  modelName = getAIModel(),
 ): Promise<ParseResult> {
   if (!apiKey.trim()) {
-    throw new Error("Gemini API key belum diset. Silakan set API key di Pengaturan.");
+    throw new Error("API key belum diset. Silakan set API key di Pengaturan.");
   }
   if (!text.trim()) {
     throw new Error("Teks tidak boleh kosong.");
@@ -178,12 +178,8 @@ export async function parseTransactionText(
 
   assertAIRequestAllowed("ai-parse-text", 2000);
 
-  const genAI = new GoogleGenerativeAI(apiKey.trim());
-  const model = genAI.getGenerativeModel({ model: getGeminiModel(modelName) });
-
   const prompt = buildPrompt(text, accounts, categories);
-  const result = await model.generateContent(prompt);
-  const raw = result.response.text().trim();
+  const raw = await callAI({ apiKey: apiKey.trim(), model: getAIModel(modelName), content: prompt });
 
   const parsed = extractTransactions(raw);
   const transactions = sanitizeTransactions(parsed, accounts, categories);
@@ -200,10 +196,10 @@ export async function parseReceiptImage(
   apiKey: string,
   accounts: Account[],
   categories: Category[],
-  modelName = getGeminiModel(),
+  modelName = getAIModel(),
 ): Promise<ParseResult> {
   if (!apiKey.trim()) {
-    throw new Error("Gemini API key belum diset. Silakan set API key di Pengaturan.");
+    throw new Error("API key belum diset. Silakan set API key di Pengaturan.");
   }
   if (!image.base64Data.trim()) {
     throw new Error("Gambar struk belum dipilih.");
@@ -214,19 +210,15 @@ export async function parseReceiptImage(
 
   assertAIRequestAllowed("ai-parse-receipt", 3000);
 
-  const genAI = new GoogleGenerativeAI(apiKey.trim());
-  const model = genAI.getGenerativeModel({ model: getGeminiModel(modelName) });
   const prompt = buildReceiptPrompt(accounts, categories);
-  const result = await model.generateContent([
-    prompt,
-    {
-      inlineData: {
-        mimeType: image.mimeType,
-        data: image.base64Data,
-      },
-    },
-  ]);
-  const raw = result.response.text().trim();
+  const raw = await callAI({
+    apiKey: apiKey.trim(),
+    model: getAIModel(modelName),
+    content: [
+      { type: "image", source: { type: "base64", media_type: image.mimeType, data: image.base64Data } },
+      { type: "text", text: prompt },
+    ],
+  });
   const parsed = extractTransactions(raw);
   const transactions = sanitizeTransactions(parsed, accounts, categories);
 
@@ -306,10 +298,10 @@ export async function parseChatMessage(
   apiKey: string,
   accounts: Account[],
   categories: Category[],
-  modelName = getGeminiModel(),
+  modelName = getAIModel(),
 ): Promise<ChatParseResult> {
   if (!apiKey.trim()) {
-    throw new Error("Gemini API key belum diset. Silakan set API key di Pengaturan.");
+    throw new Error("API key belum diset. Silakan set API key di Pengaturan.");
   }
   if (!text.trim()) {
     throw new Error("Teks tidak boleh kosong.");
@@ -320,14 +312,12 @@ export async function parseChatMessage(
 
   assertAIRequestAllowed("chatbot", 2000);
 
-  const genAI = new GoogleGenerativeAI(apiKey.trim());
-  const model = genAI.getGenerativeModel({
-    model: getGeminiModel(modelName),
-    systemInstruction: buildChatPrompt(accounts, categories),
-    generationConfig: { responseMimeType: "application/json" },
+  const raw = await callAI({
+    apiKey: apiKey.trim(),
+    model: getAIModel(modelName),
+    system: buildChatPrompt(accounts, categories),
+    content: JSON.stringify({ text }),
   });
-  const result = await model.generateContent(JSON.stringify({ text }));
-  const raw = result.response.text().trim();
 
   let response: z.infer<typeof chatResponseSchema>;
   try {

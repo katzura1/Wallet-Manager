@@ -242,22 +242,14 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
           {/* API Key field */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">
-              Gemini API Key{" "}
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[hsl(var(--primary))] text-xs font-normal underline"
-              >
-                Dapatkan gratis di sini
-              </a>
+              API Key
             </label>
             <div className="relative">
               <input
                 type={showApiKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(e) => saveApiKey(e.target.value)}
-                placeholder="AIza..."
+                placeholder="gnx_..."
                 className="w-full rounded-2xl border border-[hsl(var(--border))] bg-transparent px-4 py-3 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] pr-24"
               />
               <button

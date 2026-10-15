@@ -12,7 +12,7 @@ import { getGoogleAccessToken, getGoogleAuthState, signOutGoogleDrive } from "@/
 import { downloadBackupFromDrive, listBackupsFromDrive, uploadBackupToDrive } from "@/services/googleDrive";
 import { getCloudBackupSettings, saveCloudBackupSettings } from "@/services/cloudBackupScheduler";
 import { isAIOnline } from "@/lib/aiGuard";
-import { getGeminiModel } from "@/lib/geminiModel";
+import { getAIModel } from "@/lib/geminiModel";
 
 export default function Settings() {
   const { theme, currency, setTheme, setCurrency } = useSettingsStore();
@@ -55,7 +55,7 @@ export default function Settings() {
   const [importMsg, setImportMsg] = useState("");
   const [clearConfirm, setClearConfirm] = useState(false);
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
-  const geminiModel = getGeminiModel();
+  const aiModel = getAIModel();
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [geminiSaved, setGeminiSaved] = useState(false);
   const [aiOnline, setAiOnline] = useState(() => isAIOnline());
@@ -177,7 +177,7 @@ export default function Settings() {
 
   function handleSaveGeminiKey() {
     localStorage.setItem("gemini_api_key", geminiKey.trim());
-    localStorage.setItem("gemini_model", geminiModel);
+    localStorage.setItem("gemini_model", aiModel);
     setGeminiSaved(true);
     setTimeout(() => setGeminiSaved(false), 2000);
   }
@@ -352,7 +352,7 @@ export default function Settings() {
       <Card role="region" aria-labelledby="ai-heading" className="order-5">
         <CardContent className="p-4 space-y-3">
           <div>
-            <h2 id="ai-heading" className="text-base font-semibold">Gemini AI</h2>
+            <h2 id="ai-heading" className="text-base font-semibold">AI</h2>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
               Diperlukan untuk fitur "Catat dari Teks", "Scan Struk", dan insight naratif.
             </p>
@@ -361,7 +361,7 @@ export default function Settings() {
             Status AI: {aiOnline ? "Online" : "Offline"}. Fitur AI hanya aktif saat perangkat terhubung internet.
           </p>
           <div className="space-y-1">
-            <label htmlFor="gemini-api-key" className="text-sm font-medium text-[hsl(var(--foreground))]">Gemini API Key</label>
+            <label htmlFor="gemini-api-key" className="text-sm font-medium text-[hsl(var(--foreground))]">API Key</label>
             <div className="relative">
               <input
                 id="gemini-api-key"
@@ -370,7 +370,7 @@ export default function Settings() {
                 type={showGeminiKey ? "text" : "password"}
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.target.value)}
-                placeholder="AIza..."
+                placeholder="gnx_..."
                 className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-24"
               />
               <button
@@ -384,21 +384,12 @@ export default function Settings() {
               </button>
             </div>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              Dapatkan API key di{" "}
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[hsl(var(--primary))] underline"
-              >
-                Google AI Studio
-              </a>.
-              Key disimpan lokal di perangkatmu.
+              Dapatkan API key dari Gaionix Gateway. Key disimpan lokal di perangkatmu.
             </p>
           </div>
           <div className="border-l-2 border-amber-500/60 pl-3 py-1 text-xs text-amber-700 dark:text-amber-300 space-y-1">
             <p className="font-medium">Privasi AI</p>
-            <p>Teks atau foto struk yang kamu kirim ke fitur AI akan diproses oleh layanan Google Gemini.</p>
+            <p>Teks atau foto struk yang kamu kirim ke fitur AI akan diproses oleh Gaionix AI Gateway (semeru.gaionix.com).</p>
             <p>Jangan kirim data sensitif (nomor kartu, PIN, OTP, atau informasi rahasia lain).</p>
           </div>
           <Button onClick={handleSaveGeminiKey} className="w-full">

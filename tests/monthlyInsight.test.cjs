@@ -13,11 +13,11 @@ test('monthly insight uses period context, category IDs and validated AI output'
     const url = process.env.WALLET_TEST_URL || 'http://127.0.0.1:5173';
     const prompts = [];
     let payload = { headline: 'Ringkasan tercatat', summary: 'Data sampai 10 Oktober; bulan belum selesai.', highlights: ['Tinjau kategori Belanja.'] };
-    await page.route('https://generativelanguage.googleapis.com/**', async (route) => {
+    await page.route('https://semeru.gaionix.com/api/gateway/anthropic/**', async (route) => {
       const request = route.request().postDataJSON();
-      const prompt = request.contents[0].parts[0].text;
-      prompts.push({ prompt, input: JSON.parse(prompt.split('Data laporan:\n')[1]), url: route.request().url() });
-      await route.fulfill({ json: { candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(payload) }] }, finishReason: 'STOP' }] } });
+      const prompt = request.messages[0].content;
+      prompts.push({ prompt, input: JSON.parse(prompt.split('Data laporan:\n')[1]), url: route.request().url(), model: request.model });
+      await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify(payload) }] } });
     });
     await page.goto(url);
     await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
@@ -52,7 +52,8 @@ test('monthly insight uses period context, category IDs and validated AI output'
     await page.reload();
     await page.getByText(payload.headline, { exact: true }).waitFor();
     const { input, prompt } = prompts[0];
-    assert.ok(new URL(prompts[0].url).pathname.endsWith('/models/gemini-3.8-flash:generateContent'));
+    assert.ok(new URL(prompts[0].url).pathname.endsWith('/api/gateway/anthropic/v1/messages'));
+    assert.equal(prompts[0].model, 'sonnet');
     assert.deepEqual(input.period, { status: 'ongoing', asOf: '2026-10-10' });
     assert.deepEqual(input.summary, { income: 10000, expense: 100000, net: -90000 });
     assert.equal(input.previousSummary, null);
