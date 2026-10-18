@@ -1,4 +1,4 @@
-export const DEFAULT_AI_MODEL = "sonnet";
+export const DEFAULT_AI_MODEL = "haiku";
 
 export function getAIModel(modelName = localStorage.getItem("gemini_model")): string {
   const model = modelName?.trim().replace(/^models\//, "");
