@@ -95,10 +95,21 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
     setIsProcessing(true);
 
     try {
+      // Pastikan list akun terisi sebelum kirim ke AI
+      let currentAccounts = accounts;
+      for (let i = 0; i < 3 && currentAccounts.filter((a) => !a.isArchived).length === 0; i++) {
+        await refreshAll();
+        currentAccounts = useWalletStore.getState().accounts;
+      }
+      if (currentAccounts.filter((a) => !a.isArchived).length === 0) {
+        addErrorMessage("Belum ada akun. Silakan buat akun dulu di halaman Akun sebelum memakai asisten AI.");
+        return;
+      }
+
       const result = await parseChatMessage(
         text,
         apiKey,
-        accounts,
+        currentAccounts,
         categories,
       );
 
