@@ -181,7 +181,7 @@ function parseAIInsight(raw: string) {
 }
 
 export async function generateMonthlyInsight(input: MonthlyInsightInput): Promise<MonthlyInsightResult> {
-  const apiKey = localStorage.getItem("gemini_api_key")?.trim() ?? "";
+  const apiKey = localStorage.getItem("deepseek_api_key")?.trim() ?? "";
   const modelName = getAIModel();
   const requestKey = JSON.stringify({
     input,

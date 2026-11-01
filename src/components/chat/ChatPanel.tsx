@@ -17,7 +17,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const apiKey = localStorage.getItem("gemini_api_key") ?? "";
+  const apiKey = localStorage.getItem("deepseek_api_key") ?? "";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 

@@ -54,10 +54,10 @@ export default function Settings() {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
+  const [aiKey, setAiKey] = useState(() => localStorage.getItem("deepseek_api_key") ?? "");
   const aiModel = getAIModel();
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
-  const [geminiSaved, setGeminiSaved] = useState(false);
+  const [showAiKey, setShowAiKey] = useState(false);
+  const [aiSaved, setAiSaved] = useState(false);
   const [aiOnline, setAiOnline] = useState(() => isAIOnline());
   const [cloudAuth, setCloudAuth] = useState<GoogleAuthState>(() => getGoogleAuthState());
   const [cloudBusy, setCloudBusy] = useState(false);
@@ -175,11 +175,11 @@ export default function Settings() {
     };
   }, []);
 
-  function handleSaveGeminiKey() {
-    localStorage.setItem("gemini_api_key", geminiKey.trim());
-    localStorage.setItem("gemini_model", aiModel);
-    setGeminiSaved(true);
-    setTimeout(() => setGeminiSaved(false), 2000);
+  function handleSaveAIKey() {
+    localStorage.setItem("deepseek_api_key", aiKey.trim());
+    localStorage.setItem("deepseek_model", aiModel);
+    setAiSaved(true);
+    setTimeout(() => setAiSaved(false), 2000);
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -348,7 +348,7 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      {/* Gemini AI */}
+      {/* DeepSeek AI */}
       <Card role="region" aria-labelledby="ai-heading" className="order-5">
         <CardContent className="p-4 space-y-3">
           <div>
@@ -361,39 +361,39 @@ export default function Settings() {
             Status AI: {aiOnline ? "Online" : "Offline"}. Fitur AI hanya aktif saat perangkat terhubung internet.
           </p>
           <div className="space-y-1">
-            <label htmlFor="gemini-api-key" className="text-sm font-medium text-[hsl(var(--foreground))]">API Key</label>
+            <label htmlFor="deepseek-api-key" className="text-sm font-medium text-[hsl(var(--foreground))]">API Key</label>
             <div className="relative">
               <input
-                id="gemini-api-key"
+                id="deepseek-api-key"
                 autoComplete="off"
                 spellCheck={false}
-                type={showGeminiKey ? "text" : "password"}
-                value={geminiKey}
-                onChange={(e) => setGeminiKey(e.target.value)}
-                placeholder="gnx_..."
+                type={showAiKey ? "text" : "password"}
+                value={aiKey}
+                onChange={(e) => setAiKey(e.target.value)}
+                placeholder="sk-..."
                 className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-24"
               />
               <button
                 type="button"
-                aria-label={showGeminiKey ? "Sembunyikan API key" : "Tampilkan API key"}
-                aria-pressed={showGeminiKey}
-                onClick={() => setShowGeminiKey((v) => !v)}
+                aria-label={showAiKey ? "Sembunyikan API key" : "Tampilkan API key"}
+                aria-pressed={showAiKey}
+                onClick={() => setShowAiKey((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] px-2 py-1"
               >
-                {showGeminiKey ? "Sembunyikan" : "Lihat"}
+                {showAiKey ? "Sembunyikan" : "Lihat"}
               </button>
             </div>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              Dapatkan API key dari Gaionix Gateway. Key disimpan lokal di perangkatmu.
+              Dapatkan API key dari platform.deepseek.com. Key disimpan lokal di perangkatmu.
             </p>
           </div>
           <div className="border-l-2 border-amber-500/60 pl-3 py-1 text-xs text-amber-700 dark:text-amber-300 space-y-1">
             <p className="font-medium">Privasi AI</p>
-            <p>Teks atau foto struk yang kamu kirim ke fitur AI akan diproses oleh Gaionix AI Gateway (semeru.gaionix.com).</p>
+            <p>Teks atau foto struk yang kamu kirim ke fitur AI akan diproses oleh DeepSeek API (api.deepseek.com).</p>
             <p>Jangan kirim data sensitif (nomor kartu, PIN, OTP, atau informasi rahasia lain).</p>
           </div>
-          <Button onClick={handleSaveGeminiKey} className="w-full">
-            {geminiSaved ? "✅ Tersimpan!" : "Simpan API Key"}
+          <Button onClick={handleSaveAIKey} className="w-full">
+            {aiSaved ? "✅ Tersimpan!" : "Simpan API Key"}
           </Button>
         </CardContent>
       </Card>

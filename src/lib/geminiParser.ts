@@ -213,7 +213,7 @@ export async function parseReceiptImage(
     apiKey: apiKey.trim(),
     model: getAIModel(modelName),
     content: [
-      { type: "image", source: { type: "base64", media_type: image.mimeType, data: image.base64Data } },
+      { type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.base64Data}` } },
       { type: "text", text: prompt },
     ],
   });

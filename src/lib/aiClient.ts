@@ -1,8 +1,8 @@
-const AI_ENDPOINT = "https://semeru.gaionix.com/api/gateway/anthropic/v1/messages";
+const AI_ENDPOINT = "https://api.deepseek.com/chat/completions";
 
 type ContentBlock =
   | { type: "text"; text: string }
-  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+  | { type: "image_url"; image_url: { url: string } };
 
 interface CallAIOptions {
   apiKey: string;
@@ -12,18 +12,28 @@ interface CallAIOptions {
   maxTokens?: number;
 }
 
+function stripCodeFence(text: string): string {
+  const match = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return match ? match[1].trim() : text;
+}
+
 export async function callAI({ apiKey, model, system, content, maxTokens = 2048 }: CallAIOptions): Promise<string> {
   const res = await fetch(AI_ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
-      ...(system ? { system } : {}),
-      messages: [{ role: "user", content }],
+      stream: false,
+      // Task ini parsing terstruktur; thinking default DeepSeek "enabled" hanya menambah latency + token.
+      thinking: { type: "disabled" },
+      messages: [
+        ...(system ? [{ role: "system", content: system }] : []),
+        { role: "user", content },
+      ],
     }),
   });
 
@@ -39,11 +49,7 @@ export async function callAI({ apiKey, model, system, content, maxTokens = 2048 
   }
 
   const data = await res.json();
-  const text = (data.content ?? [])
-    .filter((block: { type: string }) => block.type === "text")
-    .map((block: { text: string }) => block.text)
-    .join("")
-    .trim();
+  const text = stripCodeFence(String(data?.choices?.[0]?.message?.content ?? "").trim());
 
   if (!text) {
     throw new Error("AI tidak mengembalikan teks. Coba lagi.");

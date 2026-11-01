@@ -61,6 +61,7 @@ Out of scope (phase ini):
 - 2026-04-03: Receipt Scan diimplementasikan pada form AI transaction. User sekarang bisa upload atau foto struk, hasil scan Gemini vision diubah menjadi draft transaksi, lalu tetap masuk ke tahap review manual sebelum disimpan.
 - 2026-04-03: Hardening selesai: request AI sekarang dibatasi rate-limit minimal per fitur untuk mencegah spam, indikator online-only ditambahkan pada flow AI, dan privacy warning eksplisit ditambahkan di halaman Settings.
 - 2026-04-03: QA checklist manual + edge-case disiapkan di ai-qa-checklist.md untuk validasi end-to-end sebelum sign-off.
+- 2026-10-29: Provider AI dipindah dari gateway Gaionix/Anthropic ke DeepSeek API langsung (`https://api.deepseek.com/chat/completions`, model default `deepseek-flash`). Scan struk tetap jalan karena `deepseek-flash` menerima gambar (format `image_url` base64). Key disimpan di localStorage `deepseek_api_key`; key lama tidak dimigrasikan.
 
 ## Notes
 - Prinsip utama: AI tidak pernah auto-save transaksi tanpa konfirmasi user.

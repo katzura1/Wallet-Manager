@@ -13,11 +13,11 @@ test('monthly insight uses period context, category IDs and validated AI output'
     const url = process.env.WALLET_TEST_URL || 'http://127.0.0.1:5173';
     const prompts = [];
     let payload = { headline: 'Ringkasan tercatat', summary: 'Data sampai 10 Oktober; bulan belum selesai.', highlights: ['Tinjau kategori Belanja.'] };
-    await page.route('https://semeru.gaionix.com/api/gateway/anthropic/**', async (route) => {
+    await page.route('https://api.deepseek.com/chat/completions', async (route) => {
       const request = route.request().postDataJSON();
       const prompt = request.messages[0].content;
       prompts.push({ prompt, input: JSON.parse(prompt.split('Data laporan:\n')[1]), url: route.request().url(), model: request.model });
-      await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify(payload) }] } });
+      await route.fulfill({ json: { choices: [{ message: { content: JSON.stringify(payload) } }] } });
     });
     await page.goto(url);
     await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
@@ -46,14 +46,14 @@ test('monthly insight uses period context, category IDs and validated AI output'
     await page.getByText('Insight Oktober 2026', { exact: true }).waitFor();
     assert.equal(prompts.length, 0);
     await page.evaluate(() => {
-      localStorage.setItem('gemini_api_key', 'test-key');
-      localStorage.setItem('gemini_model', 'gemini-2.5-flash');
+      localStorage.setItem('deepseek_api_key', 'test-key');
+      localStorage.setItem('deepseek_model', 'deepseek-flash');
     });
     await page.reload();
     await page.getByText(payload.headline, { exact: true }).waitFor();
     const { input, prompt } = prompts[0];
-    assert.ok(new URL(prompts[0].url).pathname.endsWith('/api/gateway/anthropic/v1/messages'));
-    assert.equal(prompts[0].model, 'sonnet');
+    assert.ok(new URL(prompts[0].url).pathname === '/chat/completions');
+    assert.equal(prompts[0].model, 'deepseek-flash');
     assert.deepEqual(input.period, { status: 'ongoing', asOf: '2026-10-10' });
     assert.deepEqual(input.summary, { income: 10000, expense: 100000, net: -90000 });
     assert.equal(input.previousSummary, null);
@@ -75,7 +75,7 @@ test('monthly insight uses period context, category IDs and validated AI output'
     assert.ok(!invalid.summary.includes('Dibanding bulan lalu'));
     assert.ok(!invalid.highlights.some(item => item.includes('% dari pengeluaran')));
 
-    await page.evaluate(() => localStorage.removeItem('gemini_api_key'));
+    await page.evaluate(() => localStorage.removeItem('deepseek_api_key'));
     const cases = await page.evaluate(async (input) => {
       const { generateMonthlyInsight } = await import('/src/lib/monthlyInsight.ts');
       const previousSummary = { income: 20000, expense: 100000, net: -80000 };

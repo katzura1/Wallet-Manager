@@ -13,11 +13,11 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
     const requests = [];
     const requestUrls = [];
     const requestHeaders = [];
-    await page.route('https://semeru.gaionix.com/api/gateway/anthropic/**', async route => {
+    await page.route('https://api.deepseek.com/chat/completions', async route => {
       requestUrls.push(route.request().url());
       requests.push(route.request().postDataJSON());
       requestHeaders.push(route.request().headers());
-      await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify(payload) }] } });
+      await route.fulfill({ json: { choices: [{ message: { content: `\`\`\`json\n${JSON.stringify(payload)}\n\`\`\`` } }] } });
     });
     await page.goto(process.env.WALLET_TEST_URL || 'http://127.0.0.1:5174');
     await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
@@ -90,10 +90,10 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
     assert.equal(await page.evaluate(async () => (await import('/src/db/db.ts')).db.transactions.count()), 48);
 
     const request = requests[0];
-    const instructions = request.system;
-    assert.equal(request.model, 'sonnet');
-    assert.equal(requestHeaders[0]['x-api-key'], 'test-key');
-    assert.deepEqual(JSON.parse(request.messages[0].content), { text: 'berapa pengeluaran minggu ini?' });
+    const instructions = request.messages[0].content;
+    assert.equal(request.model, 'deepseek-flash');
+    assert.equal(requestHeaders[0].authorization, 'Bearer test-key');
+    assert.deepEqual(JSON.parse(request.messages[1].content), { text: 'berapa pengeluaran minggu ini?' });
     assert.ok(instructions.includes('Tanggal lokal hari ini: 2026-10-11'));
     assert.ok(instructions.includes('Jangan mengarang nominal'));
     assert.ok(instructions.includes('Rencana'));
@@ -102,8 +102,8 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
 
     // Exercise the caller and summary/text rendering, not only the parser.
     await page.evaluate(() => {
-      localStorage.setItem('gemini_api_key', 'test-key');
-      localStorage.setItem('gemini_model', 'gemini-2.5-flash');
+      localStorage.setItem('deepseek_api_key', 'test-key');
+      localStorage.setItem('deepseek_model', 'deepseek-flash');
     });
     await page.reload();
     await page.getByRole('banner').getByRole('button', { name: 'Chat AI', exact: true }).click();
@@ -130,8 +130,11 @@ test('chat routes explicit intent, uses complete local periods and rejects inval
       ];
     });
     assert.ok(parsed.every(result => result.transactions[0].amount === 25000));
-    assert.ok(requestUrls.every(url => new URL(url).pathname.endsWith('/api/gateway/anthropic/v1/messages')));
-    assert.ok(requests.every(r => r.model === 'sonnet'));
+    const imageRequest = requests.find(r => Array.isArray(r.messages[1].content));
+    assert.equal(imageRequest.messages[1].content[0].type, 'image_url');
+    assert.ok(imageRequest.messages[1].content[0].image_url.url.startsWith('data:image/png;base64,'));
+    assert.ok(requestUrls.every(url => new URL(url).origin === 'https://api.deepseek.com' && new URL(url).pathname === '/chat/completions'));
+    assert.ok(requests.every(r => r.model === 'deepseek-flash'));
 
   } finally {
     await browser.close();

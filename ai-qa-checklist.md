@@ -7,7 +7,7 @@ Scope: Validasi manual + edge-case untuk semua fitur AI setelah hardening.
 - Build sukses (`npm run build`)
 - Ada minimal 2 akun aktif
 - Ada kategori income + expense
-- Gemini API key valid (untuk skenario online)
+- DeepSeek API key valid (untuk skenario online)
 
 ## Ringkasan Status
 - [ ] Sesi 1: Online happy path
@@ -122,11 +122,11 @@ Expected:
 - Insight tidak menembak endpoint berulang untuk input identik.
 
 ### Privacy warning
-- [ ] Buka Settings, section Gemini AI.
+- [ ] Buka Settings, section AI.
 - [ ] Cek warning privasi tampil penuh.
 
 Expected:
-- Ada peringatan bahwa data diproses Google Gemini.
+- Ada peringatan bahwa data diproses DeepSeek API (api.deepseek.com).
 - Ada larangan kirim data sensitif.
 
 ## 6) Data Integrity Regression

@@ -22,7 +22,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
   const [step, setStep] = useState<Step>("input");
   const [inputMode, setInputMode] = useState<InputMode>("text");
   const [text, setText] = useState("");
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("gemini_api_key") ?? "");
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("deepseek_api_key") ?? "");
   const [showApiKey, setShowApiKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -63,7 +63,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
 
   function saveApiKey(key: string) {
     setApiKey(key);
-    localStorage.setItem("gemini_api_key", key);
+    localStorage.setItem("deepseek_api_key", key);
   }
 
   async function handleParse() {
@@ -249,7 +249,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
                 type={showApiKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(e) => saveApiKey(e.target.value)}
-                placeholder="gnx_..."
+                placeholder="sk-..."
                 className="w-full rounded-2xl border border-[hsl(var(--border))] bg-transparent px-4 py-3 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] pr-24"
               />
               <button
@@ -260,7 +260,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
                 {showApiKey ? "Sembunyikan" : "Lihat"}
               </button>
             </div>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">API key disimpan lokal di perangkatmu, tidak dikirim ke server.</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">API key disimpan lokal di perangkatmu dan hanya dipakai untuk memanggil DeepSeek API.</p>
           </div>
 
           {error && (
