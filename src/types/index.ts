@@ -62,9 +62,11 @@ export interface Debt {
   type: DebtType;
   amount: number;        // jumlah asal
   remaining: number;     // sisa belum dilunasi
+  date?: string;         // tanggal transaksi hutang/piutang, YYYY-MM-DD
   dueDate?: string;      // YYYY-MM-DD
   note: string;
   accountId?: number;    // akun yang terlibat
+  transactionId?: number; // transaksi awal yang terkait
   isSettled: boolean;
   createdAt: string;
   updatedAt: string;

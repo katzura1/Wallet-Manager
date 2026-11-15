@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Input, Select, Textarea, Modal } from "@/components/ui";
-import { getDebts, addDebt, updateDebt, deleteDebt, payDebt, getDebtPayments, updateDebtPayment, deleteDebtPayment } from "@/db/debts";
+import { getDebts, addDebt, updateDebt, deleteDebt, payDebt, getDebtPayments, updateDebtPayment, deleteDebtPayment, getOrphanDebtTransactions, deleteOrphanDebtTransactions } from "@/db/debts";
 import { formatCurrency, formatDate, formatNumberWithSeparator, todayISO } from "@/lib/utils";
-import type { Debt, DebtPayment } from "@/types";
+import type { Debt, DebtPayment, Transaction } from "@/types";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 
@@ -19,6 +19,7 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
   const { accounts } = useWalletStore();  const [name, setName] = useState(existing?.name ?? "");
   const [type, setType] = useState<"owe" | "owed">(existing?.type ?? "owe");
   const [amount, setAmount] = useState(String(existing?.amount ?? ""));
+  const [date, setDate] = useState(existing?.date ?? todayISO());
   const [dueDate, setDueDate] = useState(existing?.dueDate ?? "");
   const [note, setNote] = useState(existing?.note ?? "");
   const [accountId, setAccountId] = useState(String(existing?.accountId ?? ""));
@@ -38,6 +39,7 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
         type,
         amount: amountNum,
         remaining: existing ? existing.remaining : amountNum,
+        date,
         dueDate: dueDate || undefined,
         note,
         accountId: accountId ? Number(accountId) : undefined,
@@ -101,6 +103,7 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
             <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
           ))}
         </Select>
+        <Input label="Tanggal Transaksi" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <Input label="Jatuh Tempo (opsional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         <Textarea label="Catatan (opsional)" placeholder="Tambah catatan..." rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         <Button type="submit" className="w-full" disabled={loading}>
@@ -126,7 +129,8 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
   const [amount, setAmount] = useState(String(debt.remaining));
   const [date, setDate] = useState(todayISO());
   const [note, setNote] = useState("");
-  const [accountId, setAccountId] = useState(String(debt.accountId ?? ""));
+  const creditAccount = debt.type === "owe" ? accounts.find((a) => a.id === debt.accountId && a.type === "credit") : undefined;
+  const [accountId, setAccountId] = useState(creditAccount ? "" : String(debt.accountId ?? ""));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -165,12 +169,13 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
           }}
           error={error}
         />
-        <Select label="Akun (opsional)" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+        <Select label={creditAccount ? "Bayar dari akun (opsional)" : "Akun (opsional)"} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
           <option value="">-- Tidak Ada --</option>
-          {accounts.map((a) => (
+          {accounts.filter((a) => a.id !== creditAccount?.id).map((a) => (
             <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
           ))}
         </Select>
+        {creditAccount && <p className="text-xs text-[hsl(var(--muted-foreground))]">Jika dipilih, dicatat sebagai transfer ke {creditAccount.icon} {creditAccount.name}. Kosongkan jika refund: dicatat sebagai pemasukan ke akun CC.</p>}
         <Input label="Tanggal" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <Textarea label="Catatan (opsional)" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         <Button type="submit" className="w-full" disabled={loading}>
@@ -329,6 +334,7 @@ function DebtCard({ debt, currency, onEdit, onPay, onHistory, onDelete }: DebtCa
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-semibold text-sm text-[hsl(var(--foreground))]">{debt.name}</p>
+          {debt.date && <p className="text-xs mt-0.5 text-[hsl(var(--muted-foreground))]">🗓️ {formatDate(debt.date)}</p>}
           {debt.dueDate && (
             <p className={`text-xs mt-0.5 ${isOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--muted-foreground))]"}`}>
               {isOverdue ? "⚠️ Jatuh tempo " : "📅 "}{formatDate(debt.dueDate)}
@@ -405,9 +411,10 @@ export default function Debts() {
   const [payDebtTarget, setPayDebtTarget] = useState<Debt | null>(null);
   const [historyDebt, setHistoryDebt] = useState<Debt | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Debt | null>(null);
+  const [orphans, setOrphans] = useState<Transaction[]>([]);
 
   const load = useCallback(() => {
-    return useWalletStore.getState().refreshAll().then(() => getDebts(true)).then((allDebts) => {
+    return useWalletStore.getState().refreshAll().then(async () => { setOrphans(await getOrphanDebtTransactions()); return getDebts(true); }).then((allDebts) => {
       setDebts(showSettled ? allDebts : allDebts.filter((debt) => !debt.isSettled));
       setHistoryDebt((current) => current ? allDebts.find((debt) => debt.id === current.id) ?? null : null);
     });
@@ -419,6 +426,13 @@ export default function Debts() {
     if (!deleteTarget?.id) return;
     await deleteDebt(deleteTarget.id);
     setDeleteTarget(null);
+    load();
+  }
+
+  async function handleCleanOrphans() {
+    const list = orphans.map((t) => `${formatDate(t.date)} · ${formatCurrency(t.amount, currency)}`).join("\n");
+    if (!confirm(`Hapus ${orphans.length} transaksi yatim?\n\n${list}`)) return;
+    await deleteOrphanDebtTransactions();
     load();
   }
 
@@ -436,6 +450,13 @@ export default function Debts() {
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-[hsl(var(--foreground))]">Hutang & Piutang</h1>
         <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Pantau kewajiban dan piutang, termasuk progres pembayaran dan jatuh tempo.</p>
       </div>
+
+      {orphans.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs lg:col-span-12 lg:max-w-3xl">
+          <span>{orphans.length} transaksi sisa hutang/piutang yang sudah dihapus.</span>
+          <Button size="sm" variant="outline" onClick={handleCleanOrphans}>Bersihkan</Button>
+        </div>
+      )}
 
       {/* Summary */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:col-span-12 lg:max-w-3xl">

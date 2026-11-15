@@ -134,6 +134,35 @@ test('split reports, debt cash flows, payment atomicity, migration and restore',
         equal((await db.accounts.get(1)).currentBalance, 1400000);
         equal((await db.debts.get(id)).remaining, 400000);
       });
+      await reset();
+      await run('credit card debt: purchase is expense, payment is transfer from source account', async () => {
+        await db.accounts.add({ ...account, id: 2, name: 'CC', type: 'credit', initialBalance: 0, currentBalance: 0 });
+        const id = await debts.addDebt({ ...debtData('owe'), accountId: 2, date: '2026-10-05' });
+        equal((await db.accounts.get(2)).currentBalance, -500000);
+        equal((await db.transactions.where('debtId').equals(id).first()).date, '2026-10-05');
+        await rejects(() => debts.payDebt(id, 100000, '2026-10-10', '', 2));
+        await debts.payDebt(id, 200000, '2026-10-10', '', 1);
+        const payment = (await debts.getDebtPayments(id))[0];
+        const tx = await db.transactions.get(payment.transactionId);
+        equal([tx.type, tx.accountId, tx.toAccountId], ['transfer', 1, 2]);
+        equal([(await db.accounts.get(1)).currentBalance, (await db.accounts.get(2)).currentBalance], [800000, -300000]);
+        await debts.updateDebtPayment(payment.id, { amount: 100000, date: '2026-10-10', note: '' });
+        equal([(await db.accounts.get(1)).currentBalance, (await db.accounts.get(2)).currentBalance], [900000, -400000]);
+        await debts.payDebt(id, 50000, '2026-10-12', '');
+        const refund = (await debts.getDebtPayments(id)).find(p => p.date === '2026-10-12');
+        equal([(await db.transactions.get(refund.transactionId)).type, (await db.accounts.get(2)).currentBalance], ['income', -350000]);
+        await debts.deleteDebtPayment(refund.id);
+        await debts.deleteDebtPayment(payment.id);
+        equal([(await db.accounts.get(1)).currentBalance, (await db.accounts.get(2)).currentBalance], [1000000, -500000]);
+        await debts.payDebt(id, 200000, '2026-10-11', '', 1);
+        await debts.deleteDebt(id);
+        equal(await db.transactions.count(), 0);
+        equal([(await db.accounts.get(1)).currentBalance, (await db.accounts.get(2)).currentBalance], [1000000, 0]);
+        await db.transactions.add({ ...transaction(70000), debtId: 999 });
+        equal((await debts.getOrphanDebtTransactions()).length, 1);
+        await debts.deleteOrphanDebtTransactions();
+        equal([await db.transactions.count(), (await db.accounts.get(1)).currentBalance], [0, 1000000]);
+      });
       await run('version 8 migration repairs only explicitly linked payments', async () => {
         const Dexie = Object.getPrototypeOf(db.constructor);
         const stores = Object.fromEntries(db.tables.map(table => [table.name, [table.schema.primKey.src, ...table.schema.indexes.filter(index => index.name !== 'debtId').map(index => index.src)].join(',')]));
@@ -176,7 +205,7 @@ test('split reports, debt cash flows, payment atomicity, migration and restore',
       });
       return results;
     });
-    assert.equal(cases.length, 8);
+    assert.equal(cases.length, 9);
     console.log(cases.join('\n'));
     await page.evaluate(async () => {
       const { db } = await import('/src/db/db.ts');
