@@ -36,7 +36,7 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
   const params = new URLSearchParams(search);
 
   return (
-    <header className="sticky top-0 hidden h-screen flex-col gap-4 border-r border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 lg:flex">
+    <header className="no-print sticky top-0 hidden h-screen flex-col gap-4 border-r border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 lg:flex">
       <div className="flex items-center gap-3 px-2 py-1 font-semibold tracking-tight">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">
           <WalletCards size={18} aria-hidden="true" />

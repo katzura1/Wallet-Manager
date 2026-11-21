@@ -45,6 +45,8 @@ export default function Reports() {
   const { hash } = useLocation();
   const [chartData, setChartData] = useState<ChartBar[]>([]);
   const [pieData, setPieData] = useState<PieEntry[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const scrolledHash = useRef<string | null>(null);
   const [prevCategoryMap, setPrevCategoryMap] = useState<Record<number, number>>({});
   const [summary, setSummary] = useState({ income: 0, expense: 0, net: 0 });
   const [previousSummary, setPreviousSummary] = useState<{ income: number; expense: number; net: number } | null>(null);
@@ -169,6 +171,7 @@ export default function Reports() {
       })
     ).sort((a, b) => b.value - a.value);
     setPieData(pie);
+    setDataLoaded(true);
 
     setMonthlyInsightLoading(true);
     try {
@@ -319,11 +322,13 @@ export default function Reports() {
   );
   const hasBudgetSection = mode === "monthly" && budgetRows.length > 0;
 
-  // Scroll to #anggaran once the section has rendered (data loads async).
+  // Scroll to #anggaran once, after data has loaded and the section has rendered.
   useEffect(() => {
-    if (hash !== "#anggaran" || !hasBudgetSection || isLedgerTab) return;
+    if (hash !== "#anggaran") { scrolledHash.current = null; return; }
+    if (!dataLoaded || !hasBudgetSection || isLedgerTab || scrolledHash.current === hash) return;
+    scrolledHash.current = hash;
     document.getElementById("anggaran")?.scrollIntoView({ block: "start" });
-  }, [hash, hasBudgetSection, isLedgerTab]);
+  }, [hash, dataLoaded, hasBudgetSection, isLedgerTab]);
 
   function prevMonth() {
     if (selectedMonth === 1) {
@@ -391,10 +396,10 @@ export default function Reports() {
           ) : (
             <div className="grid grid-cols-2 gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 sm:w-80">
               <label className="min-w-0 text-[11px] text-[hsl(var(--muted-foreground))]">Dari
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 min-h-9 w-full min-w-0 max-w-full rounded bg-transparent text-sm text-[hsl(var(--foreground))] outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]" />
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 min-h-11 w-full min-w-0 max-w-full rounded bg-transparent text-sm text-[hsl(var(--foreground))] outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]" />
               </label>
               <label className="min-w-0 text-[11px] text-[hsl(var(--muted-foreground))]">Sampai
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 min-h-9 w-full min-w-0 max-w-full rounded bg-transparent text-sm text-[hsl(var(--foreground))] outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]" />
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 min-h-11 w-full min-w-0 max-w-full rounded bg-transparent text-sm text-[hsl(var(--foreground))] outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]" />
               </label>
             </div>
           )}

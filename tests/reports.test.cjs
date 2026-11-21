@@ -41,6 +41,16 @@ test('reports anchor, tabs and ledger', async () => {
       await page.getByRole('columnheader', { name, exact: true }).waitFor();
     }
 
+    // In-app navigation (desktop sidebar link) must also land on the section after load.
+    await page.goto(url + '/transactions');
+    await page.getByRole('link', { name: 'Anggaran', exact: true }).click();
+    await page.getByRole('region', { name: 'Anggaran', exact: true }).waitFor();
+    await page.waitForTimeout(1500);
+    assert.ok(await page.evaluate(() => {
+      const r = document.getElementById('anggaran').getBoundingClientRect();
+      return r.top >= 0 && r.top < innerHeight;
+    }));
+
     await page.goto(url + '/reports');
     await page.getByRole('tab', { name: 'Buku besar', exact: true }).click();
     await page.waitForURL(/tab=ledger/);
