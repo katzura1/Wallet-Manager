@@ -47,3 +47,21 @@ test("net worth ignores settled debts", () => {
   );
   assert.deepEqual(r, { cash: 1000, investments: 0, debtNet: 0, total: 1000, unpricedAssetCount: 2 });
 });
+
+test("net worth subtracts owe debt on an archived credit account", () => {
+  const r = getNetWorth(
+    [acc("CC", "credit", -200, true, 9)],
+    { totalValue: 0, unpricedAssetCount: 0 },
+    [debt("owe", 200, 9)],
+  );
+  assert.deepEqual(r, { cash: 0, investments: 0, debtNet: -200, total: -200, unpricedAssetCount: 0 });
+});
+
+test("net worth subtracts owe debt on an active non-credit account", () => {
+  const r = getNetWorth(
+    [acc("BCA", "bank", 1000, false, 1)],
+    { totalValue: 0, unpricedAssetCount: 0 },
+    [debt("owe", 100, 1)],
+  );
+  assert.deepEqual(r, { cash: 1000, investments: 0, debtNet: -100, total: 900, unpricedAssetCount: 0 });
+});

@@ -7,6 +7,7 @@ export function getNetWorth(
 ): { cash: number; investments: number; debtNet: number; total: number; unpricedAssetCount: number } {
   const active = accounts.filter((a) => !a.isArchived);
   const cash = active.reduce((sum, a) => sum + a.currentBalance, 0);
+  // Credit-card debts are excluded only while the card is active: its negative balance is then already in `cash`.
   const creditIds = new Set(active.filter((a) => a.type === "credit").map((a) => a.id));
   let debtNet = 0;
   for (const d of debts) {
