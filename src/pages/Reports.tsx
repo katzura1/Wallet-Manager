@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Card, CardHeader, CardTitle, CardContent, Badge } from "@/components/ui";
+import { Card, CardHeader, CardTitle, CardContent, Badge, PageHeader, ProgressBar, SegmentedControl } from "@/components/ui";
 import { getTransactions, getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween, getYearToDateSummary, getYearOverYearComparison, getCategoryIncomeData, getCategoryTrends, type YearToDateSummary, type YearOverYearComparison, type CategoryIncomeEntry, type CategoryTrend } from "@/db/transactions";
 import { getBudgetsForMonth, getBudgetsForCategoriesWithInheritance, predictBudgetStatus } from "@/db/budgets";
 import { BudgetForm } from "@/components/forms/BudgetForm";
 import { formatCurrency, todayISO } from "@/lib/utils";
 import { generateMonthlyInsight, type MonthlyInsightResult } from "@/lib/monthlyInsight";
-import { LedgerContent } from "@/pages/Ledger";
+import { LedgerContent, ReportTabs } from "@/pages/Ledger";
 import { ChevronLeft, ChevronRight, Target, ChevronDown, ChevronUp } from "lucide-react";
 import type { Budget } from "@/types";
 
@@ -41,9 +41,11 @@ function mergePieEntries(entries: PieEntry[]): PieEntry[] {
 export default function Reports() {
   const { accounts, categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const { hash } = useLocation();
   const [chartData, setChartData] = useState<ChartBar[]>([]);
   const [pieData, setPieData] = useState<PieEntry[]>([]);
+  const [prevCategoryMap, setPrevCategoryMap] = useState<Record<number, number>>({});
   const [summary, setSummary] = useState({ income: 0, expense: 0, net: 0 });
   const [previousSummary, setPreviousSummary] = useState<{ income: number; expense: number; net: number } | null>(null);
   const [balanceHistory, setBalanceHistory] = useState<{ month: string; balance: number }[]>([]);
@@ -96,6 +98,7 @@ export default function Reports() {
       // Bar chart & balance history don't apply in range mode — keep stale
       setSummary(sum);
       setPreviousSummary(null);
+      setPrevCategoryMap({});
       setMonthlyInsight(null);
       setMonthlyInsightLoading(false);
       const pie: PieEntry[] = mergePieEntries(
@@ -117,9 +120,10 @@ export default function Reports() {
       .map((c) => c.id)
       .filter((id): id is number => id !== undefined);
 
-    const [bars, catMapM, sumM, prevSumM, history, bdgtList, explicitBdgts, yearSummary, yearComparison, incomeData, trends] = await Promise.all([
+    const [bars, catMapM, prevCatMap, sumM, prevSumM, history, bdgtList, explicitBdgts, yearSummary, yearComparison, incomeData, trends] = await Promise.all([
       getMonthlyChartData(6),
       getCategoryExpenseData(selectedYear, selectedMonth),
+      getCategoryExpenseData(prevYear, prevMonth),
       getMonthlySummary(selectedYear, selectedMonth),
       getMonthlySummary(prevYear, prevMonth),
       getTotalBalanceHistory(6),
@@ -143,6 +147,7 @@ export default function Reports() {
     setInheritedBudgetIds(inheritedIds);
 
     setChartData(bars);
+    setPrevCategoryMap(prevCatMap);
     setSummary(sumM);
     setPreviousSummary(prevSumM);
     setBalanceHistory(history);
@@ -238,16 +243,13 @@ export default function Reports() {
 
   const currentMonth = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
 
+  const prevMonthDate = new Date(selectedYear, selectedMonth - 2, 1);
+  const prevMonthName = prevMonthDate.toLocaleString("id-ID", { month: "long" });
+
   function getComparisonMeta(current: number, previous: number, goodWhen: "up" | "down") {
     if (previous === 0) {
-      if (current === 0) {
-        return {
-          label: "Sama seperti bulan lalu",
-          className: "text-[hsl(var(--muted-foreground))]",
-        };
-      }
       return {
-        label: "Belum ada data pembanding",
+        label: current === 0 ? `Sama seperti ${prevMonthName}` : "Belum ada data pembanding",
         className: "text-[hsl(var(--muted-foreground))]",
       };
     }
@@ -255,16 +257,13 @@ export default function Reports() {
     const diff = current - previous;
     const pct = Math.round((Math.abs(diff) / Math.abs(previous)) * 100);
     if (diff === 0) {
-      return {
-        label: "Tidak berubah dari bulan lalu",
-        className: "text-[hsl(var(--muted-foreground))]",
-      };
+      return { label: `Tidak berubah dari ${prevMonthName}`, className: "text-[hsl(var(--muted-foreground))]" };
     }
 
     const improved = goodWhen === "up" ? diff > 0 : diff < 0;
     return {
-      label: `${diff > 0 ? "+" : "-"}${pct}% vs bulan lalu`,
-      className: improved ? "text-emerald-500" : "text-red-500",
+      label: `${diff > 0 ? "+" : "-"}${pct}% vs ${prevMonthName}`,
+      className: improved ? "text-success" : "text-danger",
     };
   }
 
@@ -283,7 +282,7 @@ export default function Reports() {
           const actual = pieData.find((entry) => entry.name === category.name)?.value ?? 0;
           const budget = budgets.find((item) => item.categoryId === category.id);
           const isInherited = budget ? inheritedBudgetIds.has(budget.id ?? 0) : false;
-          const pct = budget?.amount ? Math.min(Math.round((actual / budget.amount) * 100), 100) : 0;
+          const pct = budget?.amount ? Math.round((actual / budget.amount) * 100) : 0;
           // Calculate prediction if budget exists
           const prediction = budget && budget.amount > 0
             ? predictBudgetStatus({
@@ -314,6 +313,18 @@ export default function Reports() {
   const visibleBudgetRows = showAllBudgets ? activeBudgetRows : activeBudgetRows.slice(0, 5);
   const visibleUnusedBudgetRows = showAllBudgets ? unusedBudgetRows : unusedBudgetRows.slice(0, 4);
 
+  const budgetTotals = budgetRows.reduce(
+    (acc, row) => (row.budget ? { spent: acc.spent + row.actual, limit: acc.limit + row.budget.amount } : acc),
+    { spent: 0, limit: 0 },
+  );
+  const hasBudgetSection = mode === "monthly" && budgetRows.length > 0;
+
+  // Scroll to #anggaran once the section has rendered (data loads async).
+  useEffect(() => {
+    if (hash !== "#anggaran" || !hasBudgetSection || isLedgerTab) return;
+    document.getElementById("anggaran")?.scrollIntoView({ block: "start" });
+  }, [hash, hasBudgetSection, isLedgerTab]);
+
   function prevMonth() {
     if (selectedMonth === 1) {
       setSelectedYear((y) => y - 1);
@@ -329,259 +340,234 @@ export default function Reports() {
 
   const monthLabel = new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" });
 
-  function handleReportTabChange(tab: "overview" | "ledger") {
-    const nextParams = new URLSearchParams(searchParams);
-    if (tab === "ledger") nextParams.set("tab", "ledger");
-    else nextParams.delete("tab");
-    setSearchParams(nextParams, { replace: true });
-  }
-
   if (isLedgerTab) {
     return <LedgerContent />;
   }
 
-  return (
-    <div className="grid grid-cols-1 [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-[hsl(var(--primary))] [&>div]:min-w-0 items-start gap-4 px-4 pt-5 pb-4 lg:grid-cols-2 lg:space-y-0 lg:px-0 lg:pt-7">
-      <Card className="overflow-hidden lg:col-span-2">
-        <CardContent className="space-y-4 p-4 sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-tight">Laporan</h1>
-              <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Arus kas, kategori, dan anggaran.</p>
-            </div>
-            <div className="inline-flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1 text-xs no-print">
-                <button
-                  type="button"
-                  aria-current="page"
-                  onClick={() => handleReportTabChange("overview")}
-                  className="min-h-9 rounded-lg bg-[hsl(var(--primary))] px-3 font-medium text-[hsl(var(--primary-foreground))] transition-colors"
-                >
-                  Ikhtisar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleReportTabChange("ledger")}
-                  className="min-h-9 rounded-lg px-3 font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--card))]"
-                >
-                  Ledger
-                </button>
-            </div>
-          </div>
+  const tooltipStyle = {
+    background: "hsl(var(--card))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "12px",
+    fontSize: "12px",
+  };
+  const prevByName = new Map<string, number>();
+  for (const [catId, amount] of Object.entries(prevCategoryMap)) {
+    const name = categories.find((c) => c.id === Number(catId))?.name ?? "Lainnya";
+    prevByName.set(name, (prevByName.get(name) ?? 0) + amount);
+  }
+  const savingsRate = ytdSummary?.savingsRate ?? 0;
+  const savingsTone = savingsRate >= 20 ? "text-success" : savingsRate >= 10 ? "text-warning" : "text-danger";
+  const ringCircumference = 2 * Math.PI * 28;
+  const ringFill = (Math.min(100, Math.max(0, savingsRate)) / 100) * ringCircumference;
+  const sectionCard = "min-w-0 rounded-[20px]";
+  const linkButton = "inline-flex min-h-11 items-center gap-1 px-1 text-xs font-medium text-[hsl(var(--primary))]";
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-1 text-sm sm:w-56 sm:shrink-0">
-        <button
-          aria-pressed={mode === "monthly"}
-          onClick={() => setMode("monthly")}
-          className={`min-h-10 flex-1 rounded-lg font-medium transition-colors ${mode === "monthly" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--card))]"}`}
-        >
-          📅 Bulanan
-        </button>
-        <button
-          aria-pressed={mode === "range"}
-          onClick={() => setMode("range")}
-          className={`min-h-10 flex-1 rounded-lg font-medium transition-colors ${mode === "range" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--card))]"}`}
-        >
-          📆 Rentang
-        </button>
+  const summaryCards = [
+    { label: "Masuk", value: summary.income, comparison: incomeComparison, tone: "text-success", annualChange: yoyComparison?.incomeChange, expense: false },
+    { label: "Keluar", value: summary.expense, comparison: expenseComparison, tone: "text-danger", annualChange: yoyComparison?.expenseChange, expense: true },
+    { label: "Bersih", value: summary.net, comparison: netComparison, tone: summary.net >= 0 ? "text-success" : "text-danger", annualChange: yoyComparison?.netChange, expense: false },
+  ];
+
+  return (
+    <div className="space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-7">
+      <PageHeader title="Laporan" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <ReportTabs value="overview" />
+        <div className="flex flex-col gap-3 no-print sm:flex-row sm:items-center">
+          <div className="sm:w-56">
+            <SegmentedControl
+              label="Mode periode"
+              value={mode}
+              options={[{ value: "monthly", label: "Bulanan" }, { value: "range", label: "Rentang" }]}
+              onChange={setMode}
+            />
           </div>
           {mode === "monthly" ? (
-            <div className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-[hsl(var(--border))] px-2 sm:w-64">
-              <button aria-label="Bulan sebelumnya" onClick={prevMonth} className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[hsl(var(--surface-2))]"><ChevronLeft size={18} /></button>
-              <p className="font-semibold capitalize text-sm">{monthLabel}</p>
-              <button aria-label="Bulan berikutnya" onClick={nextMonth} className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[hsl(var(--surface-2))]"><ChevronRight size={18} /></button>
+            <div className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 sm:w-64">
+              <button type="button" aria-label="Bulan sebelumnya" onClick={prevMonth} className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-[hsl(var(--surface-2))]"><ChevronLeft size={18} /></button>
+              <p className="text-sm font-semibold capitalize">{monthLabel}</p>
+              <button type="button" aria-label="Bulan berikutnya" onClick={nextMonth} className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-[hsl(var(--surface-2))]"><ChevronRight size={18} /></button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 rounded-xl border border-[hsl(var(--border))] p-2 sm:flex-[1.5]">
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 sm:w-80">
               <label className="min-w-0 text-[11px] text-[hsl(var(--muted-foreground))]">Dari
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 w-full min-w-0 max-w-full rounded focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))] bg-transparent text-sm text-[hsl(var(--foreground))] outline-none" />
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 min-h-9 w-full min-w-0 max-w-full rounded bg-transparent text-sm text-[hsl(var(--foreground))] outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]" />
               </label>
               <label className="min-w-0 text-[11px] text-[hsl(var(--muted-foreground))]">Sampai
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 w-full min-w-0 max-w-full rounded focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))] bg-transparent text-sm text-[hsl(var(--foreground))] outline-none" />
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 min-h-9 w-full min-w-0 max-w-full rounded bg-transparent text-sm text-[hsl(var(--foreground))] outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]" />
               </label>
             </div>
           )}
-          </div>
-          <dl className="grid grid-cols-2 gap-3 border-t border-[hsl(var(--border))] pt-3 sm:grid-cols-3">
-            {[
-              { label: "Pemasukan", value: summary.income, comparison: incomeComparison, tone: "text-emerald-500", annualChange: yoyComparison?.incomeChange },
-              { label: "Pengeluaran", value: summary.expense, comparison: expenseComparison, tone: "text-red-500", annualChange: yoyComparison?.expenseChange },
-              { label: "Saldo bersih", value: summary.net, comparison: netComparison, tone: summary.net >= 0 ? "text-emerald-500" : "text-red-500", annualChange: yoyComparison?.netChange },
-            ].map(({ label, value, comparison, tone, annualChange }, index) => (
-              <div key={label} className={`min-w-0 ${index === 2 ? "col-span-2 sm:col-span-1" : ""}`}>
-                <dt className="text-xs text-[hsl(var(--muted-foreground))]">{label}</dt>
-                <dd className={`mt-1 break-words text-base font-bold tabular-nums sm:text-xl ${tone}`}>{formatCurrency(value, currency)}</dd>
-                {mode === "monthly" && comparison && <dd className={`mt-1 text-[11px] ${comparison.className}`}>{comparison.label}</dd>}
-                {mode === "monthly" && yoyComparison?.hasPreviousYearData && annualChange !== undefined && (
-                  <dd className={`mt-1 text-[11px] ${(label === "Pengeluaran" ? annualChange <= 0 : annualChange >= 0) ? "text-emerald-500" : "text-red-500"}`}>
-                    {annualChange > 0 ? "+" : ""}{annualChange}% vs {new Date(yoyComparison.previousYear, yoyComparison.currentMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" })}
-                  </dd>
-                )}
-              </div>
-            ))}
-          </dl>
-          {mode === "monthly" && ytdSummary && ytdSummary.totalIncome > 0 && (
-            <section aria-label="Ringkasan tahunan" className="border-t border-[hsl(var(--border))] pt-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <h2 className="font-semibold">YTD {selectedYear} <span className="font-normal text-[hsl(var(--muted-foreground))]">· {ytdSummary.monthsIncluded} bulan berjalan</span></h2>
-                <span className={ytdSummary.savingsRate >= 20 ? "text-emerald-600 dark:text-emerald-400" : ytdSummary.savingsRate >= 10 ? "text-amber-600 dark:text-amber-400" : "text-red-500"}>Tingkat tabungan {ytdSummary.savingsRate}%</span>
-              </div>
-              <dl className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {[
-                  { label: "Total Masuk", value: ytdSummary.totalIncome, tone: "text-emerald-500" },
-                  { label: "Total Keluar", value: ytdSummary.totalExpense, tone: "text-red-500" },
-                  { label: "Tersisa", value: ytdSummary.netSavings, tone: ytdSummary.netSavings >= 0 ? "text-emerald-500" : "text-red-500" },
-                ].map(({ label, value, tone }, index) => (
-                  <div key={label} className={`min-w-0 ${index === 2 ? "col-span-2 sm:col-span-1" : ""}`}>
-                    <dt className="text-[11px] text-[hsl(var(--muted-foreground))]">{label}</dt>
-                    <dd className={`mt-1 break-words text-sm font-semibold tabular-nums ${tone}`}>{formatCurrency(value, currency)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Cash Flow Bar Chart — monthly only */}
-      {mode === "monthly" && <Card>
-        <CardHeader className="px-4 pt-4 pb-2">
-          <CardTitle>Arus Kas 6 Bulan</CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 pt-1">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={chartData} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip
-                  formatter={(val) => formatCurrency(Number(val), currency)}
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "12px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Bar dataKey="income" name="Pemasukan" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" name="Pengeluaran" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data</p>
-          )}
-        </CardContent>
-      </Card>}
+      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {summaryCards.map(({ label, value, comparison, tone, annualChange, expense }, index) => (
+          <Card key={label} className={`${sectionCard} p-4 ${index === 2 ? "col-span-2 lg:col-span-1" : ""}`}>
+            <dt className="text-xs text-[hsl(var(--muted-foreground))]">{label}</dt>
+            <dd className={`mt-1 break-words text-lg font-semibold tabular-nums lg:text-xl ${tone}`}>{formatCurrency(value, currency)}</dd>
+            {mode === "monthly" && comparison && <dd className={`mt-1 text-[11px] ${comparison.className}`}>{comparison.label}</dd>}
+            {mode === "monthly" && yoyComparison?.hasPreviousYearData && annualChange !== undefined && (
+              <dd className={`mt-1 text-[11px] ${(expense ? annualChange <= 0 : annualChange >= 0) ? "text-success" : "text-danger"}`}>
+                {annualChange > 0 ? "+" : ""}{annualChange}% vs {new Date(yoyComparison.previousYear, yoyComparison.currentMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" })}
+              </dd>
+            )}
+          </Card>
+        ))}
+        {mode === "monthly" && ytdSummary && ytdSummary.totalIncome > 0 && (
+          <Card className={`${sectionCard} col-span-2 flex items-center gap-4 p-4 lg:col-span-1`}>
+            <svg width="68" height="68" viewBox="0 0 68 68" role="img" aria-label={`Tingkat tabungan ${savingsRate}%`} className="shrink-0 -rotate-90">
+              <circle cx="34" cy="34" r="28" fill="none" strokeWidth="7" className="stroke-[hsl(var(--surface-3))]" />
+              <circle cx="34" cy="34" r="28" fill="none" strokeWidth="7" strokeLinecap="round" strokeDasharray={`${ringFill} ${ringCircumference}`} className={`${savingsRate >= 20 ? "stroke-success" : savingsRate >= 10 ? "stroke-warning" : "stroke-danger"}`} />
+            </svg>
+            <div className="min-w-0">
+              <dt className="text-xs text-[hsl(var(--muted-foreground))]">Tingkat tabungan</dt>
+              <dd className={`text-lg font-semibold tabular-nums lg:text-xl ${savingsTone}`}>{savingsRate}%</dd>
+              <dd className="text-[11px] text-[hsl(var(--muted-foreground))]">YTD {selectedYear} · {ytdSummary.monthsIncluded} bulan</dd>
+            </div>
+          </Card>
+        )}
+      </dl>
 
-      {/* Balance History — monthly only */}
-      {mode === "monthly" && balanceHistory.length > 0 && balanceHistory.some((d) => d.balance !== 0) && (
-        <Card className="min-w-0">
-          <CardHeader className="px-4 pt-4 pb-2">
-            <CardTitle>Riwayat Total Saldo</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-2">
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={balanceHistory}>
-                <defs>
-                  <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip
-                  formatter={(val) => formatCurrency(Number(val), currency)}
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "12px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Area dataKey="balance" name="Total Saldo" stroke="#6366f1" strokeWidth={2} fill="url(#balGrad)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {mode === "monthly" && ytdSummary && ytdSummary.totalIncome > 0 && (
+        <section aria-label="Ringkasan tahunan">
+          <Card className={`${sectionCard} p-4`}>
+            <h2 className="text-sm font-semibold">YTD {selectedYear} <span className="font-normal text-[hsl(var(--muted-foreground))]">· {ytdSummary.monthsIncluded} bulan berjalan</span></h2>
+            <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {[
+                { label: "Total Masuk", value: ytdSummary.totalIncome, tone: "text-success" },
+                { label: "Total Keluar", value: ytdSummary.totalExpense, tone: "text-danger" },
+                { label: "Tersisa", value: ytdSummary.netSavings, tone: ytdSummary.netSavings >= 0 ? "text-success" : "text-danger" },
+              ].map(({ label, value, tone }, index) => (
+                <div key={label} className={`min-w-0 ${index === 2 ? "col-span-2 sm:col-span-1" : ""}`}>
+                  <dt className="text-[11px] text-[hsl(var(--muted-foreground))]">{label}</dt>
+                  <dd className={`mt-1 break-words text-sm font-semibold tabular-nums ${tone}`}>{formatCurrency(value, currency)}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+        </section>
       )}
 
-      {/* Category breakdown */}
-      {(pieData.length > 0 || (mode === "monthly" && incomeCategories.length > 0)) && (
-        <Card className="lg:col-span-2">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+        {/* Cash Flow Bar Chart — monthly only */}
+        {mode === "monthly" && <Card className={sectionCard}>
           <CardHeader className="px-4 pt-4 pb-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle>Kategori</CardTitle>
-              {(pieData.length > 5 || (mode === "monthly" && incomeCategories.length > 5)) && (
-                <button type="button" onClick={() => setShowAllCategories((value) => !value)} aria-expanded={showAllCategories} className="inline-flex min-h-10 items-center gap-1 text-xs font-medium text-[hsl(var(--primary))]">
-                  {showAllCategories ? <ChevronUp size={14} /> : <ChevronDown size={14} />}{showAllCategories ? "Ringkas" : "Semua kategori"}
-                </button>
-              )}
-            </div>
+            <CardTitle>Arus Kas 6 Bulan</CardTitle>
           </CardHeader>
-          <CardContent className={`grid gap-4 p-4 pt-1 ${mode === "monthly" ? "lg:grid-cols-2" : ""}`}>
+          <CardContent className="p-3 pt-1">
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={chartData} barGap={2}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip formatter={(val) => formatCurrency(Number(val), currency)} contentStyle={tooltipStyle} />
+                  <Bar dataKey="income" name="Pemasukan" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expense" name="Pengeluaran" fill="hsl(var(--danger))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">Belum ada data</p>
+            )}
+          </CardContent>
+        </Card>}
+
+        {/* Balance History — monthly only */}
+        {mode === "monthly" && balanceHistory.length > 0 && balanceHistory.some((d) => d.balance !== 0) && (
+          <Card className={sectionCard}>
+            <CardHeader className="px-4 pt-4 pb-2">
+              <CardTitle>Riwayat Total Saldo</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-2">
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={balanceHistory}>
+                  <defs>
+                    <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip formatter={(val) => formatCurrency(Number(val), currency)} contentStyle={tooltipStyle} />
+                  <Area dataKey="balance" name="Total Saldo" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#balGrad)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Category breakdown */}
+        {(pieData.length > 0 || (mode === "monthly" && incomeCategories.length > 0)) && (
+          <Card className={`${sectionCard} lg:col-span-2`}>
+            <CardHeader className="px-4 pt-4 pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle>Kategori</CardTitle>
+                {(pieData.length > 5 || (mode === "monthly" && incomeCategories.length > 5)) && (
+                  <button type="button" onClick={() => setShowAllCategories((value) => !value)} aria-expanded={showAllCategories} className={linkButton}>
+                    {showAllCategories ? <ChevronUp size={14} /> : <ChevronDown size={14} />}{showAllCategories ? "Ringkas" : "Semua kategori"}
+                  </button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className={`grid gap-4 p-4 pt-1 ${mode === "monthly" ? "lg:grid-cols-2" : ""}`}>
               <section aria-label="Kategori Pengeluaran" className="min-w-0">
                 <h3 className="mb-2 text-sm font-semibold">Kategori Pengeluaran</h3>
                 <p className="mb-2 text-[11px] text-[hsl(var(--muted-foreground))]">Pengeluaran dan pemasukan bersih per kategori</p>
                 {pieData.length > 0 ? (
-                  <>
-                    <div className="sm:grid sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] sm:items-center sm:gap-3">
+                  <div className="sm:grid sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] sm:items-center sm:gap-3">
                     <ResponsiveContainer width="100%" height={160}>
                       <PieChart>
-                        <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={44} outerRadius={68} paddingAngle={3}>
+                        <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={44} outerRadius={68} paddingAngle={3} stroke="hsl(var(--card))">
                           {pieData.map((entry, i) => (
                             <Cell key={i} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip
-                          formatter={(val) => formatCurrency(Number(val), currency)}
-                          contentStyle={{
-                            background: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                          }}
-                        />
+                        <Tooltip formatter={(val) => formatCurrency(Number(val), currency)} contentStyle={tooltipStyle} />
                       </PieChart>
                     </ResponsiveContainer>
 
-                    <div className="mt-2 space-y-2 lg:mt-0">
+                    <div className="mt-2 space-y-3 lg:mt-0">
                       {visiblePieData.map((entry) => {
                         const pct = totalPieValue ? Math.round((entry.value / totalPieValue) * 100) : 0;
+                        const prev = prevByName.get(entry.name) ?? 0;
+                        const delta = mode === "monthly" && prev > 0 ? Math.round(((entry.value - prev) / prev) * 100) : null;
                         return (
                           <div key={entry.name} className="flex items-center gap-2.5">
                             <span className="text-sm">{entry.icon}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
                                 <span className="truncate">{entry.name}</span>
                                 <span className="max-w-full break-words font-medium tabular-nums">{formatCurrency(entry.value, currency)}</span>
                               </div>
-                              <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
-                                <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: entry.color }} />
-                              </div>
+                              <ProgressBar value={entry.value} max={totalPieValue} label={`${entry.name} ${pct}% dari pengeluaran`} />
                             </div>
-                            <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
+                            <span className="w-14 text-right text-[11px] tabular-nums text-[hsl(var(--muted-foreground))]">
+                              {pct}%
+                              {delta !== null && delta !== 0 && (
+                                <span className={`block ${delta > 0 ? "text-danger" : "text-success"}`}>{delta > 0 ? "+" : ""}{delta}%</span>
+                              )}
+                            </span>
                           </div>
                         );
                       })}
                       {!showAllCategories && pieData.length > visiblePieData.length && (
-                        <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                        <p className="pt-1 text-center text-[11px] text-[hsl(var(--muted-foreground))]">
                           {pieData.length - visiblePieData.length} kategori lain disembunyikan
                         </p>
                       )}
                     </div>
-                    </div>
-                  </>
+                  </div>
                 ) : (
-                  <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data pengeluaran</p>
+                  <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">Belum ada data pengeluaran</p>
                 )}
               </section>
               {mode === "monthly" && <section aria-label="Sumber Pemasukan" className="min-w-0 lg:border-l lg:border-[hsl(var(--border))] lg:pl-4">
                 <h3 className="mb-2 text-sm font-semibold">Sumber Pemasukan</h3>
                 {incomeCategories.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {incomeCategories.slice(0, showAllCategories ? undefined : 5).map((entry) => {
                       const category = categories.find((c) => c.id === entry.categoryId);
                       const totalIncome = incomeCategories.reduce((s, c) => s + c.amount, 0);
@@ -589,299 +575,291 @@ export default function Reports() {
                       return (
                         <div key={entry.categoryId} className="flex items-center gap-2.5">
                           <span className="text-sm">{category?.icon ?? "💰"}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
                               <span className="truncate">{category?.name ?? "Lainnya"}</span>
-                              <span className="max-w-full break-words font-medium tabular-nums text-emerald-500">{formatCurrency(entry.amount, currency)}</span>
+                              <span className="max-w-full break-words font-medium tabular-nums text-success">{formatCurrency(entry.amount, currency)}</span>
                             </div>
-                            <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
-                              <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: category?.color ?? "#22c55e" }} />
-                            </div>
+                            <ProgressBar value={entry.amount} max={totalIncome} tone="success" label={`${category?.name ?? "Lainnya"} ${pct}% dari pemasukan`} />
                           </div>
-                          <span className="text-[11px] text-[hsl(var(--muted-foreground))] w-7 text-right">{pct}%</span>
+                          <span className="w-9 text-right text-[11px] tabular-nums text-[hsl(var(--muted-foreground))]">{pct}%</span>
                         </div>
                       );
                     })}
                     {!showAllCategories && incomeCategories.length > 5 && (
-                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
+                      <p className="pt-1 text-center text-[11px] text-[hsl(var(--muted-foreground))]">
                         {incomeCategories.length - 5} kategori lain disembunyikan
                       </p>
                     )}
                   </div>
                 ) : (
-                  <p className="text-center text-sm text-[hsl(var(--muted-foreground))] py-8">Belum ada data pemasukan</p>
+                  <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">Belum ada data pemasukan</p>
                 )}
               </section>}
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Budget vs Actuals — monthly only */}
-      {mode === "monthly" && budgetRows.length > 0 && (
-        <Card className="min-w-0">
-          <CardHeader className="px-4 pt-4 pb-2">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <CardTitle>Anggaran Bulan Ini</CardTitle>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Pemakaian dihitung dari pengeluaran bersih per kategori</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {(activeBudgetRows.length > 5 || unusedBudgetRows.length > 4) && (
-                  <button
-                    onClick={() => setShowAllBudgets((value) => !value)}
-                    className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-                  >
-                    {showAllBudgets ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    {showAllBudgets ? "Ringkas" : "Semua anggaran"}
-                  </button>
+        {/* Budget vs Actuals — monthly only */}
+        {hasBudgetSection && (
+          <section id="anggaran" aria-label="Anggaran" className="min-w-0 scroll-mt-4 lg:col-span-2">
+            <Card className={sectionCard}>
+              <CardHeader className="px-4 pt-4 pb-2">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <CardTitle>Anggaran Bulan Ini</CardTitle>
+                    <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">Pemakaian dihitung dari pengeluaran bersih per kategori</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(activeBudgetRows.length > 5 || unusedBudgetRows.length > 4) && (
+                      <button type="button" onClick={() => setShowAllBudgets((value) => !value)} className={linkButton}>
+                        {showAllBudgets ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        {showAllBudgets ? "Ringkas" : "Semua anggaran"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setBudgetCategoryId(undefined); setBudgetInitialAmount(0); setBudgetFormRecurring(true); setBudgetFormOpen(true); }}
+                      className={linkButton}
+                    >
+                      <Target size={13} /> + Atur
+                    </button>
+                  </div>
+                </div>
+                <dl className="mt-3 grid grid-cols-3 gap-3 border-t border-[hsl(var(--border))] pt-3">
+                  <div className="min-w-0">
+                    <dt className="text-[11px] text-[hsl(var(--muted-foreground))]">Terpakai</dt>
+                    <dd className="mt-0.5 break-words text-sm font-semibold tabular-nums">{formatCurrency(budgetTotals.spent, currency)}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-[11px] text-[hsl(var(--muted-foreground))]">Batas</dt>
+                    <dd className="mt-0.5 break-words text-sm font-semibold tabular-nums">{formatCurrency(budgetTotals.limit, currency)}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-[11px] text-[hsl(var(--muted-foreground))]">Sisa</dt>
+                    <dd className={`mt-0.5 break-words text-sm font-semibold tabular-nums ${budgetTotals.limit - budgetTotals.spent < 0 ? "text-danger" : "text-success"}`}>{formatCurrency(budgetTotals.limit - budgetTotals.spent, currency)}</dd>
+                  </div>
+                </dl>
+              </CardHeader>
+              <CardContent className="space-y-1 p-4 pt-1 lg:grid lg:grid-cols-2 lg:gap-x-6 lg:space-y-0">
+                {visibleBudgetRows.map(({ category, actual, budget, isInherited, pct, prediction }) => {
+                  const over = !!budget && actual > budget.amount;
+                  const tone = pct >= 100 ? "danger" : pct >= 80 ? "warning" : "primary";
+                  return (
+                    <div key={category.id} className="flex items-center gap-3 py-2">
+                      <span className="text-base">{category.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
+                          <span className="truncate">{category.name}</span>
+                          <span className="max-w-full break-words font-medium tabular-nums">
+                            {formatCurrency(actual, currency)}
+                            {budget && <span className={`ml-1 ${over ? "text-danger" : "text-[hsl(var(--muted-foreground))]"}`}>/ {formatCurrency(budget.amount, currency)}</span>}
+                          </span>
+                        </div>
+                        {budget && (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1"><ProgressBar value={actual} max={budget.amount} tone={tone} label={`Anggaran ${category.name}`} /></div>
+                            {isInherited && (
+                              <Badge className="h-fit shrink-0 bg-[hsl(var(--surface-2))] px-2 py-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">Inherited</Badge>
+                            )}
+                            {prediction && !over && prediction.predictedExhaustInDays !== null && prediction.predictedExhaustInDays <= 15 && (
+                              <span className="shrink-0 text-[9px] text-warning">
+                                ~{prediction.predictedExhaustInDays === 0 ? "habis" : `${prediction.predictedExhaustInDays}d`}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {over && prediction && prediction.projectedOverrun > 0 && (
+                          <p className="mt-0.5 text-[10px] text-danger">
+                            Proyeksi over {formatCurrency(prediction.projectedOverrun, currency)}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openBudgetForm(category.id!)}
+                        aria-label={`Atur anggaran ${category.name}`}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--primary))]"
+                      >
+                        <Target size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+                {!showAllBudgets && activeBudgetRows.length > visibleBudgetRows.length && (
+                  <p className="pt-1 text-center text-[11px] text-[hsl(var(--muted-foreground))] lg:col-span-2">
+                    {activeBudgetRows.length - visibleBudgetRows.length} kategori budget aktif lain disembunyikan
+                  </p>
                 )}
-                <button
-                  onClick={() => { setBudgetCategoryId(undefined); setBudgetInitialAmount(0); setBudgetFormRecurring(true); setBudgetFormOpen(true); }}
-                  className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-                >
-                  <Target size={13} /> + Atur
-                </button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-3 pt-1 space-y-2.5">
-            {visibleBudgetRows.map(({ category, actual, budget, isInherited, pct, prediction }) => {
-              const over = !!budget && actual > budget.amount;
-              return (
-                <div key={category.id} className="flex items-center gap-2.5">
-                  <span className="text-sm">{category.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
-                      <span className="truncate">{category.name}</span>
-                      <span className="max-w-full break-words font-medium tabular-nums">
-                        {formatCurrency(actual, currency)}
-                        {budget && <span className={`ml-1 ${over ? "text-red-500" : "text-[hsl(var(--muted-foreground))]"}`}>/ {formatCurrency(budget.amount, currency)}</span>}
-                      </span>
+
+                {unusedBudgetRows.length > 0 && (
+                  <div className="mt-2 border-t border-[hsl(var(--border))] pt-2 lg:col-span-2">
+                    <div className="mb-1 flex items-center justify-between gap-3">
+                      <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Belum terpakai bulan ini</p>
+                      <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{unusedBudgetRows.length} kategori</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      {budget ? (
-                        <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))]">
-                          <div
-                            className="h-1.5 rounded-full transition-all"
-                            style={{ width: `${pct}%`, background: over ? "#ef4444" : pct > 80 ? "#f59e0b" : category.color }}
-                          />
+                    <div className="lg:grid lg:grid-cols-2 lg:gap-x-6">
+                      {visibleUnusedBudgetRows.map(({ category, budget, isInherited }) => (
+                        <div key={category.id} className="flex items-center gap-3 py-2">
+                          <span className="text-base">{category.icon}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
+                              <span className="truncate">{category.name}</span>
+                              <span className="max-w-full break-words font-medium tabular-nums">0 / {formatCurrency(budget!.amount, currency)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1"><ProgressBar value={0} max={budget!.amount} label={`Anggaran ${category.name}`} /></div>
+                              {isInherited && (
+                                <Badge className="h-fit shrink-0 bg-[hsl(var(--surface-2))] px-2 py-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">Inherited</Badge>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openBudgetForm(category.id!)}
+                            aria-label={`Atur anggaran ${category.name}`}
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--primary))]"
+                          >
+                            <Target size={14} />
+                          </button>
                         </div>
-                      ) : (
-                        <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))] relative">
-                          <div className="h-1.5 rounded-full transition-all" style={{ width: "100%", background: `${category.color}44` }} />
-                        </div>
-                      )}
-                      {isInherited && budget && (
-                        <Badge className="text-[9px] px-2 py-0.5 h-fit shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
-                          Inherited
-                        </Badge>
-                      )}
-                      {/* Budget Prediction */}
-                      {prediction && !over && prediction.predictedExhaustInDays !== null && prediction.predictedExhaustInDays <= 15 && (
-                        <span className="text-[9px] text-amber-500 shrink-0">
-                          ~{prediction.predictedExhaustInDays === 0 ? "habis" : `${prediction.predictedExhaustInDays}d`}
-                        </span>
-                      )}
+                      ))}
                     </div>
-                    {/* Over-budget warning */}
-                    {over && prediction && prediction.projectedOverrun > 0 && (
-                      <p className="text-[10px] text-red-500 mt-0.5">
-                        Proyeksi over {formatCurrency(prediction.projectedOverrun, currency)}
+                    {!showAllBudgets && unusedBudgetRows.length > visibleUnusedBudgetRows.length && (
+                      <p className="pt-1 text-center text-[11px] text-[hsl(var(--muted-foreground))]">
+                        {unusedBudgetRows.length - visibleUnusedBudgetRows.length} budget belum terpakai disembunyikan
                       </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => openBudgetForm(category.id!)}
-                    aria-label={`Atur anggaran ${category.name}`}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                  >
-                    <Target size={12} />
-                  </button>
-                </div>
-              );
-            })}
-            {!showAllBudgets && activeBudgetRows.length > visibleBudgetRows.length && (
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
-                {activeBudgetRows.length - visibleBudgetRows.length} kategori budget aktif lain disembunyikan
-              </p>
-            )}
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )}
 
-            {unusedBudgetRows.length > 0 && (
-              <div className="pt-2 border-t border-[hsl(var(--border))]">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Belum terpakai bulan ini</p>
-                  <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{unusedBudgetRows.length} kategori</span>
-                </div>
-                <div className="space-y-2">
-                  {visibleUnusedBudgetRows.map(({ category, budget, isInherited }) => (
-                    <div key={category.id} className="flex items-center gap-2.5">
-                      <span className="text-sm">{category.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
-                          <span className="truncate">{category.name}</span>
-                          <span className="max-w-full break-words font-medium tabular-nums">0 / {formatCurrency(budget!.amount, currency)}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="h-1.5 rounded-full flex-1 bg-[hsl(var(--border))]" />
-                          {isInherited && (
-                            <Badge className="text-[9px] px-2 py-0.5 h-fit shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
-                              Inherited
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => openBudgetForm(category.id!)}
-                        aria-label={`Atur anggaran ${category.name}`}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                      >
-                        <Target size={12} />
-                      </button>
-                    </div>
-                  ))}
-                  {!showAllBudgets && unusedBudgetRows.length > visibleUnusedBudgetRows.length && (
-                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
-                      {unusedBudgetRows.length - visibleUnusedBudgetRows.length} budget belum terpakai disembunyikan
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {mode === "monthly" && (monthlyInsightLoading || monthlyInsight) && (
-        <Card className="min-w-0">
-          <CardHeader className="px-4 pt-4 pb-2">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <CardTitle>Insight {new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" })}</CardTitle>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Ringkasan dari transaksi yang tercatat pada periode terpilih</p>
-              </div>
-              {monthlyInsight && (
-                <Badge className={monthlyInsight.source === "ai" ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"}>
-                  {monthlyInsight.source === "ai" ? "AI" : "Lokal"}
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 pt-1">
-            {monthlyInsightLoading ? (
-              <div className="space-y-2 animate-pulse">
-                <div className="h-4 rounded bg-[hsl(var(--muted))] w-2/3" />
-                <div className="h-3 rounded bg-[hsl(var(--muted))] w-full" />
-                <div className="h-3 rounded bg-[hsl(var(--muted))] w-5/6" />
-              </div>
-            ) : monthlyInsight ? (
-              <div className="space-y-3">
+        {mode === "monthly" && (monthlyInsightLoading || monthlyInsight) && (
+          <Card className={sectionCard}>
+            <CardHeader className="px-4 pt-4 pb-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold">{monthlyInsight.headline}</p>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">{monthlyInsight.summary}</p>
+                  <CardTitle>Insight {new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("id-ID", { month: "long", year: "numeric" })}</CardTitle>
+                  <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">Ringkasan dari transaksi yang tercatat pada periode terpilih</p>
                 </div>
-                <div className="space-y-2">
-                  {monthlyInsight.highlights.map((item) => (
-                    <div key={item} className="flex items-start gap-2 text-sm">
-                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-500 flex-none" />
-                      <span className="text-[hsl(var(--foreground))]">{item}</span>
+                {monthlyInsight && (
+                  <Badge className={monthlyInsight.source === "ai" ? "bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]" : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"}>
+                    {monthlyInsight.source === "ai" ? "AI" : "Lokal"}
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-1">
+              {monthlyInsightLoading ? (
+                <div className="animate-pulse space-y-2">
+                  <div className="h-4 w-2/3 rounded bg-[hsl(var(--muted))]" />
+                  <div className="h-3 w-full rounded bg-[hsl(var(--muted))]" />
+                  <div className="h-3 w-5/6 rounded bg-[hsl(var(--muted))]" />
+                </div>
+              ) : monthlyInsight ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold">{monthlyInsight.headline}</p>
+                    <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{monthlyInsight.summary}</p>
+                  </div>
+                  <div className="space-y-2">
+                    {monthlyInsight.highlights.map((item) => (
+                      <div key={item} className="flex items-start gap-2 text-sm">
+                        <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-[hsl(var(--primary))]" />
+                        <span className="text-[hsl(var(--foreground))]">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{monthlyInsight.note}</p>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Category Trends */}
+        {mode === "monthly" && categoryTrends.filter((t) => t.isSignificant).length > 0 && (
+          <Card className={sectionCard}>
+            <CardHeader className="px-4 pt-4 pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle>Perubahan Kategori</CardTitle>
+                  <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">Kategori dengan perubahan signifikan vs rata-rata</p>
+                </div>
+                <button type="button" onClick={() => setShowTrends((v) => !v)} className={linkButton}>
+                  {showTrends ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  {showTrends ? "Ringkas" : "Detail"}
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-1">
+              <div className="space-y-2">
+                {categoryTrends
+                  .filter((t) => t.isSignificant)
+                  .slice(0, showTrends ? undefined : 3)
+                  .map((trend) => (
+                    <div key={trend.categoryId} className="flex items-center gap-2.5 rounded-xl bg-[hsl(var(--surface-2))] p-2.5">
+                      <span className="text-sm">{trend.categoryIcon}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex justify-between gap-2 text-xs">
+                          <span className="truncate font-medium">{trend.categoryName}</span>
+                          <span className={`shrink-0 font-bold tabular-nums ${trend.growthRate > 0 ? "text-danger" : "text-success"}`}>
+                            {trend.growthRate > 0 ? "+" : ""}{trend.growthRate}%
+                          </span>
+                        </div>
+                        <p className="text-[10px] tabular-nums text-[hsl(var(--muted-foreground))]">
+                          {formatCurrency(trend.previousMonthsAverage, currency)} → {formatCurrency(trend.currentMonth, currency)}
+                        </p>
+                      </div>
                     </div>
                   ))}
-                </div>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{monthlyInsight.note}</p>
               </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Category Trends */}
-      {mode === "monthly" && categoryTrends.filter((t) => t.isSignificant).length > 0 && (
-        <Card className="min-w-0">
-          <CardHeader className="px-4 pt-4 pb-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <CardTitle>Perubahan Kategori</CardTitle>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">Kategori dengan perubahan signifikan vs rata-rata</p>
+        {/* Account balances */}
+        {accounts.length > 0 && (
+          <Card className={sectionCard}>
+            <CardHeader className="px-4 pt-4 pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle>Saldo per Akun</CardTitle>
+                {accounts.filter((a) => !a.isArchived).length > 5 && (
+                  <button type="button" onClick={() => setShowAllAccounts((value) => !value)} className={linkButton}>
+                    {showAllAccounts ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    {showAllAccounts ? "Ringkas" : `Semua ${accounts.filter((a) => !a.isArchived).length}`}
+                  </button>
+                )}
               </div>
-              <button
-                onClick={() => setShowTrends((v) => !v)}
-                className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-              >
-                {showTrends ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                {showTrends ? "Ringkas" : "Detail"}
-              </button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-3 pt-1">
-            <div className="space-y-2">
-              {categoryTrends
-                .filter((t) => t.isSignificant)
-                .slice(0, showTrends ? undefined : 3)
-                .map((trend) => (
-                  <div key={trend.categoryId} className="flex items-center gap-2.5 p-2 rounded-xl bg-[hsl(var(--surface-2))]">
-                    <span className="text-sm">{trend.categoryIcon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between gap-2 text-xs">
-                        <span className="truncate font-medium">{trend.categoryName}</span>
-                        <span className={`font-bold shrink-0 ${trend.growthRate > 0 ? "text-red-500" : "text-emerald-500"}`}>
-                          {trend.growthRate > 0 ? "+" : ""}{trend.growthRate}%
-                        </span>
+            </CardHeader>
+            <CardContent className="space-y-3 p-4 pt-1">
+              {visibleAccounts.map((acc) => {
+                const totalAll = accounts.filter((a) => !a.isArchived).reduce((s, a) => s + Math.abs(a.currentBalance), 0);
+                return (
+                  <div key={acc.id} className="flex items-center gap-2.5">
+                    <span className="text-sm">{acc.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
+                        <span className="truncate">{acc.name}</span>
+                        <span className="max-w-full break-words font-medium tabular-nums">{formatCurrency(acc.currentBalance, currency)}</span>
                       </div>
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                        {formatCurrency(trend.previousMonthsAverage, currency)} → {formatCurrency(trend.currentMonth, currency)}
-                      </p>
+                      <ProgressBar value={Math.abs(acc.currentBalance)} max={totalAll} label={`Porsi saldo ${acc.name}`} />
                     </div>
                   </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Account balances */}
-      {accounts.length > 0 && (
-        <Card className="min-w-0">
-          <CardHeader className="px-4 pt-4 pb-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle>Saldo per Akun</CardTitle>
-              {accounts.filter((a) => !a.isArchived).length > 5 && (
-                <button
-                  onClick={() => setShowAllAccounts((value) => !value)}
-                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium"
-                >
-                  {showAllAccounts ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                  {showAllAccounts ? "Ringkas" : `Semua ${accounts.filter((a) => !a.isArchived).length}`}
-                </button>
+                );
+              })}
+              {!showAllAccounts && accounts.filter((a) => !a.isArchived).length > visibleAccounts.length && (
+                <p className="pt-1 text-center text-[11px] text-[hsl(var(--muted-foreground))]">
+                  {accounts.filter((a) => !a.isArchived).length - visibleAccounts.length} akun lain disembunyikan
+                </p>
               )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-3 pt-1 space-y-2.5">
-            {visibleAccounts.map((acc) => {
-              const totalAll = accounts.filter((a) => !a.isArchived).reduce((s, a) => s + Math.abs(a.currentBalance), 0);
-              const pct = totalAll ? Math.round((Math.abs(acc.currentBalance) / totalAll) * 100) : 0;
-              return (
-                <div key={acc.id} className="flex items-center gap-2.5">
-                  <span className="text-sm">{acc.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs mb-0.5">
-                      <span className="truncate">{acc.name}</span>
-                      <span className="max-w-full break-words font-medium tabular-nums">{formatCurrency(acc.currentBalance, currency)}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-[hsl(var(--border))]">
-                      <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: acc.color }} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            {!showAllAccounts && accounts.filter((a) => !a.isArchived).length > visibleAccounts.length && (
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-center pt-1">
-                {accounts.filter((a) => !a.isArchived).length - visibleAccounts.length} akun lain disembunyikan
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <BudgetForm
         open={budgetFormOpen}

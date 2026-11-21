@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowDownToLine, Printer } from "lucide-react";
 import { useSettingsStore, useWalletStore } from "@/stores/walletStore";
-import { Button, Card, CardContent, EmptyState, Input, Select, Spinner } from "@/components/ui";
+import { Button, Card, EmptyState, Input, PageHeader, SegmentedControl, Select, Spinner } from "@/components/ui";
 import { getAccountLedger, type AccountLedgerResult } from "@/db/transactions";
 import { formatCurrency, formatDate, todayISO } from "@/lib/utils";
 
@@ -14,10 +14,31 @@ function csvEscape(value: string) {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
+export function ReportTabs({ value }: { value: "overview" | "ledger" }) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  function handleChange(tab: "overview" | "ledger") {
+    const nextParams = new URLSearchParams(searchParams);
+    if (tab === "overview") nextParams.delete("tab");
+    else nextParams.set("tab", tab);
+    const query = nextParams.toString();
+    navigate(`/reports${query ? `?${query}` : ""}`, { replace: true });
+  }
+  return (
+    <div className="no-print sm:max-w-xs">
+      <SegmentedControl
+        label="Tampilan laporan"
+        value={value}
+        options={[{ value: "overview", label: "Ringkasan" }, { value: "ledger", label: "Buku besar" }]}
+        onChange={handleChange}
+      />
+    </div>
+  );
+}
+
 export function LedgerContent() {
   const { accounts, categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(() => {
     const parsed = Number(searchParams.get("account"));
@@ -91,13 +112,6 @@ export function LedgerContent() {
     };
   }, [dateFrom, dateTo, selectedAccountId]);
 
-  function handleReportTabChange(tab: "overview" | "ledger") {
-    const nextParams = new URLSearchParams(searchParams);
-    if (tab === "overview") nextParams.delete("tab");
-    else nextParams.set("tab", tab);
-    navigate(`/reports?${nextParams.toString()}`, { replace: true });
-  }
-
   function handleAccountChange(value: string) {
     const nextId = Number(value);
     if (!Number.isFinite(nextId)) return;
@@ -158,201 +172,150 @@ export function LedgerContent() {
   }, [ledger]);
 
   if (accounts.length === 0) {
-    return <EmptyState icon="📒" title="Belum ada akun" description="Buat akun terlebih dulu sebelum melihat ledger per akun." />;
+    return <EmptyState icon="📒" title="Belum ada akun" description="Buat akun terlebih dulu sebelum melihat buku besar per akun." />;
+  }
+
+  const summaryCards = ledger ? [
+    { label: "Saldo awal", value: ledger.openingBalance, tone: "text-[hsl(var(--foreground))]" },
+    { label: "Total masuk", value: ledger.totalCredit, tone: "text-success" },
+    { label: "Total keluar", value: ledger.totalDebit, tone: "text-danger" },
+    { label: "Saldo akhir", value: ledger.closingBalance, tone: ledger.closingBalance >= 0 ? "text-[hsl(var(--foreground))]" : "text-danger" },
+  ] : [];
+
+  function describe(row: AccountLedgerResult["rows"][number]) {
+    const sourceAccount = accounts.find((item) => item.id === row.transaction.accountId);
+    const targetAccount = accounts.find((item) => item.id === row.transaction.toAccountId);
+    return row.transaction.type === "transfer"
+      ? row.signedAmount > 0
+        ? `Transfer masuk dari ${sourceAccount?.name ?? "akun lain"}`
+        : `Transfer keluar ke ${targetAccount?.name ?? "akun lain"}`
+      : row.transaction.note || "Tanpa catatan";
+  }
+
+  function categoryLabel(row: AccountLedgerResult["rows"][number]) {
+    const category = categories.find((item) => item.id === row.transaction.categoryId);
+    return row.transaction.isAdjustment ? "Penyesuaian saldo" : category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-");
   }
 
   return (
-    <div className="space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-6">
-      <Card className="overflow-hidden">
-        <CardContent className="p-4 sm:p-5 space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-tight">Laporan</h1>
-              <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Mutasi dan saldo berjalan per akun.</p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="inline-flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 p-1 text-xs no-print">
-                <button
-                  type="button"
-                  onClick={() => handleReportTabChange("overview")}
-                  className="rounded-xl px-3 py-2 font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--surface-2))]"
-                >
-                  Ikhtisar
-                </button>
-                <button
-                  type="button"
-                  aria-current="page"
-                  onClick={() => handleReportTabChange("ledger")}
-                  className="rounded-xl bg-[hsl(var(--primary))] px-3 py-2 font-medium text-[hsl(var(--primary-foreground))] transition-colors"
-                >
-                  Ledger
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 [&>div]:min-w-0 gap-2 sm:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,1fr))] no-print">
-            <div className="col-span-2 min-w-0 sm:col-span-1">
-            <Select aria-label="Akun" className="rounded-xl px-3 py-2" label="Akun" value={selectedAccountId ?? ""} onChange={(e) => handleAccountChange(e.target.value)}>
-              {accountOptions.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.isArchived ? "[Arsip] " : ""}{account.name}
-                </option>
-              ))}
-            </Select>
-            </div>
-            <Input aria-label="Dari" className="rounded-xl px-3 py-2" label="Dari" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            <Input aria-label="Sampai" className="rounded-xl px-3 py-2" label="Sampai" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          </div>
-
-          <div className="flex flex-wrap gap-2 no-print">
-            <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={!ledger || ledger.rows.length === 0}>
-              <ArrowDownToLine size={14} /> CSV
+    <div className="space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-7">
+      <PageHeader
+        title="Laporan"
+        actions={
+          <div className="flex gap-2 no-print">
+            <Button variant="outline" className="h-11" onClick={handleExportCsv} disabled={!ledger || ledger.rows.length === 0}>
+              <ArrowDownToLine size={16} /> Ekspor CSV
             </Button>
-            <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={!ledger || ledger.rows.length === 0}>
-              <Printer size={14} /> PDF
+            <Button variant="outline" className="h-11" onClick={handleExportPdf} disabled={!ledger || ledger.rows.length === 0}>
+              <Printer size={16} /> Cetak / PDF
             </Button>
           </div>
-          {!loading && ledger && selectedAccount && (
-            <section aria-label="Ringkasan Saldo" className="border-t border-[hsl(var(--border))] pt-3">
-              <h2 className="text-sm font-semibold break-words">{selectedAccount.name}</h2>
-              <dl className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {[
-                  { label: "Saldo Awal", value: ledger.openingBalance, tone: "" },
-                  { label: "Saldo Masuk", value: ledger.totalCredit, tone: "text-emerald-500" },
-                  { label: "Saldo Keluar", value: ledger.totalDebit, tone: "text-red-500" },
-                  { label: "Saldo Akhir", value: ledger.closingBalance, tone: ledger.closingBalance >= 0 ? "text-emerald-500" : "text-red-500" },
-                ].map(({ label, value, tone }) => (
-                  <div key={label} className="min-w-0">
-                    <dt className="text-xs text-[hsl(var(--muted-foreground))]">{label}</dt>
-                    <dd className={`mt-1 break-words text-sm font-semibold tabular-nums lg:text-lg ${tone}`}>{formatCurrency(value, currency)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          )}
-        </CardContent>
-      </Card>
+        }
+      />
+      <ReportTabs value="ledger" />
+
+      <div className="grid grid-cols-2 gap-3 no-print sm:grid-cols-3 [&>div]:min-w-0">
+        <div className="col-span-2 sm:col-span-1">
+          <Select aria-label="Akun" className="min-h-11 rounded-xl px-3 py-2" label="Akun" value={selectedAccountId ?? ""} onChange={(e) => handleAccountChange(e.target.value)}>
+            {accountOptions.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.isArchived ? "[Arsip] " : ""}{account.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <Input aria-label="Dari" className="min-h-11 rounded-xl px-3 py-2" label="Dari" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        <Input aria-label="Sampai" className="min-h-11 rounded-xl px-3 py-2" label="Sampai" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+      </div>
 
       {loading ? (
         <Spinner />
       ) : error ? (
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-red-500">{error}</p>
-          </CardContent>
+        <Card className="p-4">
+          <p className="text-sm text-danger">{error}</p>
         </Card>
       ) : ledger && selectedAccount ? (
         <>
-          <Card>
-            <CardContent className="p-3 sm:p-4 space-y-3">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold break-words">{selectedAccount.name}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                    {dateFrom || "Awal"} sampai {dateTo || "Hari ini"} • {ledger.rows.length} transaksi
-                  </p>
+          <section aria-label="Ringkasan Saldo" className="space-y-2">
+            <h2 className="px-1 text-sm font-semibold break-words">{selectedAccount.name}</h2>
+            <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {summaryCards.map(({ label, value, tone }) => (
+                <div key={label} className="min-w-0 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+                  <dt className="text-xs text-[hsl(var(--muted-foreground))]">{label}</dt>
+                  <dd className={`mt-1 break-words text-base font-semibold tabular-nums lg:text-xl ${tone}`}>{formatCurrency(value, currency)}</dd>
                 </div>
-                <div className="text-xs text-[hsl(var(--muted-foreground))]">
-                  Saldo berjalan dihitung setelah setiap mutasi.
-                </div>
-              </div>
+              ))}
+            </dl>
+          </section>
 
-              <div className="overflow-x-auto rounded-xl border border-[hsl(var(--border))] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[hsl(var(--muted-foreground))] [&::-webkit-scrollbar-thumb]:rounded-full">
-                {groupedRows.length === 0 ? (
-                  <div className="bg-[hsl(var(--card))] p-5 text-sm text-[hsl(var(--muted-foreground))]">
-                    Belum ada transaksi pada rentang ini.
-                  </div>
-                ) : (
-                  <>
-                  <div className="space-y-4 bg-[hsl(var(--card))] p-3 sm:hidden">
-                    {groupedRows.map(([date, rows]) => (
-                      <section key={date} className="space-y-2">
-                        <h3 className="px-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]">{formatPlainDate(date)}</h3>
-                        {rows.map((row) => {
-                          const category = categories.find((item) => item.id === row.transaction.categoryId);
-                          const sourceAccount = accounts.find((item) => item.id === row.transaction.accountId);
-                          const targetAccount = accounts.find((item) => item.id === row.transaction.toAccountId);
-                          const description = row.transaction.type === "transfer"
-                            ? row.signedAmount > 0
-                              ? `Transfer masuk dari ${sourceAccount?.name ?? "akun lain"}`
-                              : `Transfer keluar ke ${targetAccount?.name ?? "akun lain"}`
-                            : row.transaction.note || "Tanpa catatan";
-                          const mutationAmount = row.debit > 0 ? row.debit : row.credit;
-                          const mutationTone = row.debit > 0 ? "text-red-500" : "text-emerald-500";
-                          return (
-                            <div key={row.transaction.id} className="rounded-2xl border border-[hsl(var(--border))] p-3">
-                              <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold">{row.transaction.isAdjustment ? "Penyesuaian saldo" : category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "Tanpa kategori")}</p>
-                                  <p className="mt-1 break-words text-xs text-[hsl(var(--muted-foreground))]">{description}</p>
-                                </div>
-                                <p className={`shrink-0 text-right text-sm font-semibold ${mutationTone}`}>{mutationAmount > 0 ? formatCurrency(mutationAmount, currency) : "—"}</p>
+          <Card className="space-y-3 p-3 sm:p-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                {dateFrom || "Awal"} sampai {dateTo || "Hari ini"} • {ledger.rows.length} transaksi
+              </p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">Saldo berjalan dihitung setelah setiap mutasi.</p>
+            </div>
+
+            {groupedRows.length === 0 ? (
+              <div className="rounded-xl border border-[hsl(var(--border))] p-5 text-sm text-[hsl(var(--muted-foreground))]">
+                Belum ada transaksi pada rentang ini.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4 sm:hidden">
+                  {groupedRows.map(([date, rows]) => (
+                    <section key={date} className="space-y-2">
+                      <h3 className="px-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]">{formatPlainDate(date)}</h3>
+                      {rows.map((row) => {
+                        const mutationAmount = row.debit > 0 ? row.debit : row.credit;
+                        const mutationTone = row.debit > 0 ? "text-danger" : "text-success";
+                        return (
+                          <div key={row.transaction.id} className="rounded-2xl border border-[hsl(var(--border))] p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold">{categoryLabel(row)}</p>
+                                <p className="mt-1 break-words text-xs text-[hsl(var(--muted-foreground))]">{describe(row)}</p>
                               </div>
-                              <div className="mt-3 flex items-center justify-between border-t border-[hsl(var(--border))] pt-2 text-xs text-[hsl(var(--muted-foreground))]">
-                                <span>Saldo berjalan</span>
-                                <span className={`font-medium ${row.balanceAfter < 0 ? "text-red-500" : "text-[hsl(var(--foreground))]"}`}>{formatCurrency(row.balanceAfter, currency)}</span>
-                              </div>
+                              <p className={`shrink-0 text-right text-sm font-semibold tabular-nums ${mutationTone}`}>{mutationAmount > 0 ? formatCurrency(mutationAmount, currency) : "—"}</p>
                             </div>
-                          );
-                        })}
-                      </section>
-                    ))}
-                  </div>
-                  <table className="hidden w-full divide-y divide-[hsl(var(--border))] text-xs sm:table lg:text-sm">
-                    <thead className="bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] sticky top-0">
+                            <div className="mt-3 flex items-center justify-between border-t border-[hsl(var(--border))] pt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                              <span>Saldo berjalan</span>
+                              <span className={`font-medium tabular-nums ${row.balanceAfter < 0 ? "text-danger" : "text-[hsl(var(--foreground))]"}`}>{formatCurrency(row.balanceAfter, currency)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </section>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto rounded-xl border border-[hsl(var(--border))] sm:block">
+                  <table className="w-full divide-y divide-[hsl(var(--border))] text-sm">
+                    <thead className="bg-[hsl(var(--surface-2))] text-xs text-[hsl(var(--muted-foreground))]">
                       <tr>
-                        <th scope="col" className="px-2 sm:px-2.5 py-2 sm:py-2.5 text-left font-semibold">Keterangan</th>
-                        <th scope="col" className="w-24 sm:w-28 px-2 sm:px-2.5 py-2 sm:py-2.5 text-right font-semibold">Mutasi</th>
-                        <th scope="col" className="w-24 sm:w-28 px-2 sm:px-2.5 py-2 sm:py-2.5 text-right font-semibold">Saldo</th>
+                        <th scope="col" className="px-3 py-2.5 text-left font-semibold">Tanggal</th>
+                        <th scope="col" className="px-3 py-2.5 text-left font-semibold">Keterangan</th>
+                        <th scope="col" className="px-3 py-2.5 text-left font-semibold">Kategori</th>
+                        <th scope="col" className="px-3 py-2.5 text-right font-semibold">Masuk</th>
+                        <th scope="col" className="px-3 py-2.5 text-right font-semibold">Keluar</th>
+                        <th scope="col" className="px-3 py-2.5 text-right font-semibold">Saldo</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[hsl(var(--border))] bg-[hsl(var(--card))]">
-                      {groupedRows.map(([date, rows]) => (
-                        <Fragment key={date}>
-                          <tr key={`${date}-group`} className="bg-[hsl(var(--surface-2))]/70">
-                            <td className="px-2 sm:px-2.5 py-2 text-[10px] sm:text-[11px] font-semibold text-[hsl(var(--muted-foreground))]" colSpan={3}>
-                              {formatPlainDate(date)}
-                            </td>
-                          </tr>
-                          {rows.map((row) => {
-                            const category = categories.find((item) => item.id === row.transaction.categoryId);
-                            const sourceAccount = accounts.find((item) => item.id === row.transaction.accountId);
-                            const targetAccount = accounts.find((item) => item.id === row.transaction.toAccountId);
-                            const description = row.transaction.type === "transfer"
-                              ? row.signedAmount > 0
-                                ? `Transfer masuk dari ${sourceAccount?.name ?? "akun lain"}`
-                                : `Transfer keluar ke ${targetAccount?.name ?? "akun lain"}`
-                              : row.transaction.note || "Tanpa catatan";
-                            const mutationAmount = row.debit > 0 ? row.debit : row.credit;
-                            const mutationTone = row.debit > 0 ? "text-red-500" : "text-emerald-500";
-                            const mutationLabel = row.debit > 0 ? "db" : "cr";
-
-                            return (
-                              <tr key={row.transaction.id} className="align-top">
-                                <td className="px-2 sm:px-2.5 py-2 sm:py-2.5 whitespace-normal break-words">
-                                  <div className="space-y-1">
-                                    <p className="font-medium leading-5 break-words text-xs sm:text-sm">{row.transaction.isAdjustment ? "Penyesuaian saldo" : category?.name ?? (row.transaction.type === "transfer" ? "Transfer" : "-")}</p>
-                                    <p className="text-[10px] sm:text-xs text-[hsl(var(--muted-foreground))] break-words">{description}</p>
-                                  </div>
-                                </td>
-                                <td className={`px-2 sm:px-2.5 py-2 sm:py-2.5 text-right whitespace-nowrap font-semibold text-xs sm:text-sm ${mutationTone}`}>
-                                  {mutationAmount > 0 ? `${formatCurrency(mutationAmount, currency)} ${mutationLabel}` : "-"}
-                                </td>
-                                <td className={`px-2 sm:px-2.5 py-2 sm:py-2.5 text-right whitespace-nowrap font-semibold text-xs sm:text-sm ${row.balanceAfter >= 0 ? "text-[hsl(var(--foreground))]" : "text-red-500"}`}>
-                                  {formatCurrency(row.balanceAfter, currency)}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </Fragment>
+                      {ledger.rows.map((row) => (
+                        <tr key={row.transaction.id} className="align-top">
+                          <td className="whitespace-nowrap px-3 py-2.5 text-[hsl(var(--muted-foreground))]">{formatPlainDate(row.transaction.date)}</td>
+                          <td className="min-w-40 break-words px-3 py-2.5">{describe(row)}</td>
+                          <td className="px-3 py-2.5 font-medium">{categoryLabel(row)}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 text-right font-medium tabular-nums text-success">{row.credit > 0 ? formatCurrency(row.credit, currency) : "—"}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 text-right font-medium tabular-nums text-danger">{row.debit > 0 ? formatCurrency(row.debit, currency) : "—"}</td>
+                          <td className={`whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums ${row.balanceAfter >= 0 ? "text-[hsl(var(--foreground))]" : "text-danger"}`}>{formatCurrency(row.balanceAfter, currency)}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
-                  </>
-                )}
-              </div>
-            </CardContent>
+                </div>
+              </>
+            )}
           </Card>
         </>
       ) : null}
