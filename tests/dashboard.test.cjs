@@ -35,6 +35,10 @@ for (const [name, viewport, summary] of [['mobile', { width: 390, height: 844 },
       await page.getByRole('region', { name: 'Terbaru' }).waitFor();
       assert.equal(await page.getByRole('heading', { name: 'Mulai kelola keuanganmu' }).count(), 0);
       await page.getByRole('region', { name: 'Terbaru' }).locator('text=Makan siang >> visible=true').first().waitFor();
+      if (name === 'desktop') {
+        await page.getByRole('button', { name: 'Ubah Makan siang' }).click();
+        await page.getByRole('dialog').waitFor();
+      }
       await context.close();
     } finally {
       await browser.close();

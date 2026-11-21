@@ -18,7 +18,7 @@ import { getAssets } from "@/db/assets";
 import { getPortfolioMetrics } from "@/lib/portfolioMetrics";
 import { getNetWorth } from "@/lib/netWorth";
 import { getAttentionItems } from "@/lib/attention";
-import { Plus, Settings, CreditCard, Eye, EyeOff, AlertTriangle, Target, Receipt, HandCoins, ChevronDown, ChevronUp, MoreHorizontal, TrendingDown, TrendingUp, ArrowRightLeft, Sparkles, MessageCircle } from "lucide-react";
+import { Plus, Settings, CreditCard, Eye, EyeOff, AlertTriangle, Target, Pencil, Trash2, Receipt, HandCoins, ChevronDown, ChevronUp, MoreHorizontal, TrendingDown, TrendingUp, ArrowRightLeft, Sparkles, MessageCircle } from "lucide-react";
 import type { AssetPrice, Debt, RecurringTransaction, Transaction } from "@/types";
 import { useAppLayout, usePageAction } from "@/components/layout/appLayoutContext";
 
@@ -220,7 +220,7 @@ export default function Dashboard() {
   const monthIncome = thisMonthTxs.filter((t) => !t.debtId && !t.isAdjustment && t.type === "income").reduce((s, t) => s + t.amount, 0);
   const monthExpense = thisMonthTxs.filter((t) => !t.debtId && !t.isAdjustment && t.type === "expense").reduce((s, t) => s + t.amount, 0);
 
-  const recentTxs = recentExpanded ? transactions.slice(0, 6) : transactions.slice(0, 3);
+  const recentTxs = recentExpanded ? transactions.slice(0, 5) : transactions.slice(0, 3);
   const upcomingBills = recurringItems
     .filter((item) => item.isActive && item.type === "expense")
     .sort((a, b) => a.nextDate.localeCompare(b.nextDate))
@@ -262,6 +262,16 @@ export default function Dashboard() {
         upcoming: "text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]",
       }[info.tone],
     };
+  }
+
+  function editRecent(tx: Transaction) {
+    if (tx.isAdjustment) navigate("/accounts");
+    else if (tx.debtId) navigate("/debts");
+    else setEditTx(tx);
+  }
+  function deleteRecent(tx: Transaction) {
+    if (tx.debtId) navigate("/debts");
+    else setDeleteTargetId(tx.id!);
   }
 
   async function handleDelete(id: number) {
@@ -419,7 +429,7 @@ export default function Dashboard() {
           {/* Mobile: balance + cash flow */}
           <section aria-label="Total saldo" className="space-y-3 lg:hidden">
             <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Total saldo · <Link to="/accounts" className="text-[hsl(var(--primary))]">{activeAccounts.length} akun</Link></p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">Total saldo · <Link to="/accounts" className="inline-flex min-h-11 items-center text-[hsl(var(--primary))]">{activeAccounts.length} akun</Link></p>
               <p className="mt-1 break-words text-[38px] font-extrabold leading-tight tracking-tight tabular-nums">{money(totalBalance)}</p>
               <p className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold tabular-nums ${balanceHidden ? "bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))]" : monthNet >= 0 ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}>
                 {balanceHidden ? "•••" : `${monthNet >= 0 ? "+" : "-"}${formatCurrency(Math.abs(monthNet), currency)}`} bulan ini
@@ -428,7 +438,7 @@ export default function Dashboard() {
             <div className={cardCls}>
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold capitalize">{monthLabel}</h2>
-                <Link to="/reports" className="text-xs text-[hsl(var(--primary))]">Lihat laporan</Link>
+                <Link to="/reports" className="inline-flex min-h-11 items-center text-xs text-[hsl(var(--primary))]">Lihat laporan</Link>
               </div>
               <dl className="mt-3 grid grid-cols-2 gap-3">
                 <div><dt className="text-xs text-[hsl(var(--muted-foreground))]">Masuk</dt><dd className={`mt-0.5 break-words text-base font-bold tabular-nums ${maskedTone("text-success")}`}>{money(monthIncome)}</dd></div>
@@ -472,11 +482,11 @@ export default function Dashboard() {
                   <h2 className={sectionTitle}>Terbaru</h2>
                   <div className="flex items-center gap-3">
                     {transactions.length > 3 && (
-                      <button aria-expanded={recentExpanded} onClick={() => setRecentExpanded((value) => !value)} className="text-xs font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
+                      <button aria-expanded={recentExpanded} onClick={() => setRecentExpanded((value) => !value)} className="min-h-11 text-xs font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
                         {recentExpanded ? "Ringkas" : "Tampilkan lagi"}
                       </button>
                     )}
-                    <Link to="/transactions" className="text-xs font-medium text-[hsl(var(--primary))] hover:underline">Semua transaksi</Link>
+                    <Link to="/transactions" className="inline-flex min-h-11 items-center text-xs font-medium text-[hsl(var(--primary))] hover:underline">Semua transaksi</Link>
                   </div>
                 </div>
                 {recentTxs.length === 0 && <p className={`${cardCls} text-sm text-[hsl(var(--muted-foreground))]`}>Belum ada transaksi. Catat pemasukan atau pengeluaran pertamamu.</p>}
@@ -491,8 +501,8 @@ export default function Dashboard() {
                       currency={currency}
                       hidden={balanceHidden}
                       hasSplits={splitTxIds.has(tx.id!)}
-                      onEdit={() => tx.isAdjustment ? navigate("/accounts") : tx.debtId ? navigate("/debts") : setEditTx(tx)}
-                      onDelete={() => tx.debtId ? navigate("/debts") : setDeleteTargetId(tx.id!)}
+                      onEdit={() => editRecent(tx)}
+                      onDelete={() => deleteRecent(tx)}
                     />
                   ))}
                 </div>
@@ -505,6 +515,7 @@ export default function Dashboard() {
                           <th scope="col" className="px-4 py-2.5 font-medium">Kategori</th>
                           <th scope="col" className="px-4 py-2.5 font-medium">Akun</th>
                           <th scope="col" className="px-4 py-2.5 text-right font-medium">Jumlah</th>
+                          <th scope="col" className="px-4 py-2.5 text-right font-medium"><span className="sr-only">Aksi</span></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[hsl(var(--border))]">
@@ -514,6 +525,12 @@ export default function Dashboard() {
                             <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">{splitTxIds.has(tx.id!) ? "Split" : getCategoryName(tx.categoryId) ?? "—"}</td>
                             <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">{getAccountName(tx.accountId)}{tx.toAccountId ? ` → ${getAccountName(tx.toAccountId)}` : ""}</td>
                             <td className={`px-4 py-3 text-right font-semibold tabular-nums ${maskedTone(tx.type === "income" ? "text-success" : "")}`}>{tx.type === "income" ? "+" : tx.type === "expense" ? "-" : ""}{money(tx.amount)}</td>
+                            <td className="px-2 py-1 text-right">
+                              <div className="flex justify-end">
+                                <button type="button" aria-label={`Ubah ${tx.note || getCategoryName(tx.categoryId) || "transaksi"}`} onClick={() => editRecent(tx)} className="flex h-11 w-11 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"><Pencil size={16} /></button>
+                                <button type="button" aria-label={`Hapus ${tx.note || getCategoryName(tx.categoryId) || "transaksi"}`} onClick={() => deleteRecent(tx)} className="flex h-11 w-11 items-center justify-center rounded-xl text-danger hover:bg-danger/10"><Trash2 size={16} /></button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -525,7 +542,7 @@ export default function Dashboard() {
               <section aria-label="Pengeluaran bulan ini" className={`${cardCls} space-y-3 lg:hidden`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold capitalize">Pengeluaran {monthLabel}</h2>
-                  <Link to="/reports" className="text-xs text-[hsl(var(--primary))]">Semua kategori</Link>
+                  <Link to="/reports" className="inline-flex min-h-11 items-center text-xs text-[hsl(var(--primary))]">Semua kategori</Link>
                 </div>
                 {categoryBars}
               </section>
@@ -542,7 +559,7 @@ export default function Dashboard() {
               <section aria-label="Pengeluaran per kategori" className={`${cardCls} hidden space-y-3 lg:block`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold capitalize">Pengeluaran {monthLabel}</h2>
-                  <Link to="/reports" className="text-xs text-[hsl(var(--primary))]">Semua kategori</Link>
+                  <Link to="/reports" className="inline-flex min-h-11 items-center text-xs text-[hsl(var(--primary))]">Semua kategori</Link>
                 </div>
                 {categoryBars}
               </section>
