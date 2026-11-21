@@ -33,6 +33,9 @@ export default function Transactions() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"all" | "recurring">(() => searchParams.get("tab") === "recurring" ? "recurring" : "all");
   const [addOpen, setAddOpen] = useState(false);
+  const newRequested = searchParams.get("new") === "1";
+  // Open the add form when arriving via ?new=1 (derived during render, then the param is cleaned below).
+  if (newRequested && !addOpen) setAddOpen(true);
   const [editTarget, setEditTarget] = useState<Transaction | null>(null);
   const [showFilter, setShowFilter] = useState(false);
   const [search, setSearch] = useState(filter.search ?? "");
@@ -89,6 +92,13 @@ export default function Transactions() {
     const timer = window.setTimeout(() => setRecurringFeedback(null), 2200);
     return () => window.clearTimeout(timer);
   }, [recurringFeedback]);
+
+  useEffect(() => {
+    if (!newRequested) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("new");
+    setSearchParams(nextParams, { replace: true });
+  }, [newRequested, searchParams, setSearchParams]);
 
   useEffect(() => {
     const tab = searchParams.get("tab");

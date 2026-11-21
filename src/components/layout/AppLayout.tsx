@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { MessageCircle, Plus, WalletCards, X } from "lucide-react";
+import { Outlet, useLocation } from "react-router-dom";
+import { Plus, X } from "lucide-react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { Button } from "@/components/ui";
 import type { AppLayoutContext, RegisteredPageAction } from "./appLayoutContext";
 import { BottomNav } from "./BottomNav";
-
-const primaryLinks = [
-  { to: "/", label: "Dashboard", end: true },
-  { to: "/transactions", label: "Transaksi" },
-];
+import { Sidebar } from "./Sidebar";
 
 export function AppLayout() {
   const { pathname } = useLocation();
@@ -50,54 +46,15 @@ export function AppLayout() {
   }, [actionSheetOpen]);
 
   return (
-    <div className="app-shell min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
-      <header className="sticky top-0 z-40 hidden border-b border-[hsl(var(--border))] bg-[hsl(var(--background))] lg:block">
-        <div className="mx-auto flex h-20 max-w-[1440px] items-center justify-between gap-4 px-5 xl:gap-8 xl:px-8">
-          <Link to="/" className="flex shrink-0 items-center gap-3 font-semibold tracking-tight" aria-label="Wallet, ke dashboard">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">
-              <WalletCards size={20} />
-            </span>
-            <span className="text-xl">Wallet</span>
-          </Link>
+    <div className="app-shell min-h-screen lg:grid lg:grid-cols-[240px_1fr] bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
+      <Sidebar onOpenChat={openChat} />
 
-          <nav aria-label="Navigasi utama" className="flex items-center gap-1 xl:gap-2">
-            {primaryLinks.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) => `whitespace-nowrap rounded-full px-3 py-3 text-sm font-medium transition-colors xl:px-5 ${isActive ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))]" : "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
-              >
-                {item.label}
-              </NavLink>
-            ))}
-            <details key={pathname} className="relative">
-              <summary className={`cursor-pointer list-none whitespace-nowrap rounded-full px-3 py-3 text-sm font-medium transition-colors xl:px-5 [&::-webkit-details-marker]:hidden ${["/accounts", "/debts", "/portfolio"].includes(pathname) ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))]" : "bg-[hsl(var(--card))] hover:bg-[hsl(var(--surface-2))]"}`}>
-                Keuangan <span aria-hidden="true" className="ml-1 text-[hsl(var(--muted-foreground))]">⌄</span>
-              </summary>
-              <div className="absolute left-0 top-[calc(100%+0.5rem)] z-50 min-w-52 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 shadow-lg">
-                <Link className="block rounded-xl px-3 py-2.5 text-sm hover:bg-[hsl(var(--surface-2))]" to="/accounts">Akun</Link>
-                <Link className="block rounded-xl px-3 py-2.5 text-sm hover:bg-[hsl(var(--surface-2))]" to="/debts">Hutang &amp; Piutang</Link>
-                <Link className="block rounded-xl px-3 py-2.5 text-sm hover:bg-[hsl(var(--surface-2))]" to="/portfolio">Portofolio</Link>
-              </div>
-            </details>
-            <NavLink to="/reports" className={({ isActive }) => `whitespace-nowrap rounded-full px-3 py-3 text-sm font-medium transition-colors xl:px-5 ${isActive ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))]" : "bg-[hsl(var(--card))] hover:bg-[hsl(var(--surface-2))]"}`}>Laporan</NavLink>
-            <NavLink to="/settings" className={({ isActive }) => `whitespace-nowrap rounded-full px-3 py-3 text-sm font-medium transition-colors xl:px-5 ${isActive || pathname === "/categories" ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))]" : "bg-[hsl(var(--card))] hover:bg-[hsl(var(--surface-2))]"}`}>Pengaturan</NavLink>
-          </nav>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="icon" className="hidden lg:inline-flex xl:hidden" onClick={openChat} aria-label="Chat AI" title="Chat AI">
-              <MessageCircle size={17} />
-            </Button>
-            <Button variant="outline" className="hidden xl:inline-flex" onClick={openChat}>
-              <MessageCircle size={17} /> Chat AI
-            </Button>
-            {pageAction && <Button className="whitespace-nowrap" onClick={pageAction.onClick}><Plus size={18} /> {pageAction.label}</Button>}
+      <main className="mx-auto min-h-screen w-full max-w-[1440px] min-w-0 pb-32 lg:px-8 lg:pb-12">
+        {pageAction && (
+          <div className="hidden justify-end pt-6 lg:flex">
+            <Button className="whitespace-nowrap" onClick={pageAction.onClick}><Plus size={18} /> {pageAction.label}</Button>
           </div>
-        </div>
-      </header>
-
-      <main className="mx-auto min-h-screen w-full max-w-[1440px] pb-32 lg:px-8 lg:pb-12">
+        )}
         <Outlet context={actionContext} />
       </main>
 
