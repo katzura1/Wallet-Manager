@@ -1,17 +1,20 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { Button, Input, Select, EmptyState, Modal, Badge, Spinner, Card, CardContent } from "@/components/ui";
+import { Button, Input, Select, EmptyState, Modal, Badge, Spinner, PageHeader, Sheet } from "@/components/ui";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { RecurringForm, type RecurringDraftInput } from "@/components/forms/RecurringForm";
 import { TransactionCard } from "@/components/TransactionCard";
+import { TransactionDetail } from "@/components/TransactionDetail";
+import { exportCSV } from "@/lib/backup";
+import { format, subDays } from "date-fns";
 import { deleteTransaction } from "@/db/transactions";
 import { getRecurringTransactions, deleteRecurring, updateRecurring, getRecurringDueInfo, runRecurringNow, skipNextRecurring } from "@/db/recurring";
 import { db } from "@/db/db";
-import { formatCurrency, formatCompactCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, todayISO } from "@/lib/utils";
 import { getRecurringDetectionSuggestions, type RecurringDetectionSuggestion } from "@/services/recurringDetection";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
-import { Search, Filter, Pencil, Trash2, RefreshCw, Pause, Play, SkipForward, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Filter, Pencil, Trash2, Pause, Play } from "lucide-react";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 
 const PAGE_SIZE = 100;
@@ -19,12 +22,6 @@ const PAGE_SIZE = 100;
 const INTERVAL_LABEL: Record<string, string> = {
   daily: "Harian", weekly: "Mingguan", monthly: "Bulanan", yearly: "Tahunan",
 };
-
-function getNetTone(value: number) {
-  if (value > 0) return "text-emerald-500";
-  if (value < 0) return "text-red-500";
-  return "text-[hsl(var(--foreground))]";
-}
 
 export default function Transactions() {
   const navigate = useNavigate();
@@ -65,8 +62,7 @@ export default function Transactions() {
   const [deleteRecurringId, setDeleteRecurringId] = useState<number | null>(null);
   const [pendingRecurringAction, setPendingRecurringAction] = useState<{ rec: RecurringTransaction; action: "toggle" | "run" | "skip" } | null>(null);
   const [splitMap, setSplitMap] = useState<Record<number, TransactionSplit[]>>({});
-  const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
-  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
 
   useEffect(() => {
@@ -137,7 +133,6 @@ export default function Transactions() {
       return;
     }
 
-    setExpandedDates((prev) => ({ ...prev, [target.date]: true }));
     setEditTarget(target);
     pendingFocusTxId.current = null;
 
@@ -188,6 +183,7 @@ export default function Transactions() {
 
   async function handleDelete(id: number) {
     await deleteTransaction(id);
+    setSelectedId(null);
     await refreshAll();
     await loadRecurring();
     setDeleteTxId(null);
@@ -248,9 +244,9 @@ export default function Transactions() {
   }
 
   function getDueClass(tone: "overdue" | "today" | "soon" | "upcoming") {
-    if (tone === "overdue") return "bg-red-500/10 text-red-600 dark:text-red-400";
-    if (tone === "today") return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
-    if (tone === "soon") return "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400";
+    if (tone === "overdue") return "bg-danger/10 text-danger";
+    if (tone === "today") return "bg-warning/10 text-warning";
+    if (tone === "soon") return "bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]";
     return "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]";
   }
 
@@ -295,7 +291,7 @@ export default function Transactions() {
     }, 250);
   }
 
-  const { sortedDates, totals, dayTotals } = useMemo(() => {
+  const { totals, dayTotals } = useMemo(() => {
     const totals = { income: 0, expense: 0, transfer: 0 };
     const dayTotals: Record<string, { income: number; expense: number; count: number }> = {};
     for (const tx of transactions) {
@@ -304,21 +300,13 @@ export default function Transactions() {
       day.count++;
       if (!tx.debtId && !tx.isAdjustment && tx.type !== "transfer") day[tx.type] += tx.amount;
     }
-    return { sortedDates: Object.keys(dayTotals).sort((a, b) => b.localeCompare(a)), totals, dayTotals };
+    return { totals, dayTotals };
   }, [transactions]);
   const visibleByDate = useMemo(() => {
     const grouped: Record<string, Transaction[]> = {};
     for (const tx of visibleTransactions) (grouped[tx.date] ??= []).push(tx);
     return grouped;
   }, [visibleTransactions]);
-
-  function expandAllDays() {
-    setExpandedDates(Object.fromEntries(sortedDates.map((date) => [date, true])) as Record<string, boolean>);
-  }
-
-  function collapseAllDays() {
-    setExpandedDates(Object.fromEntries(sortedDates.map((date) => [date, false])) as Record<string, boolean>);
-  }
 
   function handleTabChange(tab: "all" | "recurring") {
     setActiveTab(tab);
@@ -362,59 +350,29 @@ export default function Transactions() {
     } : null,
   ].filter((item): item is { key: string; label: string; onRemove: () => void } => item !== null);
 
-  function renderSplits(tx: Transaction, txSplits: TransactionSplit[]) {
-    return (
-      <div className="mt-2 rounded-[20px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-3 pb-3 pt-3 space-y-1.5">
-        {txSplits.map((s, i) => {
-          const splitCat = getCategory(s.categoryId);
-          return (
-            <div key={i} className="flex items-center gap-2 text-xs">
-              <span
-                className="w-5 h-5 rounded-lg flex items-center justify-center flex-none"
-                style={{ background: splitCat ? `${splitCat.color}22` : undefined }}
-              >
-                {splitCat?.icon ?? "📦"}
-              </span>
-              <span className="flex-1 text-[hsl(var(--foreground))]">{splitCat?.name ?? "Kategori tidak ditemukan"}</span>
-              {s.note && <span className="text-[hsl(var(--muted-foreground))] italic truncate max-w-20">{s.note}</span>}
-              <span className={`font-semibold ${tx.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
-                {tx.type === "expense" ? "-" : "+"}{formatCurrency(s.amount, currency)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
   function renderTransactions(items: Transaction[]) {
     return items.map((tx) => {
       const cat = getCategory(tx.categoryId);
       const txSplits = splitMap[tx.id!] ?? [];
       const hasSplits = txSplits.length > 0;
-      const isExpanded = expandedSplitId === tx.id;
       return (
-        <Fragment key={tx.id}>
-          <TransactionCard
-            desktop={desktop}
-            transaction={tx}
-            accountName={getAccountName(tx.accountId)}
-            toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}
-            categoryLabel={hasSplits ? `Split · ${txSplits.length} kategori` : cat?.name}
-            categoryIcon={hasSplits ? "✂️" : cat?.icon}
-            currency={currency}
-            hasSplits={hasSplits}
-            isExpanded={isExpanded}
-            onExpandSplits={() => setExpandedSplitId(isExpanded ? null : tx.id!)}
-            onEdit={() => tx.isAdjustment ? navigate("/accounts") : tx.debtId ? navigate("/debts") : setEditTarget(tx)}
-            onDelete={() => tx.debtId ? navigate("/debts") : setDeleteTxId(tx.id!)}
-          />
-          {hasSplits && isExpanded && (
-            desktop ? <tr><td colSpan={6}>{renderSplits(tx, txSplits)}</td></tr> : renderSplits(tx, txSplits)
-          )}
-        </Fragment>
+        <TransactionCard
+          key={tx.id}
+          desktop={desktop}
+          transaction={tx}
+          accountName={getAccountName(tx.accountId)}
+          toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}
+          categoryLabel={hasSplits ? `Split · ${txSplits.length} kategori` : cat?.name}
+          categoryIcon={hasSplits ? "✂️" : cat?.icon}
+          currency={currency}
+          hasSplits={hasSplits}
+          selected={selectedId === tx.id}
+          onSelect={() => setSelectedId(tx.id!)}
+          onEdit={() => editTx(tx)}
+          onDelete={() => deleteTx(tx)}
+        />
       );
-                    });
+    });
   }
 
   usePageAction({
@@ -429,85 +387,107 @@ export default function Transactions() {
     },
   });
 
+  const activeRecurringCount = recurring.filter((r) => r.isActive).length;
+  const monthLabel = formatDate(todayISO(), "MMMM yyyy");
+  const selectedTx = selectedId !== null ? transactions.find((t) => t.id === selectedId) ?? null : null;
+  const todayStr = todayISO();
+  const yesterdayStr = format(subDays(new Date(), 1), "yyyy-MM-dd");
+  function dayLabel(date: string) {
+    if (date === todayStr) return `Hari ini · ${formatDate(date, "EEE, d MMM")}`;
+    if (date === yesterdayStr) return `Kemarin · ${formatDate(date, "EEE, d MMM")}`;
+    return formatDate(date, "EEEE, d MMM");
+  }
+  function editTx(tx: Transaction) {
+    if (tx.isAdjustment) navigate("/accounts");
+    else if (tx.debtId) navigate("/debts");
+    else setEditTarget(tx);
+  }
+  function deleteTx(tx: Transaction) {
+    if (tx.debtId) navigate("/debts");
+    else setDeleteTxId(tx.id!);
+  }
+  const typeChips: { value: Transaction["type"] | undefined; label: string }[] = [
+    { value: undefined, label: "Semua" }, { value: "expense", label: "Keluar" }, { value: "income", label: "Masuk" }, { value: "transfer", label: "Transfer" },
+  ];
+  const pillCls = (on: boolean) => `inline-flex min-h-11 items-center rounded-full px-3.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${on ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))]"}`;
+
+  const detailPane = selectedTx ? (
+    <TransactionDetail
+      transaction={selectedTx}
+      accountName={getAccountName(selectedTx.accountId)}
+      toAccountName={selectedTx.toAccountId ? getAccountName(selectedTx.toAccountId) : undefined}
+      category={getCategory(selectedTx.categoryId)}
+      splits={splitMap[selectedTx.id!] ?? []}
+      categories={categories}
+      currency={currency}
+      onEdit={() => { if (!desktop) setSelectedId(null); editTx(selectedTx); }}
+      onDelete={() => { if (!desktop) setSelectedId(null); deleteTx(selectedTx); }}
+    />
+  ) : null;
+
   return (
     <div className="space-y-4 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
-      <Card className="overflow-hidden">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Transaksi</h1>
-              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                {activeTab === "all" ? `${transactions.length} transaksi · ${sortedDates.length} hari${activeFilterChips.length ? " sesuai filter" : ""}` : `${recurring.filter((r) => r.isActive).length} aktif · ${recurring.filter((r) => !r.isActive).length} dijeda`}
-              </p>
+      <PageHeader
+        title="Transaksi"
+        actions={
+          <>
+            <div className="flex items-center gap-2" role="group" aria-label="Tampilan transaksi">
+              <button type="button" onClick={() => handleTabChange("all")} aria-pressed={activeTab === "all"} className={pillCls(activeTab === "all")}>Riwayat</button>
+              <button type="button" onClick={() => handleTabChange("recurring")} aria-pressed={activeTab === "recurring"} className={pillCls(activeTab === "recurring")}>Terjadwal · {activeRecurringCount}</button>
             </div>
-            <div className="flex gap-1 rounded-xl bg-[hsl(var(--surface-2))] p-1" role="group" aria-label="Tampilan transaksi">
-              {(["all", "recurring"] as const).map((tab) => (
-                <button key={tab} onClick={() => handleTabChange(tab)} aria-pressed={activeTab === tab}
-                  className={`rounded-lg px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${activeTab === tab ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm" : "text-[hsl(var(--muted-foreground))]"}`}>
-                  {tab === "all" ? "Semua" : <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} />Terjadwal</span>}
-                </button>
-              ))}
+            <span className="hidden text-sm text-[hsl(var(--muted-foreground))] lg:inline">{monthLabel}</span>
+            <Button variant="outline" className="hidden lg:inline-flex" onClick={() => void exportCSV()}>Ekspor CSV</Button>
+          </>
+        }
+      />
+
+      {activeTab === "all" && (
+        <div className="space-y-3">
+          {isLoading && <p role="status" className="text-xs text-[hsl(var(--muted-foreground))]">Memuat transaksi…</p>}
+          {filter.dateFrom && filter.dateTo && filter.dateFrom > filter.dateTo && <p role="alert" className="text-sm text-danger">Tanggal mulai harus sebelum atau sama dengan tanggal akhir.</p>}
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+              <input
+                className="h-11 w-full rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                aria-label="Cari transaksi"
+                placeholder="Cari catatan transaksi..."
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
             </div>
+            <button
+              type="button"
+              aria-expanded={showFilter}
+              aria-controls="transaction-filters"
+              onClick={() => setShowFilter((v) => !v)}
+              className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border px-3.5 text-sm font-medium transition-colors ${showFilter || activeFilterChips.length > 0 ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]" : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
+            >
+              <Filter size={15} />
+              {activeFilterChips.length > 0 ? `Filter ${activeFilterChips.length}` : "Filter"}
+            </button>
           </div>
-
-          {activeTab === "all" && isLoading && <p role="status" className="text-xs text-[hsl(var(--muted-foreground))]">Memuat transaksi…</p>}
-          {activeTab === "all" && filter.dateFrom && filter.dateTo && filter.dateFrom > filter.dateTo && <p role="alert" className="text-sm text-red-600 dark:text-red-400">Tanggal mulai harus sebelum atau sama dengan tanggal akhir.</p>}
-          {activeTab === "all" && transactions.length > 0 && (
-            <dl className="grid grid-cols-3 gap-3 border-y border-[hsl(var(--border))] py-3">
-              {[
-                { label: "Pemasukan", value: totals.income, tone: "text-emerald-600 dark:text-emerald-400" },
-                { label: "Pengeluaran", value: totals.expense, tone: "text-red-600 dark:text-red-400" },
-                { label: "Transfer", value: totals.transfer, tone: "text-amber-600 dark:text-amber-400" },
-              ].map((metric) => <div key={metric.label} className="min-w-0"><dt className="text-xs text-[hsl(var(--muted-foreground))]">{metric.label}</dt><dd className={`mt-1 break-words text-sm font-semibold tabular-nums ${metric.tone}`} >{formatCurrency(metric.value, currency)}</dd></div>)}
-            </dl>
-          )}
-
-          <div>
-            {activeTab === "all" && (
-              <div className="flex items-center gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
-                  <input
-                    className="w-full rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                    aria-label="Cari transaksi"
-                    placeholder="Cari catatan transaksi..."
-                    value={search}
-                    onChange={(e) => handleSearch(e.target.value)}
-                  />
-                </div>
-                <button
-                  type="button"
-                  aria-expanded={showFilter}
-                  aria-controls="transaction-filters"
-                  onClick={() => setShowFilter((v) => !v)}
-                  className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border px-3.5 text-sm font-medium transition-colors ${showFilter || activeFilterChips.length > 0 ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]" : "border-[hsl(var(--border))] bg-[hsl(var(--card))]/75 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}
-                >
-                  <Filter size={15} />
-                  {activeFilterChips.length > 0 ? `Filter ${activeFilterChips.length}` : "Filter"}
-                </button>
-              </div>
-            )}
+          <div className="flex gap-2 overflow-x-auto" role="group" aria-label="Filter jenis">
+            {typeChips.map((chip) => (
+              <button key={chip.label} type="button" aria-pressed={filter.type === chip.value} onClick={() => setFilter({ ...filter, type: chip.value })} className={pillCls(filter.type === chip.value)}>{chip.label}</button>
+            ))}
           </div>
-          {activeTab === "all" && activeFilterChips.length > 0 && (
+          {activeFilterChips.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               {activeFilterChips.map((chip) => (
                 <button
                   key={chip.key}
                   aria-label={`Hapus filter ${chip.label}`}
                   onClick={chip.onRemove}
-                  className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))]"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))]"
                 >
                   <span className="min-w-0 break-words">{chip.label}</span>
                   <span className="text-[hsl(var(--muted-foreground))]">×</span>
                 </button>
               ))}
               <button
-                onClick={() => {
-                  cancelSearch();
-                  setSearch("");
-                  setFilter({});
-                }}
-                className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                onClick={() => { cancelSearch(); setSearch(""); setFilter({}); }}
+                className="min-h-9 text-xs font-medium text-[hsl(var(--primary))] hover:underline"
               >
                 Reset semua
               </button>
@@ -516,7 +496,7 @@ export default function Transactions() {
 
           {/* Filters */}
           {activeTab === "all" && showFilter && (
-            <div id="transaction-filters" className="grid gap-3 border-t border-[hsl(var(--border))] pt-3 md:grid-cols-2 lg:grid-cols-4">
+            <div id="transaction-filters" className="grid gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
                 <p className="text-sm font-medium">Akun</p>
                 <div className="space-y-2 max-h-32 overflow-y-auto">
@@ -594,76 +574,81 @@ export default function Transactions() {
             </div>
           )}
 
-        </CardContent>
-      </Card>
+          {transactions.length > 0 && (
+            <dl className="flex gap-6 px-1 text-sm" aria-label="Ringkasan periode">
+              <div><dt className="text-xs text-[hsl(var(--muted-foreground))]">Masuk</dt><dd className="font-semibold tabular-nums text-success">{formatCurrency(totals.income, currency)}</dd></div>
+              <div><dt className="text-xs text-[hsl(var(--muted-foreground))]">Keluar</dt><dd className="font-semibold tabular-nums">{formatCurrency(totals.expense, currency)}</dd></div>
+            </dl>
+          )}
+        </div>
+      )}
 
       {/* All Transactions tab */}
       {activeTab === "all" && (
         transactions.length === 0 ? (
           <EmptyState icon="📋" title={activeFilterChips.length ? "Tidak ada transaksi yang cocok" : "Belum ada transaksi"} description={activeFilterChips.length ? "Ubah pencarian atau reset filter untuk melihat transaksi lainnya." : "Pilih Tambah untuk mencatat transaksi baru."} />
         ) : (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between gap-3 py-1">
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Riwayat transaksi</p>
-              <div className="flex items-center gap-1">
-                <Button size="sm" variant="ghost" className="px-2.5" onClick={expandAllDays}>Buka semua</Button>
-                <Button size="sm" variant="ghost" className="px-2.5" onClick={collapseAllDays}>Tutup semua</Button>
+          <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
+            <div className="space-y-4">
+              {desktop ? (
+                <div className="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
+                  <table className="w-full table-fixed text-left text-sm">
+                    <caption className="sr-only">Daftar transaksi</caption>
+                    <thead className="text-xs text-[hsl(var(--muted-foreground))]">
+                      <tr>
+                        {["Keterangan", "Kategori", "Akun", "Jumlah"].map((label, index) => <th key={label} scope="col" style={{ width: ["34%", "20%", "20%", "18%"][index] }} className={`px-3 py-2.5 font-medium ${label === "Jumlah" ? "text-right" : ""}`}>{label}</th>)}
+                        <th scope="col" style={{ width: "8%" }}><span className="sr-only">Aksi</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(visibleByDate).map(([date, dayTxs]) => {
+                        const net = dayTotals[date].income - dayTotals[date].expense;
+                        return (
+                          <Fragment key={date}>
+                            <tr className="border-t border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]">
+                              <th scope="colgroup" colSpan={3} className="px-3 py-2 text-xs font-semibold text-[hsl(var(--muted-foreground))]">{dayLabel(date)}</th>
+                              <td colSpan={2} className={`px-3 py-2 text-right text-xs font-semibold tabular-nums ${net > 0 ? "text-success" : "text-[hsl(var(--muted-foreground))]"}`}>{net > 0 ? "+" : net < 0 ? "−" : ""}{formatCurrency(Math.abs(net), currency)}</td>
+                            </tr>
+                            {renderTransactions(dayTxs)}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                Object.entries(visibleByDate).map(([date, dayTxs]) => {
+                  const net = dayTotals[date].income - dayTotals[date].expense;
+                  return (
+                    <section key={date} aria-label={dayLabel(date)} className="space-y-2">
+                      <div className="flex items-baseline justify-between gap-3 px-1">
+                        <h2 className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">{dayLabel(date)}</h2>
+                        <span className={`text-xs font-semibold tabular-nums ${net > 0 ? "text-success" : "text-[hsl(var(--muted-foreground))]"}`}>{net > 0 ? "+" : net < 0 ? "−" : ""}{formatCurrency(Math.abs(net), currency)}</span>
+                      </div>
+                      <div className="divide-y divide-[hsl(var(--border))] overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">{renderTransactions(dayTxs)}</div>
+                    </section>
+                  );
+                })
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">{Math.min(visibleCount, transactions.length)} dari {transactions.length} transaksi ditampilkan</p>
+                {visibleCount < transactions.length && <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setPage({ filterKey, count: visibleCount + PAGE_SIZE })}>Tampilkan 100 lagi</Button>}
               </div>
             </div>
-            {Object.entries(visibleByDate).map(([date, dayTxs]) => {
-              const { income: dayIncome, expense: dayExpense, count: dayCount } = dayTotals[date];
-              const isDayExpanded = expandedDates[date] ?? true;
-              return (
-                <section key={date} className="border-t border-[hsl(var(--border))] py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                      <button
-                        onClick={() => setExpandedDates((prev) => ({ ...prev, [date]: !isDayExpanded }))}
-                        aria-expanded={isDayExpanded}
-                        className="inline-flex min-h-11 items-start gap-2 text-left hover:text-[hsl(var(--foreground))]"
-                      >
-                        <span className="mt-0.5 text-[hsl(var(--muted-foreground))]">{isDayExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
-                        <span>
-                          <span className="block text-sm font-semibold text-[hsl(var(--foreground))]">{formatDate(date, "EEEE, dd MMM")}</span>
-                          <span className="mt-0.5 block text-[11px] text-[hsl(var(--muted-foreground))]">{dayTxs.length < dayCount ? `${dayTxs.length} dari ${dayCount}` : dayCount} transaksi</span>
-                        </span>
-                      </button>
-                      <div className="grid grid-cols-3 gap-2 rounded-xl bg-[hsl(var(--surface-2))] px-2.5 py-2 text-right">
-                        <div className="min-w-12">
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Masuk</p>
-                          <p className="mt-1 text-[11px] font-semibold text-emerald-500">{formatCompactCurrency(dayIncome, currency)}</p>
-                        </div>
-                        <div className="min-w-12">
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Keluar</p>
-                          <p className="mt-1 text-[11px] font-semibold text-red-500">{formatCompactCurrency(dayExpense, currency)}</p>
-                        </div>
-                        <div className="min-w-12">
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Net</p>
-                          <p className={`mt-1 text-[11px] font-semibold ${getNetTone(dayIncome - dayExpense)}`}>{formatCompactCurrency(dayIncome - dayExpense, currency)}</p>
-                        </div>
-                      </div>
-                    </div>
-                    {isDayExpanded && (
-                    desktop ? (
-                      <div className="overflow-x-auto rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
-                        <table className="w-full min-w-[920px] table-fixed text-left text-sm">
-                          <caption className="sr-only">Transaksi {formatDate(date)}</caption>
-                          <thead className="bg-[hsl(var(--surface-2))] text-xs text-[hsl(var(--muted-foreground))]"><tr>{["Transaksi", "Tipe", "Kategori", "Akun", "Nominal", "Aksi"].map((label, index) => <th key={label} scope="col" style={{ width: ["24%", "11%", "15%", "22%", "16%", "12%"][index] }} className={`px-3 py-2 font-medium ${label === "Nominal" ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
-                          <tbody>{renderTransactions(dayTxs)}</tbody>
-                        </table>
-                      </div>
-                    ) : <div className="space-y-2 pt-1">{renderTransactions(dayTxs)}</div>
-                  )}
-                </section>
-              );
-            })}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-3">
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">{Math.min(visibleCount, transactions.length)} dari {transactions.length} transaksi ditampilkan</p>
-              {visibleCount < transactions.length && <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setPage({ filterKey, count: visibleCount + PAGE_SIZE })}>Tampilkan 100 lagi</Button>}
-            </div>
+            {desktop && (
+              <aside role="region" aria-label="Detail transaksi" className="sticky top-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
+                {detailPane ?? <p className="py-10 text-center text-sm text-[hsl(var(--muted-foreground))]">Pilih transaksi untuk melihat detail.</p>}
+              </aside>
+            )}
           </div>
         )
       )}
 
+      {!desktop && (
+        <Sheet open={selectedTx !== null} onClose={() => setSelectedId(null)} title="Detail transaksi">
+          {detailPane}
+        </Sheet>
+      )}
       {/* Recurring tab */}
       {activeTab === "recurring" && (
         recurringLoading ? (
@@ -671,28 +656,28 @@ export default function Transactions() {
             <Spinner />
           </div>
         ) : recurringError ? (
-          <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 space-y-3">
-            <p className="text-sm text-red-700 dark:text-red-300">{recurringError}</p>
+          <div className="space-y-3 rounded-2xl border border-danger/40 bg-danger/10 p-4">
+            <p className="text-sm text-danger">{recurringError}</p>
             <Button size="sm" variant="outline" onClick={() => void loadRecurring()}>Coba lagi</Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {recurringFeedback && (
-              <div className={`lg:col-span-2 rounded-xl border px-3 py-2 text-sm ${recurringFeedback.type === "success" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"}`}>
+              <div className={`rounded-xl border px-3 py-2 text-sm lg:col-span-2 ${recurringFeedback.type === "success" ? "border-success/40 bg-success/10 text-success" : "border-danger/40 bg-danger/10 text-danger"}`}>
                 {recurringFeedback.text}
               </div>
             )}
 
             {recurringSuggestions.length > 0 && (
-              <div className="lg:col-span-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3">
+              <div className="space-y-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 lg:col-span-2">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold">Deteksi Jadwal Otomatis</p>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                    <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
                       AI lokal menemukan pola yang layak dijadikan transaksi terjadwal.
                     </p>
                   </div>
-                  <Badge className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                  <Badge className="bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
                     {recurringSuggestions.length} saran
                   </Badge>
                 </div>
@@ -702,27 +687,24 @@ export default function Transactions() {
                     const category = getCategory(suggestion.categoryId);
                     const isIncome = suggestion.type === "income";
                     return (
-                      <div key={suggestion.key} className="rounded-[22px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-3 py-3">
+                      <div key={suggestion.key} className="rounded-2xl bg-[hsl(var(--surface-2))] px-3 py-3">
                         <div className="flex flex-wrap items-center gap-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-none ${isIncome ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
-                            <span className="text-base">{category?.icon ?? (isIncome ? "💰" : "💸")}</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-medium truncate">{suggestion.note || category?.name || "Pola berulang terdeteksi"}</p>
-                              <Badge className={suggestion.confidence === "high" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}>
+                          <span aria-hidden="true" className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-[hsl(var(--card))] text-base">{category?.icon ?? (isIncome ? "💰" : "💸")}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-medium">{suggestion.note || category?.name || "Pola berulang terdeteksi"}</p>
+                              <Badge className={suggestion.confidence === "high" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}>
                                 {suggestion.confidence === "high" ? "High confidence" : "Perlu review"}
                               </Badge>
                             </div>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                            <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
                               {getAccountName(suggestion.accountId)} · {INTERVAL_LABEL[suggestion.interval]} · {suggestion.occurrences} transaksi mirip
                             </p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                            <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
                               Rata-rata {formatCurrency(suggestion.averageAmount, currency)} · berikutnya {formatDate(suggestion.nextDate, "dd MMM yyyy")}
                             </p>
                           </div>
                           <Button
-                            size="sm"
                             onClick={() => {
                               setEditRecurring(null);
                               setRecurringDraft(buildRecurringDraft(suggestion));
@@ -740,89 +722,56 @@ export default function Transactions() {
             )}
 
             {recurring.length === 0 && (
-              <EmptyState icon="🔄" title="Belum ada transaksi terjadwal" description="Tap + Tambah untuk membuat transaksi otomatis seperti gaji atau tagihan bulanan" />
+              <div className="lg:col-span-2">
+                <EmptyState icon="🔄" title="Belum ada transaksi terjadwal" description="Tap + Tambah untuk membuat transaksi otomatis seperti gaji atau tagihan bulanan" />
+              </div>
             )}
 
             {recurring.map((rec) => {
               const cat = getCategory(rec.categoryId);
               const due = getRecurringDueInfo(rec.nextDate);
               const isBusy = recurringBusyId === rec.id;
+              const iconBtn = "flex h-11 w-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--foreground))] disabled:opacity-50";
               return (
                 <div key={rec.id} className={`rounded-2xl border bg-[hsl(var(--card))] ${rec.isActive ? "border-[hsl(var(--border))]" : "border-dashed border-[hsl(var(--border))] opacity-75"}`}>
-                  <div className="flex items-start gap-3 px-3 pt-3 pb-2">
-                    <div className={`mt-0.5 w-10 h-10 rounded-2xl flex items-center justify-center text-base flex-none ${rec.type === "income" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
-                      {cat ? cat.icon : rec.type === "income" ? "💰" : "💸"}
+                  <div className="flex items-start gap-3 p-4">
+                    <div className="flex h-12 w-12 flex-none flex-col items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] leading-tight" aria-hidden="true">
+                      <span className="text-base font-semibold tabular-nums">{formatDate(rec.nextDate, "d")}</span>
+                      <span className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">{formatDate(rec.nextDate, "MMM")}</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <p className="min-w-0 flex-1 text-sm font-semibold truncate text-[hsl(var(--foreground))]">{rec.note || cat?.name || "Tanpa nama"}</p>
-                        <p className={`shrink-0 pt-0.5 text-sm font-bold ${rec.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
-                          {rec.type === "expense" ? "-" : "+"}{formatCurrency(rec.amount, currency)}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="min-w-0 flex-1 truncate text-sm font-semibold">{rec.note || cat?.name || "Tanpa nama"}</p>
+                        <p className={`shrink-0 text-sm font-semibold tabular-nums ${rec.type === "income" ? "text-success" : ""}`}>
+                          {rec.type === "expense" ? "−" : "+"}{formatCurrency(rec.amount, currency)}
                         </p>
                       </div>
-                      <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        <Badge className={rec.isActive ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}>
+                      <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                        {INTERVAL_LABEL[rec.interval]} · {getAccountName(rec.accountId)}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Badge className={rec.isActive ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}>
                           {rec.isActive ? "Aktif" : "Pause"}
                         </Badge>
                         <Badge className={getDueClass(due.tone)}>{due.label}</Badge>
                       </div>
-                      <p className="mt-2 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">
-                        {getAccountName(rec.accountId)} · {INTERVAL_LABEL[rec.interval]} · Berikutnya {formatDate(rec.nextDate, "dd MMM")}
-                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-1 border-t border-[hsl(var(--border))] px-3 py-2 bg-[hsl(var(--surface-2))]/55">
-                    <button
-                      onClick={() => requestRecurringAction(rec, "toggle")}
-                      disabled={isBusy}
-                      aria-label={rec.isActive ? "Pause jadwal" : "Aktifkan jadwal"}
-                      title={rec.isActive ? "Pause" : "Aktifkan"}
-                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
-                    >
-                      {rec.isActive ? <Pause size={13} /> : <Play size={13} />}
-                      <span className="sr-only">{rec.isActive ? "Pause" : "Aktifkan"}</span>
-                    </button>
-                    <button
-                      onClick={() => requestRecurringAction(rec, "run")}
-                      disabled={isBusy}
-                      aria-label="Jalankan sekarang"
-                      title="Jalankan sekarang"
-                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
-                    >
-                      <Play size={13} />
-                      <span className="sr-only">Jalankan</span>
-                    </button>
-                    <button
-                      onClick={() => requestRecurringAction(rec, "skip")}
-                      disabled={isBusy}
-                      aria-label="Lewati jadwal berikutnya"
-                      title="Lewati berikutnya"
-                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
-                    >
-                      <SkipForward size={13} />
-                      <span className="sr-only">Lewati</span>
-                    </button>
-                    <button
-                      onClick={() => setEditRecurring(rec)}
-                      disabled={isBusy}
-                      aria-label="Edit jadwal"
-                      title="Edit jadwal"
-                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
-                    >
-                      <Pencil size={13} />
-                      <span className="sr-only">Edit</span>
-                    </button>
-                    <button
-                      onClick={() => setDeleteRecurringId(rec.id!)}
-                      disabled={isBusy}
-                      aria-label="Hapus jadwal"
-                      title="Hapus jadwal"
-                      className="w-7.5 h-7.5 rounded-xl border border-[hsl(var(--border))] inline-flex items-center justify-center bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:text-red-500 hover:bg-red-500/10"
-                    >
-                      <Trash2 size={13} />
-                      <span className="sr-only">Hapus</span>
-                    </button>
+                  <div className="flex flex-wrap items-center gap-2 border-t border-[hsl(var(--border))] px-4 py-3">
+                    <Button variant="outline" disabled={isBusy} onClick={() => requestRecurringAction(rec, "run")}>Jalankan sekarang</Button>
+                    <Button variant="outline" disabled={isBusy} aria-label="Lewati jadwal berikutnya" onClick={() => requestRecurringAction(rec, "skip")}>Lewati</Button>
+                    <div className="ml-auto flex items-center gap-1">
+                      <button type="button" onClick={() => requestRecurringAction(rec, "toggle")} disabled={isBusy} aria-label={rec.isActive ? "Pause jadwal" : "Aktifkan jadwal"} title={rec.isActive ? "Pause" : "Aktifkan"} className={iconBtn}>
+                        {rec.isActive ? <Pause size={15} /> : <Play size={15} />}
+                      </button>
+                      <button type="button" onClick={() => setEditRecurring(rec)} disabled={isBusy} aria-label="Edit jadwal" title="Edit jadwal" className={iconBtn}>
+                        <Pencil size={15} />
+                      </button>
+                      <button type="button" onClick={() => setDeleteRecurringId(rec.id!)} disabled={isBusy} aria-label="Hapus jadwal" title="Hapus jadwal" className={`${iconBtn} hover:text-danger hover:bg-danger/10`}>
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

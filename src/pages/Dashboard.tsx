@@ -494,6 +494,7 @@ export default function Dashboard() {
                   {recentTxs.map((tx) => (
                     <TransactionCard
                       key={tx.id}
+                      bordered
                       transaction={tx}
                       accountName={getAccountName(tx.accountId)}
                       toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}

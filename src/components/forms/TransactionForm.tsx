@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Button, Input, Select, Textarea, Modal } from "@/components/ui";
-import { todayISO, formatNumberWithSeparator } from "@/lib/utils";
+import { Button, Input, Select, Textarea, Modal, SegmentedControl } from "@/components/ui";
+import { todayISO, formatNumberWithSeparator, formatCurrency } from "@/lib/utils";
 import { addTransaction, addTransfer, updateTransaction } from "@/db/transactions";
 import { db } from "@/db/db";
+import { useSettingsStore } from "@/stores/walletStore";
 import type { Account, Category, Transaction } from "@/types";
 
 interface TransactionFormProps {
@@ -59,6 +60,7 @@ function writeTransactionDefaults(data: StoredTransactionDefaults) {
 }
 
 export function TransactionForm({ open, onClose, onSaved, accounts, categories, existing, defaultType }: TransactionFormProps) {
+  const { currency } = useSettingsStore();
   const [type, setType] = useState<TxType>(existing?.type ?? defaultType ?? "expense");
   const [amount, setAmount] = useState(String(existing?.amount ?? ""));
   const [accountId, setAccountId] = useState(String(existing?.accountId ?? accounts[0]?.id ?? ""));
@@ -133,6 +135,8 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
   const filteredCategories = categories.filter((c) => c.type === type || c.type === "both");
   const splitsTotal = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const amountNum = Number(amount);
+  const fromAccount = accounts.find((a) => String(a.id) === accountId);
+  const toAccount = accounts.find((a) => String(a.id) === toAccountId);
   const notePresets = type === "transfer" ? [] : QUICK_NOTE_PRESETS[type];
 
   function addSplitRow() {
@@ -254,64 +258,140 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
     }
   }
 
-  const typeButtons: { t: TxType; label: string; cls: string }[] = [
-    { t: "expense", label: "Pengeluaran", cls: "bg-red-500 text-white" },
-    { t: "income", label: "Pemasukan", cls: "bg-emerald-500 text-white" },
-    { t: "transfer", label: "Transfer", cls: "bg-amber-500 text-white" },
-  ];
+  const showTransferPreview = type === "transfer" && !existing && amountNum > 0 && !!fromAccount && !!toAccount;
 
   return (
     <Modal open={open} onClose={onClose} title={existing ? "Edit Transaksi" : "Tambah Transaksi"}>
       <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4 space-y-3">
-          <div>
-            <p className="text-sm font-semibold">Jenis transaksi</p>
-          </div>
-        {/* Type Toggle */}
-        <div className="flex rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-1 overflow-hidden">
-          {typeButtons.map(({ t, label, cls }) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => {
-                setType(t);
-                setSplitMode(false);
-                setError("");
-              }}
-              className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-colors ${
-                type === t ? cls : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        </div>
+        <SegmentedControl
+          label="Jenis transaksi"
+          value={type}
+          options={[{ value: "expense", label: "Keluar" }, { value: "income", label: "Masuk" }, { value: "transfer", label: "Transfer" }]}
+          onChange={(t) => {
+            setType(t);
+            setSplitMode(false);
+            setCategoryId("");
+            setError("");
+          }}
+        />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            label="Jumlah"
+        <div className="space-y-1 text-center">
+          <input
             type="text"
             inputMode="numeric"
+            aria-label="Jumlah"
             placeholder="0"
             value={formatNumberWithSeparator(amount)}
             onChange={(e) => {
-              const cleanValue = e.target.value.replace(/\D/g, "");
-              setAmount(cleanValue);
+              setAmount(e.target.value.replace(/\D/g, ""));
               setError("");
             }}
-            error={error}
+            className="w-full bg-transparent text-center text-4xl font-semibold tabular-nums tracking-tight placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none"
           />
-
-          <Input label="Tanggal" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         </div>
 
-        <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-4 space-y-4">
-          <div>
-            <p className="text-sm font-semibold">Akun</p>
-            <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Transfer membutuhkan akun tujuan.</p>
+        {type !== "transfer" && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <p id="tx-category-label" className="text-sm font-semibold">Kategori</p>
+              <button
+                type="button"
+                aria-pressed={splitMode}
+                onClick={() => {
+                  setSplitMode((v) => !v);
+                  setError("");
+                }}
+                className={`min-h-11 rounded-full border px-3.5 text-xs font-medium transition-colors ${
+                  splitMode
+                    ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                    : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"
+                }`}
+              >
+                ✂️ Split Kategori
+              </button>
+            </div>
+            {!splitMode && (
+              <>
+                <div role="radiogroup" aria-labelledby="tx-category-label" className="grid grid-cols-3 gap-2">
+                  {filteredCategories.map((c) => {
+                    const checked = categoryId === String(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        onClick={() => setCategoryId(checked ? "" : String(c.id))}
+                        className={`flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border p-2 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${checked ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/8" : "border-[hsl(var(--border))] bg-[hsl(var(--card))]"}`}
+                      >
+                        <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full text-lg" style={{ background: `${c.color}22` }}>{c.icon}</span>
+                        <span className="line-clamp-1 text-xs font-medium">{c.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                  Untuk patungan atau reimburse, catat pemasukan pengganti dengan kategori yang sama supaya laporan menghitung pengeluaran bersih.
+                </p>
+              </>
+            )}
           </div>
+        )}
 
+        {splitMode && type !== "transfer" && (
+          <div className="space-y-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-[hsl(var(--foreground))]">Split Kategori</span>
+              <span className={`text-xs font-medium tabular-nums ${Math.abs(splitsTotal - amountNum) < 0.01 ? "text-success" : "text-danger"}`}>
+                {splitsTotal.toLocaleString("id-ID")} / {amountNum.toLocaleString("id-ID")}
+              </span>
+            </div>
+            {splits.map((row, i) => (
+              <div key={i} className="flex items-start gap-2 rounded-2xl bg-[hsl(var(--surface-2))] p-3">
+                <div className="flex-1">
+                  <Select aria-label={`Kategori split ${i + 1}`} value={row.categoryId} onChange={(e) => updateSplitRow(i, "categoryId", e.target.value)}>
+                    <option value="">-- Kategori --</option>
+                    {filteredCategories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.icon} {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="w-28">
+                  <Input
+                    aria-label={`Jumlah split ${i + 1}`}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Jumlah"
+                    value={formatNumberWithSeparator(row.amount)}
+                    onChange={(e) => updateSplitRow(i, "amount", e.target.value.replace(/\D/g, ""))}
+                  />
+                </div>
+                {splits.length > 1 && (
+                  <button
+                    type="button"
+                    aria-label={`Hapus baris split ${i + 1}`}
+                    onClick={() => removeSplitRow(i)}
+                    className="flex h-11 w-11 items-center justify-center rounded-xl text-lg leading-none text-danger hover:bg-danger/10"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addSplitRow}
+              className="min-h-11 text-xs font-medium text-[hsl(var(--primary))] hover:underline"
+            >
+              + Tambah Baris
+            </button>
+          </div>
+        )}
+
+        <div className="space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
           <Select label={type === "transfer" ? "Dari Akun" : "Akun"} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
             <option value="">-- Pilih Akun --</option>
             {accounts.map((a) => (
@@ -333,120 +413,41 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                 ))}
             </Select>
           )}
-        </div>
 
-        {type !== "transfer" && (
-          <div className="flex items-center justify-between gap-3 rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold">Kategori</p>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Aktifkan split jika satu transaksi dibagi ke beberapa kategori.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSplitMode((v) => !v);
-                setError("");
-              }}
-              className={`text-xs font-medium px-3 py-2 rounded-full border transition-colors ${
-                splitMode
-                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] border-[hsl(var(--primary))]"
-                  : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"
-              }`}
-            >
-              ✂️ Split Kategori
-            </button>
-          </div>
-        )}
-
-        {type !== "transfer" && !splitMode && (
-          <div className="space-y-2">
-            <Select label="Kategori" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">-- Pilih Kategori --</option>
-              {filteredCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.icon} {c.name}
-                </option>
-              ))}
-            </Select>
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-              Untuk patungan atau reimburse, catat pemasukan pengganti dengan kategori yang sama supaya laporan menghitung pengeluaran bersih.
-            </p>
-          </div>
-        )}
-
-        {splitMode && type !== "transfer" && (
-          <div className="space-y-3 rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-[hsl(var(--foreground))]">Split Kategori</span>
-              <span className={`text-xs font-medium ${Math.abs(splitsTotal - amountNum) < 0.01 ? "text-emerald-500" : "text-red-500"}`}>
-                {splitsTotal.toLocaleString("id-ID")} / {amountNum.toLocaleString("id-ID")}
-              </span>
-            </div>
-            {splits.map((row, i) => (
-              <div key={i} className="flex gap-2 items-start rounded-2xl bg-[hsl(var(--surface-2))] p-3">
-                <div className="flex-1">
-                  <Select value={row.categoryId} onChange={(e) => updateSplitRow(i, "categoryId", e.target.value)}>
-                    <option value="">-- Kategori --</option>
-                    {filteredCategories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.icon} {c.name}
-                      </option>
-                    ))}
-                  </Select>
+          {showTransferPreview && fromAccount && toAccount && (
+            <dl aria-label="Pratinjau saldo" className="space-y-2 rounded-xl bg-[hsl(var(--surface-2))] p-3 text-sm">
+              {[{ acc: fromAccount, after: fromAccount.currentBalance - amountNum }, { acc: toAccount, after: toAccount.currentBalance + amountNum }].map(({ acc, after }) => (
+                <div key={acc.id} className="flex items-center justify-between gap-3">
+                  <dt className="min-w-0 truncate text-[hsl(var(--muted-foreground))]">{acc.name}</dt>
+                  <dd className="shrink-0 tabular-nums">{formatCurrency(acc.currentBalance, currency)} → <span className="font-semibold">{formatCurrency(after, currency)}</span></dd>
                 </div>
-                <div className="w-28">
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="Jumlah"
-                    value={formatNumberWithSeparator(row.amount)}
-                    onChange={(e) => {
-                      const cleanValue = e.target.value.replace(/\D/g, "");
-                      updateSplitRow(i, "amount", cleanValue);
-                    }}
-                  />
-                </div>
-                {splits.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeSplitRow(i)}
-                    className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl bg-white/70 text-red-400 hover:text-red-600 text-lg leading-none"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={addSplitRow}
-              className="text-xs font-medium text-[hsl(var(--primary))] hover:underline"
-            >
-              + Tambah Baris
-            </button>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <Textarea label="Catatan (opsional)" placeholder="Tambah catatan..." rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-          {notePresets.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {notePresets.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setNote(preset)}
-                  className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${note === preset ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-                >
-                  {preset}
-                </button>
               ))}
-            </div>
+            </dl>
           )}
+
+          <Input label="Tanggal" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+
+          <div className="space-y-2">
+            <Textarea label="Catatan (opsional)" placeholder="Tambah catatan..." rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+            {notePresets.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {notePresets.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setNote(preset)}
+                    className={`min-h-11 rounded-full border px-3.5 text-xs transition-colors ${note === preset ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Menyimpan..." : existing ? "Simpan Perubahan" : "Tambah Transaksi"}
+        <Button type="submit" size="lg" className="w-full" disabled={loading}>
+          {loading ? "Menyimpan..." : "Simpan"}
         </Button>
       </form>
     </Modal>
