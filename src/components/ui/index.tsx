@@ -1,5 +1,7 @@
 import { cn } from "@/lib/utils";
 import * as React from "react";
+import { Link } from "react-router-dom";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]", className)} {...props} />;
@@ -172,6 +174,209 @@ export function EmptyState({ icon, title, description }: { icon: string; title: 
       <div className="space-y-1.5">
         <p className="font-semibold text-[hsl(var(--foreground))]">{title}</p>
         {description && <p className="text-sm text-[hsl(var(--muted-foreground))] max-w-xs">{description}</p>}
+      </div>
+    </div>
+  );
+}
+
+export function PageHeader({ title, back, actions }: { title: string; back?: string; actions?: React.ReactNode }) {
+  return (
+    <header className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2">
+        {back && (
+          <Link
+            to={back}
+            aria-label="Kembali"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
+          >
+            <ChevronLeft size={20} />
+          </Link>
+        )}
+        <h1 className="truncate text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">{title}</h1>
+      </div>
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+    </header>
+  );
+}
+
+interface SegmentedControlProps<T extends string> {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}
+
+export function SegmentedControl<T extends string>({ label, value, options, onChange }: SegmentedControlProps<T>) {
+  return (
+    <div role="tablist" aria-label={label} className="flex gap-1 rounded-xl bg-[hsl(var(--surface-2))] p-1">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="tab"
+          aria-selected={o.value === value}
+          onClick={() => onChange(o.value)}
+          className={cn(
+            "h-9 flex-1 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
+            o.value === value
+              ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
+              : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Switch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
+        checked ? "bg-[hsl(var(--primary))]" : "bg-[hsl(var(--surface-3))]",
+      )}
+    >
+      <span className={cn("absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-[hsl(var(--card))] shadow transition-transform", checked && "translate-x-5")} />
+    </button>
+  );
+}
+
+const progressTones = {
+  primary: "bg-[hsl(var(--primary))]",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  success: "bg-success",
+} as const;
+
+export function ProgressBar({ value, max, tone = "primary", label }: { value: number; max: number; tone?: keyof typeof progressTones; label: string }) {
+  const percent = max <= 0 ? 0 : Math.min(100, Math.max(0, Math.round((value / max) * 100)));
+  return (
+    <div
+      role="progressbar"
+      aria-valuenow={percent}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={label}
+      className="h-2 w-full overflow-hidden rounded-full bg-[hsl(var(--surface-3))]"
+    >
+      <div className={cn("h-full rounded-full transition-[width]", progressTones[tone])} style={{ width: `${percent}%` }} />
+    </div>
+  );
+}
+
+export function ListGroup({ title, children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-2">
+      {title && <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">{title}</h2>}
+      <div className="divide-y divide-[hsl(var(--border))] overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">{children}</div>
+    </section>
+  );
+}
+
+interface ListRowProps {
+  label: string;
+  sub?: string;
+  value?: React.ReactNode;
+  href?: string;
+  onClick?: () => void;
+  tone?: "default" | "danger";
+}
+
+export function ListRow({ label, sub, value, href, onClick, tone = "default" }: ListRowProps) {
+  const interactive = Boolean(href || onClick);
+  const cls = cn(
+    "flex min-h-[46px] w-full items-center gap-3 px-4 py-2.5 text-left",
+    interactive && "hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--ring))]",
+  );
+  const content = (
+    <>
+      <span className="min-w-0 flex-1">
+        <span className={cn("block truncate text-sm font-medium", tone === "danger" ? "text-danger" : "text-[hsl(var(--foreground))]")}>{label}</span>
+        {sub && <span className="block truncate text-xs text-[hsl(var(--muted-foreground))]">{sub}</span>}
+      </span>
+      {value !== undefined && <span className="shrink-0 text-sm text-[hsl(var(--muted-foreground))]">{value}</span>}
+      {interactive && <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />}
+    </>
+  );
+  if (href) return <Link to={href} className={cls}>{content}</Link>;
+  if (onClick) return <button type="button" onClick={onClick} className={cls}>{content}</button>;
+  return <div className={cls}>{content}</div>;
+}
+
+interface SheetProps {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}
+
+export function Sheet({ open, onClose, title, children }: SheetProps) {
+  const titleId = React.useId();
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const closeRef = React.useRef<HTMLButtonElement>(null);
+  const onCloseRef = React.useRef(onClose);
+  React.useEffect(() => { onCloseRef.current = onClose; });
+
+  React.useEffect(() => {
+    if (!open) return;
+    closeRef.current?.focus();
+    document.body.style.overflow = "hidden";
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])");
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center lg:p-4">
+      <div className="absolute inset-0 bg-black/45" aria-hidden="true" onClick={onClose} />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl lg:max-w-lg lg:rounded-3xl"
+      >
+        <div className="flex items-center justify-between border-b border-[hsl(var(--border))] p-5">
+          <h2 id={titleId} className="text-lg font-semibold leading-tight">{title}</h2>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="min-h-0 overflow-y-auto p-5 safe-bottom">{children}</div>
       </div>
     </div>
   );
