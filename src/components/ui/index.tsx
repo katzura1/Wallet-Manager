@@ -187,7 +187,7 @@ export function PageHeader({ title, back, actions }: { title: string; back?: str
           <Link
             to={back}
             aria-label="Kembali"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
           >
             <ChevronLeft size={20} />
           </Link>
@@ -207,17 +207,33 @@ interface SegmentedControlProps<T extends string> {
 }
 
 export function SegmentedControl<T extends string>({ label, value, options, onChange }: SegmentedControlProps<T>) {
+  const tabRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
+  function handleKeyDown(event: React.KeyboardEvent, index: number) {
+    const last = options.length - 1;
+    let next: number;
+    if (event.key === "ArrowRight") next = index === last ? 0 : index + 1;
+    else if (event.key === "ArrowLeft") next = index === 0 ? last : index - 1;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = last;
+    else return;
+    event.preventDefault();
+    onChange(options[next].value);
+    tabRefs.current[next]?.focus();
+  }
   return (
     <div role="tablist" aria-label={label} className="flex gap-1 rounded-xl bg-[hsl(var(--surface-2))] p-1">
-      {options.map((o) => (
+      {options.map((o, i) => (
         <button
           key={o.value}
+          ref={(el) => { tabRefs.current[i] = el; }}
+          tabIndex={o.value === value ? 0 : -1}
+          onKeyDown={(e) => handleKeyDown(e, i)}
           type="button"
           role="tab"
           aria-selected={o.value === value}
           onClick={() => onChange(o.value)}
           className={cn(
-            "h-9 flex-1 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
+            "min-h-11 flex-1 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
             o.value === value
               ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
               : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
@@ -239,11 +255,12 @@ export function Switch({ label, checked, onChange }: { label: string; checked: b
       aria-label={label}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
-        checked ? "bg-[hsl(var(--primary))]" : "bg-[hsl(var(--surface-3))]",
+        "group flex h-11 min-w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
       )}
     >
-      <span className={cn("absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-[hsl(var(--card))] shadow transition-transform", checked && "translate-x-5")} />
+      <span className={cn("relative h-7 w-12 rounded-full transition-colors", checked ? "bg-[hsl(var(--primary))]" : "bg-[hsl(var(--surface-3))]")}>
+        <span className={cn("absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-[hsl(var(--card))] shadow transition-transform", checked && "translate-x-5")} />
+      </span>
     </button>
   );
 }
@@ -326,6 +343,8 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
 
   React.useEffect(() => {
     if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
     closeRef.current?.focus();
     document.body.style.overflow = "hidden";
     function handleKeyDown(event: KeyboardEvent) {
@@ -334,14 +353,18 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         return;
       }
       if (event.key !== "Tab") return;
-      const focusable = panelRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])");
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
       if (!focusable?.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      const active = document.activeElement;
+      if (!panelRef.current?.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && active === last) {
         event.preventDefault();
         first.focus();
       }
@@ -349,7 +372,8 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus?.();
     };
   }, [open]);
 
@@ -371,7 +395,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
             type="button"
             onClick={onClose}
             aria-label="Tutup"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
           >
             <X size={18} />
           </button>
