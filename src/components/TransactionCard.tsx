@@ -1,5 +1,5 @@
 import type { Transaction } from "@/types";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { Pencil, Trash2 } from "lucide-react";
 
 interface TransactionCardProps {
@@ -14,6 +14,7 @@ interface TransactionCardProps {
   hasSplits?: boolean;
   selected?: boolean;
   bordered?: boolean;
+  showDate?: boolean;
   onSelect?: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -31,6 +32,7 @@ export function TransactionCard({
   hasSplits = false,
   selected = false,
   bordered = false,
+  showDate = false,
   onSelect,
   onEdit,
   onDelete,
@@ -83,7 +85,7 @@ export function TransactionCard({
       {avatar}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-[hsl(var(--foreground))]">{displayLabel}</span>
-        <span className="block truncate text-xs text-[hsl(var(--muted-foreground))]">{metaCategory} · {accountLabel}</span>
+        <span className="block truncate text-xs text-[hsl(var(--muted-foreground))]">{metaCategory} · {accountLabel}{showDate ? ` · ${formatDate(tx.date, "dd MMM")}` : ""}</span>
       </span>
       <span className={`shrink-0 text-sm font-semibold tabular-nums ${amountColor}`}>{amount}</span>
     </>

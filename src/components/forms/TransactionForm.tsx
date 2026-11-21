@@ -270,7 +270,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
           onChange={(t) => {
             setType(t);
             setSplitMode(false);
-            setCategoryId("");
+            if (t === "transfer" || !categories.some((c) => String(c.id) === categoryId && (c.type === t || c.type === "both"))) setCategoryId("");
             setError("");
           }}
         />

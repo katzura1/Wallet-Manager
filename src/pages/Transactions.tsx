@@ -479,7 +479,7 @@ export default function Transactions() {
                   key={chip.key}
                   aria-label={`Hapus filter ${chip.label}`}
                   onClick={chip.onRemove}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))]"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))]"
                 >
                   <span className="min-w-0 break-words">{chip.label}</span>
                   <span className="text-[hsl(var(--muted-foreground))]">×</span>
@@ -487,7 +487,7 @@ export default function Transactions() {
               ))}
               <button
                 onClick={() => { cancelSearch(); setSearch(""); setFilter({}); }}
-                className="min-h-9 text-xs font-medium text-[hsl(var(--primary))] hover:underline"
+                className="min-h-11 px-2 text-xs font-medium text-[hsl(var(--primary))] hover:underline"
               >
                 Reset semua
               </button>

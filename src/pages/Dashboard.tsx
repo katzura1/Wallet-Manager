@@ -495,6 +495,7 @@ export default function Dashboard() {
                     <TransactionCard
                       key={tx.id}
                       bordered
+                      showDate
                       transaction={tx}
                       accountName={getAccountName(tx.accountId)}
                       toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}
