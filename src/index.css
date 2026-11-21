@@ -16,50 +16,59 @@
   --color-surface-3: hsl(var(--surface-3));
   --color-hero: hsl(var(--hero));
   --color-hero-foreground: hsl(var(--hero-foreground));
+  --color-success: hsl(var(--success));
+  --color-danger: hsl(var(--danger));
+  --color-warning: hsl(var(--warning));
   --radius-card: 1.5rem;
 }
 
 @layer base {
   :root {
-    --background: 220 22% 96%;
-    --foreground: 222 29% 13%;
+    --background: 220 18% 97%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 29% 13%;
-    --border: 220 17% 90%;
+    --border: 220 19% 94%;
     --input: 220 17% 90%;
     --muted: 220 20% 94%;
-    --muted-foreground: 220 11% 41%;
+    --muted-foreground: 219 12% 41%;
     --accent: 220 20% 94%;
     --accent-foreground: 222 29% 13%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --primary: 228 76% 54%;
+    --primary: 232 69% 52%;
     --primary-foreground: 0 0% 100%;
-    --surface-2: 220 20% 94%;
+    --surface-2: 217 22% 93%;
     --surface-3: 220 18% 91%;
     --hero: 228 42% 16%;
     --hero-foreground: 220 25% 98%;
-    --ring: 228 76% 54%;
+    --ring: 232 69% 52%;
+    --success: 156 79% 27%;
+    --danger: 358 67% 45%;
+    --warning: 26 90% 37%;
   }
 
   .dark {
-    --background: 224 28% 10%;
-    --foreground: 220 24% 95%;
-    --card: 224 25% 14%;
+    --background: 220 35% 7%;
+    --foreground: 220 35% 93%;
+    --card: 220 26% 11%;
     --card-foreground: 220 24% 95%;
-    --border: 221 18% 24%;
+    --border: 219 22% 18%;
     --input: 221 18% 24%;
     --muted: 223 22% 18%;
-    --muted-foreground: 220 13% 70%;
+    --muted-foreground: 218 15% 65%;
     --accent: 223 22% 18%;
     --accent-foreground: 220 24% 95%;
-    --primary: 228 78% 62%;
+    --primary: 231 100% 72%;
     --primary-foreground: 0 0% 100%;
-    --surface-2: 223 22% 18%;
+    --surface-2: 221 25% 15%;
     --surface-3: 223 22% 21%;
     --hero: 224 30% 8%;
     --hero-foreground: 220 24% 95%;
-    --ring: 228 78% 62%;
+    --ring: 231 100% 72%;
+    --success: 151 65% 54%;
+    --danger: 359 100% 71%;
+    --warning: 37 91% 55%;
   }
 
   * {
@@ -76,7 +85,7 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: "Avenir Next", "Segoe UI", sans-serif;
+    font-family: "Plus Jakarta Sans Variable", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     overscroll-behavior: none;
     transition: background-color 0.2s, color 0.2s;
