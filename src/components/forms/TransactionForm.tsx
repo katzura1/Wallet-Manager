@@ -56,6 +56,20 @@ function readTransactionDefaults(): StoredTransactionDefaults {
   }
 }
 
+function resolveDefaultAccounts(stored: StoredTransactionDefaults, type: TxType, accounts: Account[]) {
+  const exists = (value?: string) => !!value && accounts.some((account) => String(account.id) === value);
+  const first = String(accounts[0]?.id ?? "");
+  if (type === "transfer") {
+    const from = exists(stored.transfer?.accountId) ? (stored.transfer?.accountId ?? first) : first;
+    const to = exists(stored.transfer?.toAccountId) && stored.transfer?.toAccountId !== from
+      ? (stored.transfer?.toAccountId ?? "")
+      : String(accounts.find((account) => String(account.id) !== from)?.id ?? "");
+    return { from, to };
+  }
+  const saved = stored[type]?.accountId;
+  return { from: exists(saved) ? (saved ?? first) : first, to: "" };
+}
+
 function writeTransactionDefaults(data: StoredTransactionDefaults) {
   localStorage.setItem(TX_DEFAULTS_KEY, JSON.stringify(data));
 }
@@ -76,6 +90,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
 
   const typeRef = useRef(type);
   useEffect(() => { typeRef.current = type; }, [type]);
+  const categoryTouched = useRef(false);
   const prevRef = useRef<{ open: boolean; existing?: Transaction; defaultType?: Transaction["type"] }>({ open: false });
 
   useEffect(() => {
@@ -89,17 +104,19 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
     if (!fullReset) {
       if (existing) return;
       const storedNow = readTransactionDefaults();
-      const defaultAccount = String(accounts[0]?.id ?? "");
+      const resolved = resolveDefaultAccounts(storedNow, typeRef.current, accounts);
       const hasAccount = (value: string) => accounts.some((account) => String(account.id) === value);
-      setAccountId((cur) => (hasAccount(cur) ? cur : defaultAccount));
+      setAccountId((cur) => (hasAccount(cur) ? cur : resolved.from));
       if (typeRef.current === "transfer") {
-        setToAccountId((cur) => (hasAccount(cur) ? cur : String(accounts.find((account) => String(account.id) !== defaultAccount)?.id ?? "")));
-      } else {
+        setToAccountId((cur) => (hasAccount(cur) ? cur : resolved.to));
+      } else if (!categoryTouched.current) {
         const storedCategory = storedNow[typeRef.current]?.categoryId;
         setCategoryId((cur) => (cur || !storedCategory || !categories.some((category) => String(category.id) === storedCategory) ? cur : storedCategory));
       }
       return;
     }
+
+    categoryTouched.current = false;
 
     if (existing) {
       setType(existing.type);
@@ -117,23 +134,18 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
 
     const stored = readTransactionDefaults();
     const nextType = defaultType ?? stored.lastType ?? "expense";
-    const accountExists = (value?: string) => !!value && accounts.some((account) => String(account.id) === value);
     const categoryExists = (value?: string) => !!value && categories.some((category) => String(category.id) === value);
-    const defaultAccountId = String(accounts[0]?.id ?? "");
+    const resolved = resolveDefaultAccounts(stored, nextType, accounts);
 
     if (nextType === "transfer") {
-      const fromAccount = accountExists(stored.transfer?.accountId) ? (stored.transfer?.accountId ?? defaultAccountId) : defaultAccountId;
-      const toAccount = accountExists(stored.transfer?.toAccountId) && stored.transfer?.toAccountId !== fromAccount
-        ? (stored.transfer?.toAccountId ?? "")
-        : String(accounts.find((account) => String(account.id) !== fromAccount)?.id ?? "");
       setType("transfer");
-      setAccountId(fromAccount);
-      setToAccountId(toAccount);
+      setAccountId(resolved.from);
+      setToAccountId(resolved.to);
       setCategoryId("");
     } else {
       const defaults = stored[nextType];
       setType(nextType);
-      setAccountId(accountExists(defaults?.accountId) ? (defaults?.accountId ?? defaultAccountId) : defaultAccountId);
+      setAccountId(resolved.from);
       setToAccountId("");
       setCategoryId(categoryExists(defaults?.categoryId) ? (defaults?.categoryId ?? "") : "");
     }
@@ -295,7 +307,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
           onChange={(t) => {
             setType(t);
             setSplitMode(false);
-            if (t === "transfer" || !categories.some((c) => String(c.id) === categoryId && (c.type === t || c.type === "both"))) setCategoryId("");
+            if (t === "transfer" || !categories.some((c) => String(c.id) === categoryId && (c.type === t || c.type === "both"))) { categoryTouched.current = true; setCategoryId(""); }
             setError("");
           }}
         />
@@ -347,7 +359,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                         type="button"
                         role="radio"
                         aria-checked={checked}
-                        onClick={() => setCategoryId(checked ? "" : String(c.id))}
+                        onClick={() => { categoryTouched.current = true; setCategoryId(checked ? "" : String(c.id)); }}
                         className={`flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border p-2 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${checked ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/8" : "border-[hsl(var(--border))] bg-[hsl(var(--card))]"}`}
                       >
                         <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full text-lg" style={{ background: `${c.color}22` }}>{c.icon}</span>

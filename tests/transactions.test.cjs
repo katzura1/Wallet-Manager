@@ -101,3 +101,33 @@ test('transactions: amount typed right after cold /transactions?new=1 survives d
     await browser.close();
   }
 });
+
+test('transactions: stored default account survives cold /transactions?new=1 data load', async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  try {
+    const context = await browser.newContext({ timezoneId: 'Asia/Jakarta', serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    await page.goto(url);
+    await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
+    await seed(page);
+    await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts');
+      const stamp = new Date().toISOString();
+      await db.accounts.add({ id: 2, name: 'Dompet', type: 'cash', icon: '👛', color: '#123456', initialBalance: 0, currentBalance: 0, isArchived: false, createdAt: stamp, updatedAt: stamp });
+      const rows = Array.from({ length: 20000 }, (_, i) => ({ type: 'expense', amount: 1000 + i, accountId: 1, categoryId: 1, date: `2026-0${(i % 9) + 1}-${String((i % 27) + 1).padStart(2, '0')}`, note: `Seed ${i}`, createdAt: stamp, updatedAt: stamp }));
+      await db.transactions.bulkAdd(rows);
+      localStorage.setItem('wallet_tx_defaults', JSON.stringify({ lastType: 'expense', expense: { accountId: '2', categoryId: '1' } }));
+    });
+    await page.goto(`${url}/transactions?new=1`);
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Jumlah', { exact: true }).waitFor();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1500);
+    await dialog.getByRole('radio', { name: 'Makan', exact: true }).waitFor();
+    assert.equal(await dialog.locator('select').first().inputValue(), '2');
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+});
