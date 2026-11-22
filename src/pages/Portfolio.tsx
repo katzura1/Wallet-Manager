@@ -710,6 +710,83 @@ function fmtAbsTime(iso: string): string {
   return d.toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+function fmtShortPrice(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return `${(v / 1e9).toLocaleString("id-ID", { maximumSignificantDigits: 3 })}M`;
+  if (abs >= 1e6) return `${(v / 1e6).toLocaleString("id-ID", { maximumSignificantDigits: 3 })}jt`;
+  if (abs >= 1e3) return `${(v / 1e3).toLocaleString("id-ID", { maximumSignificantDigits: 3 })}rb`;
+  return v.toLocaleString("id-ID", { maximumFractionDigits: 2 });
+}
+
+type PriceRecord = { syncedAt: string; price: number; changePct: number | null };
+
+function PriceHistoryChart({ records, hidden }: { records: PriceRecord[]; hidden: boolean }) {
+  // Records arrive newest first; the chart reads left (oldest) to right (newest).
+  const data = [...records].reverse().map((r) => ({ ...r, label: fmtAbsTime(r.syncedAt) }));
+  const latest = data[data.length - 1];
+  const first = data[0];
+  const periodPct = data.length > 1 && first.price > 0 ? ((latest.price - first.price) / first.price) * 100 : null;
+  const up = periodPct === null || periodPct >= 0;
+  const tone = up ? "hsl(var(--success))" : "hsl(var(--danger))";
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">Harga terakhir · {latest.label}</p>
+        <p className="text-2xl font-bold tabular-nums">{hidden ? "•••" : formatCurrency(latest.price, PORTFOLIO_CURRENCY)}</p>
+        {periodPct !== null && (
+          <p className={cn("text-sm font-semibold tabular-nums", hidden ? "text-[hsl(var(--muted-foreground))]" : up ? "text-success" : "text-danger")}>
+            {hidden ? "•••" : `${up ? "▲" : "▼"} ${Math.abs(periodPct).toFixed(2)}%`}
+            <span className="ml-1 font-normal text-[hsl(var(--muted-foreground))]">sejak {first.label} ({data.length} sinkronisasi)</span>
+          </p>
+        )}
+      </div>
+      {hidden ? (
+        <p className="py-10 text-center text-sm text-[hsl(var(--muted-foreground))]">Grafik disembunyikan saat nilai portofolio disembunyikan.</p>
+      ) : data.length < 2 ? (
+        <p className="py-10 text-center text-sm text-[hsl(var(--muted-foreground))]">Grafik muncul setelah ada minimal 2 kali sinkronisasi harga.</p>
+      ) : (
+        <div role="img" aria-label={`Grafik harga ${data.length} sinkronisasi terakhir`}>
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="assetPriceGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={tone} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={tone} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(l: string) => l.split(",")[0]}
+                interval="preserveStartEnd"
+                minTickGap={24}
+              />
+              <YAxis
+                domain={["auto", "auto"]}
+                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={fmtShortPrice}
+                width={48}
+              />
+              <Tooltip
+                formatter={(val) => [formatCurrency(Number(val), PORTFOLIO_CURRENCY), "Harga"]}
+                labelFormatter={(label) => String(label)}
+                contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", fontSize: "12px" }}
+              />
+              <Area type="monotone" dataKey="price" stroke={tone} strokeWidth={2.5} fill="url(#assetPriceGrad)" dot={data.length <= 12 ? { r: 2.5 } : false} activeDot={{ r: 4 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface PriceHistoryModalProps {
   asset: Asset;
   hidden: boolean;
@@ -717,7 +794,7 @@ interface PriceHistoryModalProps {
 }
 
 function PriceHistoryModal({ asset, hidden, onClose }: PriceHistoryModalProps) {
-  const [records, setRecords] = useState<{ syncedAt: string; price: number; changePct: number | null }[]>([]);
+  const [records, setRecords] = useState<PriceRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -737,36 +814,7 @@ function PriceHistoryModal({ asset, hidden, onClose }: PriceHistoryModalProps) {
           <span className="text-xs">Riwayat tersimpan setiap kali harga berhasil disinkron.</span>
         </p>
       ) : (
-        <div className="overflow-x-auto -mx-1">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                <th className="text-left pb-2 font-medium">Waktu sinkronisasi</th>
-                <th className="text-right pb-2 font-medium">Harga</th>
-                <th className="text-right pb-2 font-medium">Perubahan</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[hsl(var(--border))]">
-              {records.map((r, i) => (
-                <tr key={i}>
-                  <td className="py-2 pr-3 text-[hsl(var(--muted-foreground))]">{fmtAbsTime(r.syncedAt)}</td>
-                  <td className="text-right py-2 pr-3 font-semibold text-[hsl(var(--foreground))]">
-                    {hidden ? "•••" : formatCurrency(r.price, PORTFOLIO_CURRENCY)}
-                  </td>
-                  <td className="text-right py-2">
-                    {r.changePct !== null ? (
-                      <span className={hidden ? "text-[hsl(var(--muted-foreground))] font-semibold" : r.changePct >= 0 ? "text-success font-semibold" : "text-danger font-semibold"}>
-                        {hidden ? "•••" : `${r.changePct >= 0 ? "▲" : "▼"} ${Math.abs(r.changePct).toFixed(2)}%`}
-                      </span>
-                    ) : (
-                      <span className="text-[hsl(var(--muted-foreground))]">pertama</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <PriceHistoryChart records={records} hidden={hidden} />
       )}
     </Modal>
   );
