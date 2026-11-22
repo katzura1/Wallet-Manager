@@ -409,7 +409,7 @@ export function PageHeader({ title, back, actions }: { title: string; back?: str
 interface SegmentedControlProps<T extends string> {
   label: string;
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; sub?: string; subClassName?: string }[];
   onChange: (v: T) => void;
 }
 
@@ -446,7 +446,12 @@ export function SegmentedControl<T extends string>({ label, value, options, onCh
               : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
           )}
         >
-          {o.label}
+          {o.sub ? (
+            <span className="flex flex-col items-center leading-tight">
+              <span>{o.label}</span>
+              <span className={cn("text-[11px] font-semibold tabular-nums", o.subClassName)}>{o.sub}</span>
+            </span>
+          ) : o.label}
         </button>
       ))}
     </div>
