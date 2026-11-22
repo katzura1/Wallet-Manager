@@ -789,7 +789,7 @@ function PriceHistoryModal({ asset, hidden, onClose }: PriceHistoryModalProps) {
                   </td>
                   <td className="text-right py-2">
                     {r.changePct !== null ? (
-                      <span className={hidden ? "text-[hsl(var(--muted-foreground))] font-semibold" : r.changePct >= 0 ? "text-success font-semibold" : "text-red-500 font-semibold"}>
+                      <span className={hidden ? "text-[hsl(var(--muted-foreground))] font-semibold" : r.changePct >= 0 ? "text-success font-semibold" : "text-danger font-semibold"}>
                         {hidden ? "•••" : `${r.changePct >= 0 ? "▲" : "▼"} ${Math.abs(r.changePct).toFixed(2)}%`}
                       </span>
                     ) : (

@@ -42,3 +42,26 @@ test('aset hub on mobile: net worth, hub links and settings gear navigate', asyn
     await browser.close();
   }
 });
+
+test('desktop: restoring the last archived account resets the view and active detail shows', async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  try {
+    const context = await browser.newContext({ timezoneId: 'Asia/Jakarta', serviceWorkers: 'block', viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    await page.goto(url);
+    await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
+    await seed(page);
+    await page.goto(url + '/accounts');
+    await page.getByText('Akun diarsipkan (1)').click();
+    await page.getByRole('button', { name: 'Buka Lama' }).click();
+    await page.getByRole('button', { name: 'Pulihkan Lama', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Pulihkan', exact: true }).click();
+    await page.getByText(/Akun diarsipkan/).waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Buka Bank' }).click();
+    await page.getByRole('complementary', { name: 'Detail akun' }).getByRole('button', { name: 'Cocokkan saldo Bank' }).waitFor();
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+});

@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMemo } from "react";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Button, EmptyState, Modal, Spinner, PageHeader, ProgressBar, ListGroup, Sheet } from "@/components/ui";
 import { ReconcileAccountForm } from "@/components/forms/ReconcileAccountForm";
@@ -25,7 +24,7 @@ export default function Accounts() {
   const [editTarget, setEditTarget] = useState<Account | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Account | null>(null);
-  const [view, setView] = useState<"active" | "archived">("active");
+  const [viewState, setView] = useState<"active" | "archived">("active");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -73,6 +72,7 @@ export default function Accounts() {
 
   const activeAccounts = accounts.filter((a) => !a.isArchived);
   const archivedAccounts = accounts.filter((a) => a.isArchived);
+  const view = archivedAccounts.length === 0 ? "active" : viewState;
   const netWorth = useMemo(() => getNetWorth(accounts, portfolio, debts), [accounts, portfolio, debts]);
   const openDebts = debts.filter((d) => !d.isSettled);
   const totalOwe = openDebts.filter((d) => d.type === "owe").reduce((sum, d) => sum + d.remaining, 0);
@@ -85,6 +85,7 @@ export default function Accounts() {
     try {
       if (acc.isArchived) {
         await updateAccount(acc.id!, { isArchived: false });
+        if (archivedAccounts.length <= 1) setView("active");
         setFeedback({ type: "success", text: `${acc.name} dipulihkan.` });
       } else {
         await archiveAccount(acc.id!);
@@ -102,6 +103,7 @@ export default function Accounts() {
     setBusyId(acc.id ?? null);
     try {
       await deleteAccount(acc.id!);
+      if (acc.isArchived && archivedAccounts.length <= 1) setView("active");
       await hydrate();
       setFeedback({ type: "success", text: `${acc.name} dihapus.` });
       setDeleteTarget(null);
@@ -118,7 +120,6 @@ export default function Accounts() {
     setArchiveTarget(null);
   }
 
-  const visibleAccounts = view === "active" ? activeAccounts : archivedAccounts;
   const selected = accounts.find((a) => a.id === selectedId && (!a.isArchived || view === "archived"))
     ?? (view === "active" ? activeAccounts[0] : archivedAccounts[0]);
   const allocationBase = Math.max(netWorth.cash, 0) + netWorth.investments;
@@ -277,7 +278,7 @@ export default function Accounts() {
             )}
           </div>
           <aside className="hidden min-w-0 lg:block" aria-label="Detail akun">
-            {selected && visibleAccounts.length > 0 ? renderDetail(selected, false) : (
+            {selected ? renderDetail(selected, false) : (
               <p className="rounded-2xl border border-dashed border-[hsl(var(--border))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">Pilih akun untuk melihat detail.</p>
             )}
           </aside>
