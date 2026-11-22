@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Button, Input, Modal, Spinner } from "@/components/ui";
+import { Button, Input, Modal, Spinner, PageHeader } from "@/components/ui";
 import { formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory, backfillPortfolioHistoryUsd, FOREIGN_CURRENCIES } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, getUsdIdr, type CoinSearchResult } from "@/services/priceSync";
@@ -38,7 +38,7 @@ function fmtPct(n: number): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
 function gainCls(n: number): string {
-  return n >= 0 ? "text-emerald-500" : "text-red-500";
+  return n >= 0 ? "text-success" : "text-danger";
 }
 function fmtAge(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -200,7 +200,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
                 setCoinResults([]);
                 setError("");
               }}
-              className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
             >
               <option value="crypto">₿ Kripto</option>
               <option value="stock_us">🇺🇸 Saham AS</option>
@@ -236,7 +236,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
                 value={coinSearch}
                 onChange={(e) => { setCoinSearch(e.target.value); setShowResults(true); }}
                 onFocus={() => setShowResults(true)}
-                className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
               />
               {searching && (
                 <span className="absolute right-3 top-2.5 text-xs text-[hsl(var(--muted-foreground))] animate-pulse">Cari…</span>
@@ -403,7 +403,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
                   if (curr) setName(curr.name);
                   setError("");
                 }}
-                className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-base text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
               >
                 <option value="">-- Pilih Mata Uang --</option>
                 {FOREIGN_CURRENCIES.map((curr) => (
@@ -558,13 +558,13 @@ function AssetEntry({ asset, price, hidden, desktop, onEdit, onDelete, onHistory
     <div className="min-w-0 break-words">
       <p className="font-semibold text-[hsl(var(--foreground))]">{asset.symbol}</p>
       <p className="text-xs text-[hsl(var(--muted-foreground))]">{asset.name}</p>
-      <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">{ASSET_TYPE_LABELS[asset.type]}</p>
+      {!desktop && <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">{ASSET_TYPE_LABELS[asset.type]}</p>}
     </div>
   );
   const priceDetail = (
     <>
       <span>{money(currentPrice)}</span>
-      <p className={`mt-1 text-[11px] font-normal ${currentPrice === null ? "text-amber-600 dark:text-amber-400" : "text-[hsl(var(--muted-foreground))]"}`}>{status}</p>
+      <p className={`mt-1 text-[11px] font-normal ${currentPrice === null ? "text-warning" : "text-[hsl(var(--muted-foreground))]"}`}>{status}</p>
     </>
   );
   const gainDetail = (
@@ -575,14 +575,14 @@ function AssetEntry({ asset, price, hidden, desktop, onEdit, onDelete, onHistory
   );
   const change = price?.changePercent24h;
   const changeDetail = <span className={hidden || change === undefined ? "text-[hsl(var(--muted-foreground))]" : gainCls(change)}>{hidden ? "•••" : change === undefined ? "—" : fmtPct(change)}</span>;
-  const actionClass = "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]";
+  const actionClass = "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]";
   const actions = (
     <div className="flex items-center justify-end gap-0.5">
       {asset.type !== "mutual_fund" && asset.type !== "deposito" && (
         <button type="button" onClick={onHistory} aria-label={`Riwayat harga ${asset.symbol}`} title="Riwayat harga" className={actionClass}><Clock size={16} /></button>
       )}
       <button type="button" onClick={onEdit} aria-label={`Edit ${asset.symbol}`} title="Edit aset" className={actionClass}><Pencil size={16} /></button>
-      <button type="button" onClick={onDelete} aria-label={`Hapus ${asset.symbol}`} title="Hapus aset" className={`${actionClass} hover:text-red-500`}><Trash2 size={16} /></button>
+      <button type="button" onClick={onDelete} aria-label={`Hapus ${asset.symbol}`} title="Hapus aset" className={`${actionClass} hover:text-danger`}><Trash2 size={16} /></button>
     </div>
   );
 
@@ -590,6 +590,7 @@ function AssetEntry({ asset, price, hidden, desktop, onEdit, onDelete, onHistory
     return (
       <tr className="hover:bg-[hsl(var(--surface-2))]/50">
         <th scope="row" className="w-48 min-w-40 px-3 py-3 text-left font-normal">{identity}</th>
+        <td className="px-3 py-3 text-left whitespace-nowrap text-[hsl(var(--muted-foreground))]">{ASSET_TYPE_LABELS[asset.type]}</td>
         <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">{quantity}</td>
         <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">{priceDetail}</td>
         <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">{money(costBasis)}</td>
@@ -603,17 +604,22 @@ function AssetEntry({ asset, price, hidden, desktop, onEdit, onDelete, onHistory
 
   return (
     <article className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-      <div className="flex items-start justify-between gap-2">
-        {identity}
-        {actions}
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-[11px] font-semibold">{asset.symbol.slice(0, 4)}</span>
+        <div className="min-w-0 flex-1 break-words">
+          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{asset.symbol} <span className="text-xs font-normal text-[hsl(var(--muted-foreground))]">{asset.name}</span></p>
+          <p className="text-xs tabular-nums text-[hsl(var(--muted-foreground))]">{quantity} · {ASSET_TYPE_LABELS[asset.type]}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-semibold tabular-nums">{money(currentValue)}</p>
+          <p className="text-xs tabular-nums">24 jam {changeDetail}</p>
+        </div>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 border-t border-[hsl(var(--border))] pt-3 text-xs [&_dd]:mt-1 [&_dd]:break-words [&_dd]:font-semibold [&_dd]:tabular-nums [&_dt]:text-[hsl(var(--muted-foreground))]">
-        <div><dt>Nilai sekarang</dt><dd className="text-sm">{money(currentValue)}</dd></div>
         <div><dt>Untung/rugi</dt><dd className="text-sm">{gainDetail}</dd></div>
-        <div><dt>Jumlah</dt><dd>{quantity}</dd></div>
         <div><dt>Harga/unit</dt><dd>{priceDetail}</dd></div>
         <div><dt>Modal</dt><dd>{money(costBasis)}</dd></div>
-        <div><dt>24 jam</dt><dd>{changeDetail}</dd></div>
+        <div className="flex items-end justify-end">{actions}</div>
       </dl>
     </article>
   );
@@ -783,7 +789,7 @@ function PriceHistoryModal({ asset, hidden, onClose }: PriceHistoryModalProps) {
                   </td>
                   <td className="text-right py-2">
                     {r.changePct !== null ? (
-                      <span className={hidden ? "text-[hsl(var(--muted-foreground))] font-semibold" : r.changePct >= 0 ? "text-emerald-500 font-semibold" : "text-red-500 font-semibold"}>
+                      <span className={hidden ? "text-[hsl(var(--muted-foreground))] font-semibold" : r.changePct >= 0 ? "text-success font-semibold" : "text-red-500 font-semibold"}>
                         {hidden ? "•••" : `${r.changePct >= 0 ? "▲" : "▼"} ${Math.abs(r.changePct).toFixed(2)}%`}
                       </span>
                     ) : (
@@ -1024,6 +1030,9 @@ export default function Portfolio() {
       return { name: meta.label, value, color: meta.color };
     });
 
+  const syncTimes = Object.values(prices).map((p) => p.lastSynced).filter((t): t is string => !!t).sort();
+  const lastSynced = syncTimes.length ? syncTimes[syncTimes.length - 1] : null;
+
   const filterOptions: Array<{ value: Filter; label: string }> = [
     { value: "all", label: "Semua" },
     { value: "crypto", label: "Kripto" },
@@ -1037,23 +1046,28 @@ export default function Portfolio() {
 
   return (
     <div className="space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-6">
-      <section aria-label="Ringkasan dan performa portofolio" className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">Portofolio</h1>
-          <div className="flex items-center gap-1">
-            <Button size="sm" variant="outline" onClick={() => handleSync()} disabled={syncing || !assets.some((asset) => asset.type !== "mutual_fund")} className="min-h-10 gap-2">
+      <PageHeader
+        title="Portofolio"
+        back="/accounts"
+        actions={
+          <>
+            <Button size="sm" variant="outline" onClick={() => handleSync()} disabled={syncing || !assets.some((asset) => asset.type !== "mutual_fund")} className="min-h-11 gap-2">
               <span className={syncing ? "animate-spin" : ""} aria-hidden="true">🔄</span>
-              {syncing ? "Menyinkronkan…" : "Sinkronkan Harga"}
+              {syncing ? "Memperbarui…" : "Perbarui harga"}
             </Button>
-            <button type="button" onClick={togglePortfolioHidden} aria-label={portfolioHidden ? "Tampilkan nilai portofolio" : "Sembunyikan nilai portofolio"} aria-pressed={portfolioHidden} className="flex h-10 w-10 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]">
+            <button type="button" onClick={togglePortfolioHidden} aria-label={portfolioHidden ? "Tampilkan nilai portofolio" : "Sembunyikan nilai portofolio"} aria-pressed={portfolioHidden} className="flex h-11 w-11 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]">
               {portfolioHidden ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
-          </div>
-        </div>
+          </>
+        }
+      />
+      {lastSynced && <p className="-mt-2 px-1 text-xs text-[hsl(var(--muted-foreground))]">Harga terakhir diperbarui {fmtAge(lastSynced)} lalu</p>}
+
+      <section aria-label="Ringkasan dan performa portofolio" className="rounded-[20px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-5">
         <dl className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-[1.5fr_1fr_1fr] [&_dd]:break-words [&_dd]:tabular-nums">
           <div className="col-span-2 lg:col-span-1">
-            <dt className="text-xs text-[hsl(var(--muted-foreground))]">Total portofolio</dt>
-            <dd className="mt-1 text-2xl font-bold sm:text-3xl">{portfolioHidden ? "••••••" : formatCurrency(totalValue, PORTFOLIO_CURRENCY)}</dd>
+            <dt className="text-xs text-[hsl(var(--muted-foreground))]">Nilai sekarang</dt>
+            <dd className="mt-1 text-2xl font-semibold sm:text-3xl">{portfolioHidden ? "••••••" : formatCurrency(totalValue, PORTFOLIO_CURRENCY)}</dd>
             <dd className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{portfolioHidden ? "••••••" : `Estimasi $${(totalValue / (usdIdrRate || 16200)).toLocaleString("en-US", { maximumFractionDigits: 0 })}`} · {assets.length} aset aktif</dd>
           </div>
           {assets.length > 0 && (
@@ -1070,7 +1084,22 @@ export default function Portfolio() {
             </>
           )}
         </dl>
-        {metrics.hasMissingPrices && <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">Nilai sebagian · {metrics.unpricedAssetCount} aset belum ada harga. Lengkapi harga semua aset untuk menghitung performa keseluruhan.</p>}
+        {metrics.hasMissingPrices && <p className="mt-3 text-xs text-warning">Nilai sebagian · {metrics.unpricedAssetCount} aset belum ada harga. Lengkapi harga semua aset untuk menghitung performa keseluruhan.</p>}
+        {pieData.length > 0 && totalValue > 0 && (
+          <div className="mt-4 space-y-2">
+            <div role="img" aria-label="Alokasi aset berdasarkan jenis" className="flex h-2 w-full overflow-hidden rounded-full bg-[hsl(var(--surface-3))]">
+              {pieData.map((d) => <span key={d.name} style={{ width: `${(d.value / totalValue) * 100}%`, background: d.color }} />)}
+            </div>
+            <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[hsl(var(--muted-foreground))]">
+              {pieData.map((d) => (
+                <li key={d.name} className="flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: d.color }} />
+                  {d.name} <span className="tabular-nums">{portfolioHidden ? "•••" : `${((d.value / totalValue) * 100).toFixed(0)}%`}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {performanceAssets.length > 0 && (
           <div className="mt-4 grid grid-cols-1 gap-3 border-t border-[hsl(var(--border))] pt-3 sm:grid-cols-2">
             {[{ label: "Terbaik", item: performanceAssets[0] }, { label: "Terburuk", item: performanceAssets[performanceAssets.length - 1] }].map(({ label, item }) => (
@@ -1107,7 +1136,7 @@ export default function Portfolio() {
             </button>
             <div role="group" aria-label="Filter jenis aset" className="flex gap-1.5 overflow-x-auto pb-1">
               {filterOptions.map((option) => (
-                <button key={option.value} type="button" aria-pressed={filter === option.value} onClick={() => setFilter(option.value)} className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--primary))] ${filter === option.value ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}>
+                <button key={option.value} type="button" aria-pressed={filter === option.value} onClick={() => setFilter(option.value)} className={`min-h-11 shrink-0 rounded-full border px-4 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))] ${filter === option.value ? "border-transparent bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"}`}>
                   {option.label}
                 </button>
               ))}
@@ -1121,7 +1150,7 @@ export default function Portfolio() {
                         <caption className="sr-only">Daftar aset portofolio</caption>
                         <thead className="border-b border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]">
                           <tr>
-                            {["Aset", "Jumlah", "Harga/unit", "Modal", "Nilai sekarang", "Untung/rugi", "24 jam", "Aksi"].map((label, index) => <th key={label} scope="col" className={`px-3 py-2 font-medium whitespace-nowrap ${index === 0 ? "text-left" : "text-right"}`}>{label}</th>)}
+                            {["Aset", "Jenis", "Jumlah", "Harga/unit", "Modal", "Nilai sekarang", "Untung/rugi", "24 jam", "Aksi"].map((label, index) => <th key={label} scope="col" className={`px-3 py-2 font-medium whitespace-nowrap ${index <= 1 ? "text-left" : "text-right"}`}>{label}</th>)}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[hsl(var(--border))]">
