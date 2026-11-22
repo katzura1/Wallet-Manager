@@ -4,7 +4,12 @@ import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
+// BASE_PATH lets the same build run at the domain root (FTP deploy) or under
+// a sub-path such as GitHub Pages (/<repo>/). Defaults to "/".
+const base = process.env.BASE_PATH || "/";
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     tailwindcss(),
@@ -19,27 +24,28 @@ export default defineConfig({
         background_color: "#f2f4f8",
         display: "standalone",
         orientation: "portrait",
-        start_url: "/",
+        start_url: ".",
+        scope: ".",
         shortcuts: [
           {
             name: "Catat Pengeluaran",
             short_name: "Pengeluaran",
             description: "Tambah transaksi pengeluaran baru",
-            url: "/?type=expense",
+            url: "./?type=expense",
             icons: [{ src: "icons/icon-192.png", sizes: "192x192" }],
           },
           {
             name: "Catat Pemasukan",
             short_name: "Pemasukan",
             description: "Tambah transaksi pemasukan baru",
-            url: "/?type=income",
+            url: "./?type=income",
             icons: [{ src: "icons/icon-192.png", sizes: "192x192" }],
           },
           {
             name: "Transfer",
             short_name: "Transfer",
             description: "Transfer saldo antar akun",
-            url: "/?type=transfer",
+            url: "./?type=transfer",
             icons: [{ src: "icons/icon-192.png", sizes: "192x192" }],
           },
         ],
