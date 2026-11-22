@@ -234,6 +234,25 @@ export default function Accounts() {
         )}
       </section>
 
+      <div className="grid grid-cols-2 gap-2.5 lg:hidden">
+        <Link to="/debts" className="flex min-h-[44px] flex-col gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+          <span className="text-[13px] font-bold">Hutang & piutang</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">Hutang</span>
+          <span className={cn("break-words text-[15px] font-bold tabular-nums", hidden ? "" : "text-danger")}>{money(totalOwe)}</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">Piutang</span>
+          <span className={cn("break-words text-[15px] font-bold tabular-nums", hidden ? "" : "text-success")}>{money(totalOwed)}</span>
+        </Link>
+        <Link to="/portfolio" className="flex min-h-[44px] flex-col gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+          <span className="text-[13px] font-bold">Portofolio</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">Nilai sekarang</span>
+          <span className="break-words text-[15px] font-bold tabular-nums">{money(portfolio.totalValue)}</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">Untung/rugi</span>
+          <span className={cn("break-words text-[15px] font-bold tabular-nums", portfolio.totalGain === null || hidden ? "text-[hsl(var(--muted-foreground))]" : portfolio.totalGain >= 0 ? "text-success" : "text-danger")}>
+            {portfolio.totalGain === null ? "—" : hidden ? "•••" : `${portfolio.totalGain >= 0 ? "+" : ""}${formatCurrency(portfolio.totalGain, currency)}`}
+          </span>
+        </Link>
+      </div>
+
       {feedback && (
         <div role="status" className={cn("rounded-xl border px-3 py-2 text-sm", feedback.type === "success" ? "border-success/40 bg-success/10 text-success" : "border-danger/40 bg-danger/10 text-danger")}>
           {feedback.text}
@@ -283,25 +302,6 @@ export default function Accounts() {
           </aside>
         </div>
       )}
-
-      <div className="grid grid-cols-2 gap-2.5 lg:hidden">
-        <Link to="/debts" className="flex min-h-[44px] flex-col gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
-          <span className="text-[13px] font-bold">Hutang & piutang</span>
-          <span className="text-xs text-[hsl(var(--muted-foreground))]">Hutang</span>
-          <span className={cn("break-words text-[15px] font-bold tabular-nums", hidden ? "" : "text-danger")}>{money(totalOwe)}</span>
-          <span className="text-xs text-[hsl(var(--muted-foreground))]">Piutang</span>
-          <span className={cn("break-words text-[15px] font-bold tabular-nums", hidden ? "" : "text-success")}>{money(totalOwed)}</span>
-        </Link>
-        <Link to="/portfolio" className="flex min-h-[44px] flex-col gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
-          <span className="text-[13px] font-bold">Portofolio</span>
-          <span className="text-xs text-[hsl(var(--muted-foreground))]">Nilai sekarang</span>
-          <span className="break-words text-[15px] font-bold tabular-nums">{money(portfolio.totalValue)}</span>
-          <span className="text-xs text-[hsl(var(--muted-foreground))]">Untung/rugi</span>
-          <span className={cn("break-words text-[15px] font-bold tabular-nums", portfolio.totalGain === null || hidden ? "text-[hsl(var(--muted-foreground))]" : portfolio.totalGain >= 0 ? "text-success" : "text-danger")}>
-            {portfolio.totalGain === null ? "—" : hidden ? "•••" : `${portfolio.totalGain >= 0 ? "+" : ""}${formatCurrency(portfolio.totalGain, currency)}`}
-          </span>
-        </Link>
-      </div>
 
       <Sheet open={sheetOpen && !!selected} onClose={() => setSheetOpen(false)} title={selected?.name ?? "Akun"}>
         {selected && renderDetail(selected, true)}

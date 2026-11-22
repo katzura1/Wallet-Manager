@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button, Modal, Textarea, Select, Input } from "@/components/ui";
 import { parseReceiptImage, parseTransactionText, type ParsedTransaction } from "@/lib/geminiParser";
 import { addTransaction, addTransfer } from "@/db/transactions";
@@ -22,8 +23,8 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
   const [step, setStep] = useState<Step>("input");
   const [inputMode, setInputMode] = useState<InputMode>("text");
   const [text, setText] = useState("");
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("deepseek_api_key") ?? "");
-  const [showApiKey, setShowApiKey] = useState(false);
+  // The key is managed in Settings; read it fresh on every render while open.
+  const apiKey = open ? localStorage.getItem("deepseek_api_key") ?? "" : "";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [parsed, setParsed] = useState<ParsedTransaction[]>([]);
@@ -59,11 +60,6 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
     setReceiptMimeType("image/jpeg");
     setReceiptFileName("");
     onClose();
-  }
-
-  function saveApiKey(key: string) {
-    setApiKey(key);
-    localStorage.setItem("deepseek_api_key", key);
   }
 
   async function handleParse() {
@@ -239,29 +235,17 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
             </div>
           )}
 
-          {/* API Key field */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">
-              API Key
-            </label>
-            <div className="relative">
-              <input
-                type={showApiKey ? "text" : "password"}
-                value={apiKey}
-                onChange={(e) => saveApiKey(e.target.value)}
-                placeholder="sk-..."
-                className="w-full rounded-2xl border border-[hsl(var(--border))] bg-transparent px-4 py-3 text-base placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] pr-24"
-              />
-              <button
-                type="button"
-                onClick={() => setShowApiKey((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] px-2 py-1"
-              >
-                {showApiKey ? "Sembunyikan" : "Lihat"}
-              </button>
+          {!apiKey.trim() && (
+            <div className="flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm">
+              <AlertCircle size={16} className="mt-0.5 flex-none text-warning" aria-hidden="true" />
+              <span>
+                API key belum diisi.{" "}
+                <Link to="/settings" onClick={handleClose} className="font-semibold text-[hsl(var(--primary))] underline-offset-2 hover:underline">
+                  Atur di Pengaturan
+                </Link>
+              </span>
             </div>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">API key disimpan lokal di perangkatmu dan hanya dipakai untuk memanggil DeepSeek API.</p>
-          </div>
+          )}
 
           {error && (
             <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-xl p-3">

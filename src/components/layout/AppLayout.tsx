@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { Outlet } from "react-router-dom";
+import { MessageCircle } from "lucide-react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import type { AppLayoutContext } from "./appLayoutContext";
 import { BottomNav } from "./BottomNav";
@@ -19,6 +20,18 @@ export function AppLayout() {
       </main>
 
       <BottomNav />
+
+      {!chatOpen && (
+        <button
+          type="button"
+          onClick={openChat}
+          aria-label="Chat AI"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)" }}
+          className="no-print fixed right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--primary))] shadow-lg transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:hidden"
+        >
+          <MessageCircle size={22} aria-hidden="true" />
+        </button>
+      )}
 
       <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
