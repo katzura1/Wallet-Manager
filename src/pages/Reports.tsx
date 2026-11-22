@@ -376,6 +376,7 @@ export default function Reports() {
   return (
     <div className="space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-7">
       <PageHeader title="Laporan" />
+      <p className="hidden text-sm font-medium capitalize print:block">{mode === "monthly" ? monthLabel : `${dateFrom} - ${dateTo}`}</p>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <ReportTabs value="overview" />
         <div className="flex flex-col gap-3 no-print sm:flex-row sm:items-center">

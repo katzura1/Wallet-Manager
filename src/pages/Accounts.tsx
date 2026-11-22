@@ -255,7 +255,7 @@ export default function Accounts() {
           <div className="min-w-0 space-y-3">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Akun ({activeAccounts.length})</h2>
-              <button type="button" onClick={() => setAddOpen(true)} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-medium text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+              <button type="button" onClick={() => setAddOpen(true)} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-medium text-[hsl(var(--primary))] lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
                 <Plus size={16} /> Tambah akun
               </button>
             </div>
@@ -286,7 +286,7 @@ export default function Accounts() {
       )}
 
       <Sheet open={sheetOpen && !!selected} onClose={() => setSheetOpen(false)} title={selected?.name ?? "Akun"}>
-        <div className="min-h-0 overflow-y-auto p-5">{selected && renderDetail(selected, true)}</div>
+        {selected && renderDetail(selected, true)}
       </Sheet>
 
       {reconcileTarget && (

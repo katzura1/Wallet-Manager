@@ -121,7 +121,7 @@ test('budget inheritance, migration, backup and monthly UI', async () => {
     assert.equal(await dialog.getByRole('textbox').inputValue(), '150.000');
     await dialog.getByRole('button', { name: 'Batal', exact: true }).click();
     await page.goto(url);
-    await page.getByText('1 kategori mendekati limit bulan ini', { exact: true }).waitFor();
+    await page.locator('section[aria-label="Perlu perhatian"]:visible').filter({ hasText: 'Budget 2' }).filter({ hasText: '% terpakai' }).first().waitFor();
     console.log(results.join(', ') + ', Reports checkbox and month navigation, Dashboard inherited alert');
   } finally { await browser.close(); }
 });

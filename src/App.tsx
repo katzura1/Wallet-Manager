@@ -71,7 +71,7 @@ export default function App() {
             <p className="text-xs font-medium opacity-70">Pembaruan aplikasi</p>
             <p className="mt-1 text-base font-semibold">Versi baru tersedia</p>
             <p className="mt-1 text-xs opacity-70" role="status" aria-live="polite">
-              {swUpdateState === "ready" && "Update sekarang untuk melihat perubahan terbaru."}
+              {swUpdateState === "ready" && "Perbarui sekarang untuk melihat perubahan terbaru."}
               {swUpdateState === "updating" && "Sedang menerapkan update aplikasi..."}
               {swUpdateState === "updated" && "Update berhasil. Aplikasi akan dimuat ulang."}
             </p>

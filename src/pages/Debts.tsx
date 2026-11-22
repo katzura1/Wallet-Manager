@@ -336,7 +336,7 @@ function dueInfo(debt: Debt): { text: string; cls: string } | null {
 function DebtCard({ debt, currency, accountName, onEdit, onPay, onHistory, onDelete }: DebtCardProps) {
   const owe = debt.type === "owe";
   const due = dueInfo(debt);
-  const meta = [debt.note, accountName].filter(Boolean).join(" · ");
+  const meta = [debt.date ? formatDate(debt.date) : "", debt.note, accountName].filter(Boolean).join(" · ");
   const iconBtn = "flex h-11 w-11 items-center justify-center rounded-full text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]";
 
   return (
@@ -475,7 +475,7 @@ export default function Debts() {
       <PageHeader
         title="Hutang & piutang"
         actions={
-          <Button size="sm" className="min-h-11 gap-1" onClick={() => setAddOpen(true)}>
+          <Button size="sm" className="min-h-11 gap-1 lg:hidden" onClick={() => setAddOpen(true)}>
             <Plus size={16} aria-hidden="true" />Tambah
           </Button>
         }

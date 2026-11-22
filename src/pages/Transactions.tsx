@@ -41,6 +41,7 @@ export default function Transactions() {
   const [page, setPage] = useState({ filterKey: "", count: PAGE_SIZE });
   const filterKey = JSON.stringify(filter);
   const visibleCount = page.filterKey === filterKey ? page.count : PAGE_SIZE;
+  const activeAccounts = useMemo(() => accounts.filter((a) => !a.isArchived), [accounts]);
   const visibleTransactions = useMemo(() => transactions.slice(0, visibleCount), [transactions, visibleCount]);
 
   function cancelSearch() {
@@ -578,6 +579,7 @@ export default function Transactions() {
             <dl className="flex gap-6 px-1 text-sm" aria-label="Ringkasan periode">
               <div><dt className="text-xs text-[hsl(var(--muted-foreground))]">Masuk</dt><dd className="font-semibold tabular-nums text-success">{formatCurrency(totals.income, currency)}</dd></div>
               <div><dt className="text-xs text-[hsl(var(--muted-foreground))]">Keluar</dt><dd className="font-semibold tabular-nums">{formatCurrency(totals.expense, currency)}</dd></div>
+              <div><dt className="text-xs text-[hsl(var(--muted-foreground))]">Transfer</dt><dd className="font-semibold tabular-nums text-[hsl(var(--muted-foreground))]">{formatCurrency(totals.transfer, currency)}</dd></div>
             </dl>
           )}
         </div>
@@ -586,7 +588,7 @@ export default function Transactions() {
       {/* All Transactions tab */}
       {activeTab === "all" && (
         transactions.length === 0 ? (
-          <EmptyState icon="📋" title={activeFilterChips.length ? "Tidak ada transaksi yang cocok" : "Belum ada transaksi"} description={activeFilterChips.length ? "Ubah pencarian atau reset filter untuk melihat transaksi lainnya." : "Pilih Tambah untuk mencatat transaksi baru."} />
+          <EmptyState icon="📋" title={activeFilterChips.length ? "Tidak ada transaksi yang cocok" : "Belum ada transaksi"} description={activeFilterChips.length ? "Ubah pencarian atau reset filter untuk melihat transaksi lainnya." : "Tekan tombol + untuk mencatat transaksi pertama."} />
         ) : (
           <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
             <div className="space-y-4">
@@ -791,7 +793,7 @@ export default function Transactions() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onSaved={() => void refreshAll()}
-        accounts={accounts.filter((a) => !a.isArchived) as typeof accounts}
+        accounts={activeAccounts}
         categories={categories}
       />
 
@@ -800,7 +802,7 @@ export default function Transactions() {
           open={!!editTarget}
           onClose={() => setEditTarget(null)}
           onSaved={() => { void refreshAll(); setEditTarget(null); }}
-          accounts={accounts.filter((a) => !a.isArchived) as typeof accounts}
+          accounts={activeAccounts}
           categories={categories}
           existing={editTarget}
         />
@@ -817,7 +819,7 @@ export default function Transactions() {
           setRecurringDraft(null);
           setRecurringFeedback({ type: "success", text: "Jadwal tersimpan." });
         }}
-        accounts={accounts.filter((a) => !a.isArchived) as typeof accounts}
+        accounts={activeAccounts}
         categories={categories}
         existing={editRecurring ?? undefined}
         initialValues={recurringDraft ?? undefined}

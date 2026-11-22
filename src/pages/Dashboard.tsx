@@ -212,7 +212,7 @@ export default function Dashboard() {
     }
   }, [heroMenuOpen]);
 
-  const activeAccounts = accounts.filter((account) => !account.isArchived);
+  const activeAccounts = useMemo(() => accounts.filter((account) => !account.isArchived), [accounts]);
   const totalBalance = activeAccounts.reduce((sum, a) => sum + a.currentBalance, 0);
   const now = new Date();
 
@@ -445,7 +445,7 @@ export default function Dashboard() {
               </dl>
               {monthIncome > 0 && (
                 <div className="mt-3 space-y-2">
-                  <ProgressBar value={monthExpense} max={monthIncome} label="Pengeluaran dibanding pemasukan" />
+                  <ProgressBar value={balanceHidden ? 0 : monthExpense} max={monthIncome} label="Pengeluaran dibanding pemasukan" />
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">{balanceHidden ? "•••" : `${Math.round(monthExpense / monthIncome * 100)}% pemasukan sudah terpakai · tingkat tabungan ${savingsRate}%`}</p>
                 </div>
               )}
@@ -528,7 +528,7 @@ export default function Dashboard() {
                             <td className={`px-4 py-3 text-right font-semibold tabular-nums ${maskedTone(tx.type === "income" ? "text-success" : "")}`}>{tx.type === "income" ? "+" : tx.type === "expense" ? "-" : ""}{money(tx.amount)}</td>
                             <td className="px-2 py-1 text-right">
                               <div className="flex justify-end">
-                                <button type="button" aria-label={`Ubah ${tx.note || getCategoryName(tx.categoryId) || "transaksi"}`} onClick={() => editRecent(tx)} className="flex h-11 w-11 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"><Pencil size={16} /></button>
+                                <button type="button" aria-label={`Edit ${tx.note || getCategoryName(tx.categoryId) || "transaksi"}`} onClick={() => editRecent(tx)} className="flex h-11 w-11 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"><Pencil size={16} /></button>
                                 <button type="button" aria-label={`Hapus ${tx.note || getCategoryName(tx.categoryId) || "transaksi"}`} onClick={() => deleteRecent(tx)} className="flex h-11 w-11 items-center justify-center rounded-xl text-danger hover:bg-danger/10"><Trash2 size={16} /></button>
                               </div>
                             </td>
@@ -691,6 +691,7 @@ export default function Dashboard() {
         accounts={activeAccounts}
         categories={categories}
         defaultType={shortcutType ?? defaultType}
+        hideBalances={balanceHidden}
       />
 
       <TransactionForm

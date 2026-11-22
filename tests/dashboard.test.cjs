@@ -40,7 +40,7 @@ for (const [name, viewport, summary] of [['mobile', { width: 390, height: 844 },
         assert.match(meta, /· \d{2} \w{3}$/);
       }
       if (name === 'desktop') {
-        await page.getByRole('button', { name: 'Ubah Makan siang' }).click();
+        await page.getByRole('button', { name: 'Edit Makan siang' }).click();
         await page.getByRole('dialog').waitFor();
       }
       await context.close();

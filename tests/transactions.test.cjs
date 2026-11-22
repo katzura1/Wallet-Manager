@@ -21,10 +21,8 @@ async function createExpense(page) {
   await page.goto(`${url}/transactions?new=1`);
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
-  // The form resets when accounts/categories finish loading, so wait for them before typing.
   const tile = dialog.getByRole('radio', { name: 'Makan', exact: true });
   await tile.waitFor();
-  await page.waitForTimeout(300);
   await dialog.getByLabel('Jumlah', { exact: true }).fill('50000');
   await tile.click();
   await dialog.getByPlaceholder('Tambah catatan...').fill('Makan siang');
@@ -71,3 +69,35 @@ for (const [name, viewport] of [['mobile', { width: 390, height: 844 }], ['deskt
     }
   });
 }
+
+test('transactions: amount typed right after cold /transactions?new=1 survives data load', async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  try {
+    const context = await browser.newContext({ timezoneId: 'Asia/Jakarta', serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    await page.goto(url);
+    await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
+    await seed(page);
+    // A large history makes the store refresh finish well after the form opens.
+    await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts');
+      const stamp = new Date().toISOString();
+      const rows = Array.from({ length: 20000 }, (_, i) => ({ type: 'expense', amount: 1000 + i, accountId: 1, categoryId: 1, date: `2026-0${(i % 9) + 1}-${String((i % 27) + 1).padStart(2, '0')}`, note: `Seed ${i}`, createdAt: stamp, updatedAt: stamp }));
+      await db.transactions.bulkAdd(rows);
+    });
+    await page.goto(`${url}/transactions?new=1`);
+    const dialog = page.getByRole('dialog');
+    const amount = dialog.getByLabel('Jumlah', { exact: true });
+    await amount.waitFor();
+    await amount.fill('75000');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1500);
+    assert.equal(await amount.inputValue(), '75.000');
+    await dialog.getByRole('radio', { name: 'Makan', exact: true }).waitFor();
+    assert.equal(await dialog.getByLabel('Jumlah', { exact: true }).inputValue(), '75.000');
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+});

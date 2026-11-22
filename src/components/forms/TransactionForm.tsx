@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button, Input, Select, Textarea, Modal, SegmentedControl } from "@/components/ui";
 import { todayISO, formatNumberWithSeparator, formatCurrency } from "@/lib/utils";
 import { addTransaction, addTransfer, updateTransaction } from "@/db/transactions";
@@ -14,6 +14,7 @@ interface TransactionFormProps {
   categories: Category[];
   existing?: Transaction;
   defaultType?: Transaction["type"];
+  hideBalances?: boolean;
 }
 
 type TxType = "income" | "expense" | "transfer";
@@ -59,7 +60,7 @@ function writeTransactionDefaults(data: StoredTransactionDefaults) {
   localStorage.setItem(TX_DEFAULTS_KEY, JSON.stringify(data));
 }
 
-export function TransactionForm({ open, onClose, onSaved, accounts, categories, existing, defaultType }: TransactionFormProps) {
+export function TransactionForm({ open, onClose, onSaved, accounts, categories, existing, defaultType, hideBalances }: TransactionFormProps) {
   const { currency } = useSettingsStore();
   const [type, setType] = useState<TxType>(existing?.type ?? defaultType ?? "expense");
   const [amount, setAmount] = useState(String(existing?.amount ?? ""));
@@ -73,8 +74,32 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
   const [splitMode, setSplitMode] = useState(false);
   const [splits, setSplits] = useState<SplitRow[]>([{ categoryId: "", amount: "" }]);
 
+  const typeRef = useRef(type);
+  useEffect(() => { typeRef.current = type; }, [type]);
+  const prevRef = useRef<{ open: boolean; existing?: Transaction; defaultType?: Transaction["type"] }>({ open: false });
+
   useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = { open, existing, defaultType };
     if (!open) return;
+    // Full reset only when the form opens or its target changes; later account/category
+    // loads must not wipe what the user already typed.
+    const fullReset = !prev.open || prev.existing !== existing || prev.defaultType !== defaultType;
+
+    if (!fullReset) {
+      if (existing) return;
+      const storedNow = readTransactionDefaults();
+      const defaultAccount = String(accounts[0]?.id ?? "");
+      const hasAccount = (value: string) => accounts.some((account) => String(account.id) === value);
+      setAccountId((cur) => (hasAccount(cur) ? cur : defaultAccount));
+      if (typeRef.current === "transfer") {
+        setToAccountId((cur) => (hasAccount(cur) ? cur : String(accounts.find((account) => String(account.id) !== defaultAccount)?.id ?? "")));
+      } else {
+        const storedCategory = storedNow[typeRef.current]?.categoryId;
+        setCategoryId((cur) => (cur || !storedCategory || !categories.some((category) => String(category.id) === storedCategory) ? cur : storedCategory));
+      }
+      return;
+    }
 
     if (existing) {
       setType(existing.type);
@@ -419,7 +444,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
               {[{ acc: fromAccount, after: fromAccount.currentBalance - amountNum }, { acc: toAccount, after: toAccount.currentBalance + amountNum }].map(({ acc, after }) => (
                 <div key={acc.id} className="flex items-center justify-between gap-3">
                   <dt className="min-w-0 truncate text-[hsl(var(--muted-foreground))]">{acc.name}</dt>
-                  <dd className="shrink-0 tabular-nums">{formatCurrency(acc.currentBalance, currency)} → <span className="font-semibold">{formatCurrency(after, currency)}</span></dd>
+                  <dd className="shrink-0 tabular-nums">{hideBalances ? "•••" : formatCurrency(acc.currentBalance, currency)} → <span className="font-semibold">{hideBalances ? "•••" : formatCurrency(after, currency)}</span></dd>
                 </div>
               ))}
             </dl>
