@@ -124,6 +124,14 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   noScroll?: boolean;
+  /** "left" puts the close button first (no header divider); on lg it moves back to the right. */
+  closePosition?: "left" | "right";
+  /** Sticky footer that stays below the scrolling content. */
+  footer?: React.ReactNode;
+  /** 640px panel on lg. */
+  wide?: boolean;
+  /** Extra control on the right of the header. */
+  headerAction?: React.ReactNode;
 }
 
 let lockCount = 0;
@@ -153,7 +161,7 @@ function useOverlayBehavior(open: boolean, onClose: () => void, panelRef: React.
     overlayStack.push(token);
     const previouslyFocused = document.activeElement as HTMLElement | null;
     lockScroll();
-    closeRef.current?.focus();
+    (panelRef.current?.querySelector<HTMLElement>("[data-autofocus]") ?? closeRef.current)?.focus();
     function handleKeyDown(event: KeyboardEvent) {
       if (overlayStack[overlayStack.length - 1] !== token) return;
       if (document.querySelector('[role="alertdialog"]')) return;
@@ -193,13 +201,14 @@ function GrabHandle() {
   return <div aria-hidden="true" className="flex justify-center pt-2.5 lg:hidden"><span className="h-1 w-10 rounded-full bg-[hsl(var(--surface-3))]" /></div>;
 }
 
-export function Modal({ open, onClose, title, children, noScroll }: ModalProps) {
+export function Modal({ open, onClose, title, children, noScroll, closePosition = "right", footer, wide, headerAction }: ModalProps) {
   const titleId = React.useId();
   const panelRef = React.useRef<HTMLDivElement>(null);
   const closeRef = React.useRef<HTMLButtonElement>(null);
   useOverlayBehavior(open, onClose, panelRef, closeRef);
 
   if (!open) return null;
+  const left = closePosition === "left";
   // Rendered into document.body so no ancestor stacking context can place the bottom nav above it.
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end justify-center lg:items-center lg:p-4" data-modal-open="true">
@@ -207,7 +216,8 @@ export function Modal({ open, onClose, title, children, noScroll }: ModalProps) 
       <div
         ref={panelRef}
         className={cn(
-          "relative z-10 flex w-full flex-col overflow-hidden rounded-t-3xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl overscroll-contain lg:max-w-lg lg:rounded-3xl",
+          "relative z-10 flex w-full flex-col overflow-hidden rounded-t-3xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl overscroll-contain lg:rounded-3xl",
+          wide ? "lg:max-w-[640px]" : "lg:max-w-lg",
           noScroll ? "h-[90dvh] lg:h-auto lg:max-h-[90dvh]" : "max-h-[90dvh]",
         )}
         role="dialog"
@@ -215,13 +225,24 @@ export function Modal({ open, onClose, title, children, noScroll }: ModalProps) 
         aria-labelledby={titleId}
       >
         <GrabHandle />
-        <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] px-5 pb-3 pt-2 lg:pt-4">
-          <h2 id={titleId} className="min-w-0 truncate text-lg font-semibold leading-tight">{title}</h2>
-          <button ref={closeRef} type="button" onClick={onClose} aria-label="Tutup dialog" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+        <div className={cn("flex items-center justify-between gap-3 px-5 pb-3 pt-2 lg:pt-4", left ? "pb-2 lg:px-6 lg:pt-6" : "border-b border-[hsl(var(--border))]")}>
+          <h2 id={titleId} className={cn("min-w-0 truncate text-lg font-semibold leading-tight", left && cn("flex-1 text-[17px] font-bold lg:text-left lg:text-xl lg:font-extrabold", headerAction && "text-center"))}>{title}</h2>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup dialog"
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
+              left ? "order-first rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] lg:order-last lg:rounded-xl" : "rounded-full bg-[hsl(var(--surface-2))]",
+            )}
+          >
             <X size={18} aria-hidden="true" />
           </button>
+          {headerAction}
         </div>
-        <div className={noScroll ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "min-h-0 overflow-y-auto p-5 safe-bottom"}>{children}</div>
+        <div className={noScroll ? "flex min-h-0 flex-1 flex-col overflow-hidden" : cn("min-h-0 overflow-y-auto", footer ? "px-5 pb-4 pt-2 lg:px-6" : "p-5 safe-bottom")}>{children}</div>
+        {footer && <div className="px-5 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-2 lg:px-6 lg:pb-6 lg:pt-4">{footer}</div>}
       </div>
     </div>,
     document.body,

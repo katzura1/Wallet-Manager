@@ -4,6 +4,7 @@ import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { Button, ConfirmDialog, IconTile, Input, Select, EmptyState, Modal, Badge, Spinner, PageHeader, Sheet } from "@/components/ui";
 import { describeTransactionDelete } from "@/lib/deleteDescription";
 import { TransactionForm } from "@/components/forms/TransactionForm";
+import { AITransactionForm } from "@/components/forms/AITransactionForm";
 import { RecurringForm, type RecurringDraftInput } from "@/components/forms/RecurringForm";
 import { TransactionCard } from "@/components/TransactionCard";
 import { TransactionDetail } from "@/components/TransactionDetail";
@@ -31,6 +32,7 @@ export default function Transactions() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"all" | "recurring">(() => searchParams.get("tab") === "recurring" ? "recurring" : "all");
   const [addOpen, setAddOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const newRequested = searchParams.get("new") === "1";
   // Open the add form when arriving via ?new=1 (derived during render, then the param is cleaned below).
   if (newRequested && !addOpen) setAddOpen(true);
@@ -794,6 +796,15 @@ export default function Transactions() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onSaved={() => void refreshAll()}
+        accounts={activeAccounts}
+        categories={categories}
+        onUseAI={() => { setAddOpen(false); setAiOpen(true); }}
+      />
+
+      <AITransactionForm
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        onSaved={() => { void refreshAll(); setAiOpen(false); }}
         accounts={activeAccounts}
         categories={categories}
       />

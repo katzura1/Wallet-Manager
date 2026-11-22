@@ -125,7 +125,7 @@ test('transactions: stored default account survives cold /transactions?new=1 dat
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
     await dialog.getByRole('radio', { name: 'Makan', exact: true }).waitFor();
-    assert.equal(await dialog.locator('select').first().inputValue(), '2');
+    await dialog.getByRole('button', { name: /^Akun\s*Dompet/ }).waitFor();
     await context.close();
   } finally {
     await browser.close();

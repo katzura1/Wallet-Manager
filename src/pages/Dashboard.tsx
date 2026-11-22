@@ -694,6 +694,7 @@ export default function Dashboard() {
         categories={categories}
         defaultType={shortcutType ?? defaultType}
         hideBalances={balanceHidden}
+        onUseAI={() => { closeTransactionForm(); setAiOpen(true); }}
       />
 
       <TransactionForm
@@ -704,6 +705,7 @@ export default function Dashboard() {
         accounts={activeAccounts}
         categories={categories}
         existing={editTx ?? undefined}
+        hideBalances={balanceHidden}
       />
 
       <AITransactionForm
