@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { Button, Input, Select, Textarea, Sheet, PageHeader, SegmentedControl, Switch, ProgressBar } from "@/components/ui";
+import { Button, ConfirmDialog, Input, Select, Textarea, Sheet, PageHeader, SegmentedControl, Switch, ProgressBar } from "@/components/ui";
 import { getDebts, addDebt, updateDebt, deleteDebt, payDebt, getDebtPayments, updateDebtPayment, deleteDebtPayment, getOrphanDebtTransactions, deleteOrphanDebtTransactions } from "@/db/debts";
 import { formatCurrency, formatDate, formatNumberWithSeparator, todayISO } from "@/lib/utils";
 import { differenceInCalendarDays, parseISO } from "date-fns";
@@ -62,7 +62,7 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title={existing ? "Edit Hutang/Piutang" : "Tambah Hutang/Piutang"}>
+    <Sheet open={open} onClose={onClose} title={existing ? "Edit hutang/piutang" : "Tambah hutang/piutang"}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <SegmentedControl
           label="Jenis"
@@ -168,7 +168,7 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
             <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
           ))}
         </Select>
-        {creditAccount && <p className="text-xs text-[hsl(var(--muted-foreground))]">Jika dipilih, dicatat sebagai transfer ke {creditAccount.icon} {creditAccount.name}. Kosongkan jika refund: dicatat sebagai pemasukan ke akun CC.</p>}
+        {creditAccount && <p className="text-xs text-[hsl(var(--muted-foreground))]">Jika dipilih, dicatat sebagai transfer ke {creditAccount.name}. Kosongkan jika refund: dicatat sebagai pemasukan ke akun CC.</p>}
         <Input label="Tanggal pembayaran" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <Textarea label="Catatan pembayaran" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         <Button type="submit" className="w-full" disabled={loading}>
@@ -198,6 +198,7 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
   const [editNote, setEditNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  const [deletePaymentTarget, setDeletePaymentTarget] = useState<DebtPayment | null>(null);
 
   const reload = useCallback(() => {
     return getDebtPayments(debt.id!).then(setPayments);
@@ -233,7 +234,7 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
   }
 
   async function handleDelete(p: DebtPayment) {
-    if (!confirm(`Hapus pembayaran ${formatCurrency(p.amount, currency)} pada ${formatDate(p.date)}?`)) return;
+    setDeletePaymentTarget(null);
     try {
       await deleteDebtPayment(p.id!);
       reload();
@@ -244,6 +245,7 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
   }
 
   return (
+    <>
     <Sheet open={open} onClose={onClose} title={`Riwayat: ${debt.name}`}>
       {editError && <p role="alert" className="mb-3 text-xs text-danger">{editError}</p>}
       {payments.length === 0 ? (
@@ -290,12 +292,12 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
                   <div className="flex-1">
                     <div className="font-medium text-xs">{formatDate(p.date)}</div>
                     {p.note && <div className="text-[hsl(var(--muted-foreground))] text-xs">{p.note}</div>}
-                    {p.accountId && (() => { const acc = accounts.find(a => a.id === p.accountId); return acc ? <div className="text-[hsl(var(--muted-foreground))] text-xs">{acc.icon} {acc.name}</div> : null; })()}
+                    {p.accountId && (() => { const acc = accounts.find(a => a.id === p.accountId); return acc ? <div className="text-[hsl(var(--muted-foreground))] text-xs">{acc.name}</div> : null; })()}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <span className="font-semibold text-success text-xs tabular-nums">{formatCurrency(p.amount, currency)}</span>
                     <button aria-label="Edit pembayaran" onClick={() => startEdit(p)} className="flex h-11 w-11 items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"><Pencil size={16} aria-hidden="true" /></button>
-                    <button aria-label="Hapus pembayaran" onClick={() => handleDelete(p)} className="flex h-11 w-11 items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-danger"><Trash2 size={16} aria-hidden="true" /></button>
+                    <button aria-label="Hapus pembayaran" onClick={() => setDeletePaymentTarget(p)} className="flex h-11 w-11 items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-danger"><Trash2 size={16} aria-hidden="true" /></button>
                   </div>
                 </div>
               )}
@@ -304,6 +306,15 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
         </ul>
       )}
     </Sheet>
+    <ConfirmDialog
+      open={deletePaymentTarget !== null}
+      title="Hapus pembayaran ini?"
+      description={deletePaymentTarget ? `Pembayaran ${formatCurrency(deletePaymentTarget.amount, currency)} pada ${formatDate(deletePaymentTarget.date)} akan dihapus.` : ""}
+      confirmLabel="Hapus"
+      onConfirm={() => deletePaymentTarget && handleDelete(deletePaymentTarget)}
+      onClose={() => setDeletePaymentTarget(null)}
+    />
+    </>
   );
 }
 
@@ -382,15 +393,14 @@ interface DeleteModalProps {
 
 function DeleteModal({ open, name, onClose, onConfirm }: DeleteModalProps) {
   return (
-    <Sheet open={open} onClose={onClose} title="Hapus Hutang/Piutang">
-      <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-        Hapus <span className="font-semibold text-[hsl(var(--foreground))]">{name}</span>? Semua riwayat pembayaran juga akan dihapus.
-      </p>
-      <div className="flex gap-2">
-        <Button variant="outline" className="min-h-11 flex-1" onClick={onClose}>Batal</Button>
-        <Button variant="destructive" className="min-h-11 flex-1" onClick={onConfirm}>Hapus</Button>
-      </div>
-    </Sheet>
+    <ConfirmDialog
+      open={open}
+      title="Hapus hutang/piutang ini?"
+      description={`“${name}” dan semua riwayat pembayarannya akan dihapus.`}
+      confirmLabel="Hapus"
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
   );
 }
 
@@ -408,6 +418,7 @@ export default function Debts() {
   const [historyDebt, setHistoryDebt] = useState<Debt | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Debt | null>(null);
   const [orphans, setOrphans] = useState<Transaction[]>([]);
+  const [orphanConfirm, setOrphanConfirm] = useState(false);
 
   const load = useCallback(() => {
     return useWalletStore.getState().refreshAll().then(async () => { setOrphans(await getOrphanDebtTransactions()); return getDebts(true); }).then((all) => {
@@ -426,8 +437,7 @@ export default function Debts() {
   }
 
   async function handleCleanOrphans() {
-    const list = orphans.map((t) => `${formatDate(t.date)} · ${formatCurrency(t.amount, currency)}`).join("\n");
-    if (!confirm(`Hapus ${orphans.length} transaksi yatim?\n\n${list}`)) return;
+    setOrphanConfirm(false);
     await deleteOrphanDebtTransactions();
     load();
   }
@@ -484,7 +494,7 @@ export default function Debts() {
       {orphans.length > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-warning/40 bg-[hsl(var(--card))] px-4 py-3 text-sm">
           <span>{orphans.length} transaksi sisa hutang/piutang yang sudah dihapus.</span>
-          <Button size="sm" variant="outline" className="min-h-11" onClick={handleCleanOrphans}>Bersihkan</Button>
+          <Button size="sm" variant="outline" className="min-h-11" onClick={() => setOrphanConfirm(true)}>Bersihkan</Button>
         </div>
       )}
 
@@ -530,6 +540,14 @@ export default function Debts() {
       {editDebt && <DebtForm open onClose={() => setEditDebt(null)} onSaved={load} existing={editDebt} />}
       {payDebtTarget && <PayDebtModal open onClose={() => setPayDebtTarget(null)} onSaved={load} debt={payDebtTarget} />}
       {historyDebt && <PaymentsHistory open onClose={() => setHistoryDebt(null)} debt={historyDebt} onPaymentChanged={load} />}
+      <ConfirmDialog
+        open={orphanConfirm}
+        title="Hapus transaksi yatim?"
+        description={`${orphans.length} transaksi tanpa hutang terkait akan dihapus: ${orphans.map((t) => `${formatDate(t.date)} · ${formatCurrency(t.amount, currency)}`).join(", ")}.`}
+        confirmLabel="Hapus"
+        onConfirm={handleCleanOrphans}
+        onClose={() => setOrphanConfirm(false)}
+      />
       {deleteTarget && (
         <DeleteModal
           open

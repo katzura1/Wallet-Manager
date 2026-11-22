@@ -1,5 +1,5 @@
 import type { Category, Transaction, TransactionSplit } from "@/types";
-import { Button, ListGroup, ListRow } from "@/components/ui";
+import { Button, IconTile, ListGroup, ListRow } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 interface TransactionDetailProps {
@@ -19,13 +19,13 @@ const TYPE_LABEL = { income: "Pemasukan", expense: "Pengeluaran", transfer: "Tra
 export function TransactionDetail({ transaction: tx, accountName, toAccountName, category, splits, categories, currency, onEdit, onDelete }: TransactionDetailProps) {
   const isSplit = splits.length > 0;
   const name = tx.note || (isSplit ? "Split Kategori" : category?.name) || accountName;
-  const icon = tx.isAdjustment ? "⚖️" : isSplit ? "✂️" : category?.icon || (tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️");
+  const tileLabel = tx.isAdjustment ? "Penyesuaian saldo" : isSplit ? "Split Kategori" : category?.name ?? TYPE_LABEL[tx.type];
   const amountColor = tx.type === "income" ? "text-success" : tx.type === "transfer" ? "text-[hsl(var(--muted-foreground))]" : "text-[hsl(var(--foreground))]";
   const kind = tx.isAdjustment ? "Penyesuaian saldo" : tx.debtId ? "Utang/Piutang" : TYPE_LABEL[tx.type];
   return (
     <div className="space-y-4">
       <div className="flex flex-col items-center gap-2 text-center">
-        <span aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-2xl">{icon}</span>
+        <IconTile label={tileLabel} color={tx.isAdjustment || isSplit ? undefined : category?.color} size="lg" />
         <p className="text-sm text-[hsl(var(--muted-foreground))] break-words">{name}</p>
         <p className={`text-3xl font-semibold tabular-nums tracking-tight ${amountColor}`}>
           {tx.type === "expense" ? "−" : tx.type === "income" ? "+" : ""}{formatCurrency(tx.amount, currency)}
@@ -42,7 +42,7 @@ export function TransactionDetail({ transaction: tx, accountName, toAccountName,
         <ListGroup title="Rincian split">
           {splits.map((s, i) => {
             const cat = categories.find((c) => c.id === s.categoryId);
-            return <ListRow key={i} label={`${cat?.icon ?? "📦"} ${cat?.name ?? "Kategori tidak ditemukan"}`} sub={s.note || undefined} value={<span className="tabular-nums">{formatCurrency(s.amount, currency)}</span>} />;
+            return <ListRow key={i} label={cat?.name ?? "Kategori tidak ditemukan"} sub={s.note || undefined} value={<span className="tabular-nums">{formatCurrency(s.amount, currency)}</span>} />;
           })}
         </ListGroup>
       )}

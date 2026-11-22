@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Button, Input, Modal, Spinner, PageHeader } from "@/components/ui";
+import { Button, ConfirmDialog, Input, Modal, Spinner, PageHeader } from "@/components/ui";
 import { formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory, backfillPortfolioHistoryUsd, FOREIGN_CURRENCIES } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, getUsdIdr, type CoinSearchResult } from "@/services/priceSync";
@@ -175,7 +175,7 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={existing ? "Edit Aset" : "Tambah Aset"}>
+    <Modal open={open} onClose={onClose} title={existing ? "Edit aset" : "Tambah aset"}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Type selector dropdown (locked when editing) */}
         {!existing && (
@@ -521,15 +521,14 @@ function AssetForm({ open, onClose, onSaved, existing }: AssetFormProps) {
 
 function DeleteModal({ name, onClose, onConfirm }: { name: string; onClose: () => void; onConfirm: () => void }) {
   return (
-    <Modal open onClose={onClose} title="Hapus Aset">
-      <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
-        Hapus <span className="font-semibold text-[hsl(var(--foreground))]">{name}</span> dari portofolio?
-      </p>
-      <div className="flex gap-2">
-        <Button variant="outline" className="flex-1" onClick={onClose}>Batal</Button>
-        <Button variant="destructive" className="flex-1" onClick={onConfirm}>Hapus</Button>
-      </div>
-    </Modal>
+    <ConfirmDialog
+      open
+      title="Hapus aset ini?"
+      description={<><span className="font-semibold text-[hsl(var(--foreground))]">{name}</span> akan dihapus dari portofolio.</>}
+      confirmLabel="Hapus"
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
   );
 }
 
@@ -762,7 +761,7 @@ function PriceHistoryModal({ asset, hidden, onClose }: PriceHistoryModalProps) {
   }, [asset.symbol]);
 
   return (
-    <Modal open onClose={onClose} title={`${asset.symbol} — Riwayat Harga`}>
+    <Modal open onClose={onClose} title={`${asset.symbol} — riwayat harga`}>
       {loading ? (
         <div className="flex justify-center py-8"><Spinner /></div>
       ) : records.length === 0 ? (

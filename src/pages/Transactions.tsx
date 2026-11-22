@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { Button, Input, Select, EmptyState, Modal, Badge, Spinner, PageHeader, Sheet } from "@/components/ui";
+import { Button, ConfirmDialog, IconTile, Input, Select, EmptyState, Modal, Badge, Spinner, PageHeader, Sheet } from "@/components/ui";
+import { describeTransactionDelete } from "@/lib/deleteDescription";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { RecurringForm, type RecurringDraftInput } from "@/components/forms/RecurringForm";
 import { TransactionCard } from "@/components/TransactionCard";
@@ -364,7 +365,7 @@ export default function Transactions() {
           accountName={getAccountName(tx.accountId)}
           toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}
           categoryLabel={hasSplits ? `Split · ${txSplits.length} kategori` : cat?.name}
-          categoryIcon={hasSplits ? "✂️" : cat?.icon}
+          categoryColor={cat?.color}
           currency={currency}
           hasSplits={hasSplits}
           selected={selectedId === tx.id}
@@ -697,7 +698,7 @@ export default function Transactions() {
                     return (
                       <div key={suggestion.key} className="rounded-2xl bg-[hsl(var(--surface-2))] px-3 py-3">
                         <div className="flex flex-wrap items-center gap-3">
-                          <span aria-hidden="true" className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-[hsl(var(--card))] text-base">{category?.icon ?? (isIncome ? "💰" : "💸")}</span>
+                          <IconTile label={category?.name ?? suggestion.note ?? (isIncome ? "Pemasukan" : "Pengeluaran")} color={category?.color} />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="truncate text-sm font-medium">{suggestion.note || category?.name || "Pola berulang terdeteksi"}</p>
@@ -825,25 +826,31 @@ export default function Transactions() {
         initialValues={recurringDraft ?? undefined}
       />
 
-      <Modal open={deleteTxId !== null} onClose={() => setDeleteTxId(null)} title="Hapus Transaksi">
-        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">Yakin ingin menghapus transaksi ini? Aksi ini tidak bisa dibatalkan.</p>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={() => setDeleteTxId(null)}>Batal</Button>
-          <Button variant="destructive" className="flex-1" onClick={() => deleteTxId !== null && handleDelete(deleteTxId)}>Hapus</Button>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={deleteTxId !== null}
+        title="Hapus transaksi ini?"
+        description={(() => {
+          const target = transactions.find((t) => t.id === deleteTxId);
+          let hidden = false;
+          try { hidden = localStorage.getItem("balance_hidden") === "1"; } catch { /* storage unavailable */ }
+          return target ? describeTransactionDelete(target, { accounts, categories, currency, hidden }) : "Transaksi ini akan dihapus.";
+        })()}
+        confirmLabel="Hapus"
+        onConfirm={() => deleteTxId !== null && handleDelete(deleteTxId)}
+        onClose={() => setDeleteTxId(null)}
+      />
 
       <Modal
         open={pendingRecurringAction !== null}
         onClose={() => setPendingRecurringAction(null)}
         title={
           pendingRecurringAction?.action === "run"
-            ? "Jalankan Jadwal Sekarang"
+            ? "Jalankan jadwal sekarang"
             : pendingRecurringAction?.action === "skip"
-              ? "Lewati Jadwal Berikutnya"
+              ? "Lewati jadwal berikutnya"
               : pendingRecurringAction?.rec.isActive
-                ? "Pause Jadwal"
-                : "Aktifkan Jadwal"
+                ? "Jeda jadwal"
+                : "Aktifkan jadwal"
         }
       >
         <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
@@ -863,13 +870,18 @@ export default function Transactions() {
         </div>
       </Modal>
 
-      <Modal open={deleteRecurringId !== null} onClose={() => setDeleteRecurringId(null)} title="Hapus Transaksi Terjadwal">
-        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">Yakin ingin menghapus jadwal ini? Transaksi yang sudah dicatat tidak akan terpengaruh.</p>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={() => setDeleteRecurringId(null)}>Batal</Button>
-          <Button variant="destructive" className="flex-1" onClick={() => deleteRecurringId !== null && handleDeleteRecurring(deleteRecurringId)}>Hapus</Button>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={deleteRecurringId !== null}
+        title="Hapus jadwal ini?"
+        description={(() => {
+          const target = recurring.find((r) => r.id === deleteRecurringId);
+          const name = target ? target.note || getCategory(target.categoryId)?.name || "Jadwal" : "Jadwal";
+          return `“${name}” akan dihapus. Transaksi yang sudah dicatat tidak akan terpengaruh.`;
+        })()}
+        confirmLabel="Hapus"
+        onConfirm={() => deleteRecurringId !== null && handleDeleteRecurring(deleteRecurringId)}
+        onClose={() => setDeleteRecurringId(null)}
+      />
 
     </div>
   );

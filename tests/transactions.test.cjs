@@ -58,7 +58,7 @@ for (const [name, viewport] of [['mobile', { width: 390, height: 844 }], ['deskt
         await panel.getByRole('button', { name: 'Edit', exact: true }).waitFor();
         await panel.getByRole('button', { name: 'Hapus', exact: true }).click();
       }
-      const confirm = page.getByRole('dialog', { name: 'Hapus Transaksi' });
+      const confirm = page.getByRole('alertdialog', { name: 'Hapus transaksi ini?' });
       await confirm.waitFor();
       await confirm.getByRole('button', { name: 'Hapus', exact: true }).click();
       await page.getByRole('button', { name: 'Lihat detail Makan siang', exact: true }).waitFor({ state: 'detached' });

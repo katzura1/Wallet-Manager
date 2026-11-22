@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { Card, CardContent, Modal, Button, ProgressBar } from "@/components/ui";
+import { Card, CardContent, ConfirmDialog, IconTile, Button, ProgressBar } from "@/components/ui";
+import { describeTransactionDelete } from "@/lib/deleteDescription";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { AITransactionForm } from "@/components/forms/AITransactionForm";
 import { TransactionCard } from "@/components/TransactionCard";
@@ -25,7 +26,7 @@ import { useAppLayout, usePageAction } from "@/components/layout/appLayoutContex
 interface BudgetAlertItem {
   categoryId: number;
   categoryName: string;
-  categoryIcon: string;
+  categoryColor: string | undefined;
   spent: number;
   budget: number;
   percentage: number;
@@ -38,7 +39,7 @@ interface AnomalyAlertItem {
   transactionId: number;
   categoryId: number;
   categoryName: string;
-  categoryIcon: string;
+  categoryColor: string | undefined;
   accountId: number;
   amount: number;
   date: string;
@@ -139,7 +140,7 @@ export default function Dashboard() {
         return {
           categoryId: budget.categoryId,
           categoryName: category?.name ?? "Kategori",
-          categoryIcon: category?.icon ?? "📦",
+          categoryColor: category?.color,
           spent,
           budget: budget.amount,
           percentage,
@@ -159,7 +160,7 @@ export default function Dashboard() {
           transactionId: item.transactionId,
           categoryId: item.categoryId,
           categoryName: category?.name ?? "Kategori",
-          categoryIcon: category?.icon ?? "📦",
+          categoryColor: category?.color,
           accountId: item.accountId,
           amount: item.amount,
           date: item.date,
@@ -248,7 +249,7 @@ export default function Dashboard() {
   function getCategoryName(id?: number) {
     if (!id) return null;
     const cat = categories.find((c) => c.id === id);
-    return cat ? `${cat.icon} ${cat.name}` : null;
+    return cat ? cat.name : null;
   }
 
   function getDueStatus(date: string) {
@@ -366,7 +367,7 @@ export default function Dashboard() {
         const percentage = totalCategorySpending > 0 ? Math.round(amount / totalCategorySpending * 100) : 0;
         return (
           <div key={categoryId} className="flex min-w-0 items-center gap-3">
-            <span aria-hidden="true">{category?.icon ?? "📦"}</span>
+            <IconTile label={category?.name ?? "Lainnya"} color={category?.color} size="sm" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap justify-between gap-1 text-xs">
                 <span className="break-words font-medium">{category?.name ?? "Lainnya"}</span>
@@ -499,6 +500,7 @@ export default function Dashboard() {
                       accountName={getAccountName(tx.accountId)}
                       toAccountName={tx.toAccountId ? getAccountName(tx.toAccountId) : undefined}
                       categoryLabel={splitTxIds.has(tx.id!) ? "Split" : (getCategoryName(tx.categoryId) ?? undefined)}
+                      categoryColor={categories.find((c) => c.id === tx.categoryId)?.color}
                       currency={currency}
                       hidden={balanceHidden}
                       hasSplits={splitTxIds.has(tx.id!)}
@@ -575,7 +577,7 @@ export default function Dashboard() {
                       return (
                         <Link key={bill.id} to="/transactions?tab=recurring" className="rounded-xl bg-[hsl(var(--surface-2))]/50 px-3 py-2.5 transition-colors hover:bg-[hsl(var(--accent))]">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-primary/10 text-base text-primary">{categoryLabel?.split(" ")[0] ?? "🧾"}</div>
+                            <IconTile label={categoryLabel ?? bill.note ?? "Tagihan"} color={categories.find((c) => c.id === bill.categoryId)?.color} />
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="break-words text-sm font-medium">{bill.note || categoryLabel || "Tagihan berikutnya"}</p>
@@ -598,7 +600,7 @@ export default function Dashboard() {
                       return (
                         <Link to="/reports" className="rounded-xl bg-[hsl(var(--surface-2))]/50 px-3 py-2.5 transition-colors hover:bg-[hsl(var(--accent))]">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className={`flex h-9 w-9 flex-none items-center justify-center rounded-xl ${tone}`}><span className="text-base">{topBudgetAlert.categoryIcon}</span></div>
+                            <IconTile label={topBudgetAlert.categoryName} color={topBudgetAlert.categoryColor} />
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="break-words text-sm font-medium">Budget {topBudgetAlert.categoryName}</p>
@@ -621,7 +623,7 @@ export default function Dashboard() {
                       return (
                         <Link to={`/transactions?tx=${topAnomalyAlert.transactionId}`} className="rounded-xl bg-[hsl(var(--surface-2))]/50 px-3 py-2.5 transition-colors hover:bg-[hsl(var(--accent))]">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className={`flex h-9 w-9 flex-none items-center justify-center rounded-xl ${tone}`}><span className="text-base">{topAnomalyAlert.categoryIcon}</span></div>
+                            <IconTile label={topAnomalyAlert.categoryName} color={topAnomalyAlert.categoryColor} />
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="break-words text-sm font-medium">Lonjakan {topAnomalyAlert.categoryName}</p>
@@ -659,7 +661,7 @@ export default function Dashboard() {
                   <div className="divide-y divide-[hsl(var(--border))]">
                     {activeAccounts.map((account) => (
                       <div key={account.id} className="flex min-w-0 items-center gap-2.5 rounded-xl px-2 py-2">
-                        <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-sm" style={{ background: `${account.color}20` }}>{account.icon}</span>
+                        <IconTile label={account.name} color={account.color} size="sm" />
                         <div className="min-w-0 flex-1">
                           <p className="break-words text-xs font-semibold">{account.name}</p>
                           <p className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">{ACCOUNT_TYPE_LABELS[account.type]}</p>
@@ -712,13 +714,17 @@ export default function Dashboard() {
         categories={categories}
       />
 
-      <Modal open={deleteTargetId !== null} onClose={() => setDeleteTargetId(null)} title="Hapus Transaksi">
-        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">Yakin ingin menghapus transaksi ini? Aksi ini tidak bisa dibatalkan.</p>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={() => setDeleteTargetId(null)}>Batal</Button>
-          <Button variant="destructive" className="flex-1" onClick={() => deleteTargetId !== null && handleDelete(deleteTargetId)}>Hapus</Button>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={deleteTargetId !== null}
+        title="Hapus transaksi ini?"
+        description={(() => {
+          const target = transactions.find((t) => t.id === deleteTargetId);
+          return target ? describeTransactionDelete(target, { accounts, categories, currency, hidden: balanceHidden }) : "Transaksi ini akan dihapus.";
+        })()}
+        confirmLabel="Hapus"
+        onConfirm={() => deleteTargetId !== null && handleDelete(deleteTargetId)}
+        onClose={() => setDeleteTargetId(null)}
+      />
     </div>
   );
 }

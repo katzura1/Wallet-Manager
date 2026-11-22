@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useWalletStore } from "@/stores/walletStore";
-import { Button, Modal, PageHeader, SegmentedControl } from "@/components/ui";
+import { Button, ConfirmDialog, IconTile, PageHeader, SegmentedControl } from "@/components/ui";
 import { CategoryForm } from "@/components/forms/CategoryForm";
 import { deleteCategory } from "@/db/categories";
 import { seedMissingDefaultCategories } from "@/db/db";
@@ -80,7 +80,7 @@ export default function Categories() {
         <ul className="divide-y divide-[hsl(var(--border))]">
           {items.map((cat) => (
             <li key={cat.id} className="flex items-center gap-3 px-4 py-2.5">
-              <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base" style={{ background: `${cat.color}22` }}>{cat.icon || cat.name.slice(0, 2).toUpperCase()}</span>
+              <IconTile label={cat.name} color={cat.color} />
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <p className="break-words text-sm font-medium">{cat.name}</p>
                 {cat.isDefault && <span className="shrink-0 rounded-full bg-[hsl(var(--surface-2))] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Bawaan</span>}
@@ -106,27 +106,20 @@ export default function Categories() {
         existing={editCat ?? undefined}
       />
 
-      <Modal open={deleteCatId !== null} onClose={() => setDeleteCatId(null)} title="Hapus Kategori">
-        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
-          Yakin ingin menghapus kategori ini? Transaksi yang terkait tidak akan dihapus, hanya kategorinya yang dilepas.
-        </p>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={() => setDeleteCatId(null)}>Batal</Button>
-          <Button
-            variant="destructive"
-            className="flex-1"
-            onClick={async () => {
-              if (deleteCatId !== null) {
-                await deleteCategory(deleteCatId);
-                await refreshAll();
-                setDeleteCatId(null);
-              }
-            }}
-          >
-            Hapus
-          </Button>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={deleteCatId !== null}
+        title="Hapus kategori ini?"
+        description={`Kategori “${categories.find((c) => c.id === deleteCatId)?.name ?? ""}” akan dihapus. Transaksi yang terkait tidak ikut dihapus, hanya kategorinya yang dilepas.`}
+        confirmLabel="Hapus"
+        onConfirm={async () => {
+          if (deleteCatId !== null) {
+            await deleteCategory(deleteCatId);
+            await refreshAll();
+            setDeleteCatId(null);
+          }
+        }}
+        onClose={() => setDeleteCatId(null)}
+      />
     </div>
   );
 }

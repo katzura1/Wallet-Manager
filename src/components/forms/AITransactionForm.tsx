@@ -156,7 +156,7 @@ export function AITransactionForm({ open, onClose, onSaved, accounts, categories
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title="✨ Catat dengan AI">
+    <Modal open={open} onClose={handleClose} title="Catat dengan AI">
       {step === "input" && (
         <div className="space-y-5">
           <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4 space-y-2">

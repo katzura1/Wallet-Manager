@@ -144,7 +144,7 @@ export function RecurringForm({ open, onClose, onSaved, accounts, categories, ex
   ];
 
   return (
-    <Modal open={open} onClose={onClose} title={existing ? "Edit Transaksi Terjadwal" : "Tambah Transaksi Terjadwal"}>
+    <Modal open={open} onClose={onClose} title={existing ? "Edit transaksi terjadwal" : "Tambah transaksi terjadwal"}>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="flex flex-wrap gap-2">
           <Badge className="bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">{existing ? "Mode Edit" : "Mode Baru"}</Badge>

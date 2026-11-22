@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Button, Input, Select, Textarea, Modal, SegmentedControl } from "@/components/ui";
+import { Button, IconTile, Input, Select, Textarea, Modal, SegmentedControl } from "@/components/ui";
 import { todayISO, formatNumberWithSeparator, formatCurrency } from "@/lib/utils";
 import { addTransaction, addTransfer, updateTransaction } from "@/db/transactions";
 import { db } from "@/db/db";
@@ -298,7 +298,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
   const showTransferPreview = type === "transfer" && !existing && amountNum > 0 && !!fromAccount && !!toAccount;
 
   return (
-    <Modal open={open} onClose={onClose} title={existing ? "Edit Transaksi" : "Tambah Transaksi"}>
+    <Modal open={open} onClose={onClose} title={existing ? "Edit transaksi" : "Tambah transaksi"}>
       <form onSubmit={handleSubmit} className="space-y-5">
         <SegmentedControl
           label="Jenis transaksi"
@@ -362,7 +362,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                         onClick={() => { categoryTouched.current = true; setCategoryId(checked ? "" : String(c.id)); }}
                         className={`flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border p-2 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${checked ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/8" : "border-[hsl(var(--border))] bg-[hsl(var(--card))]"}`}
                       >
-                        <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full text-lg" style={{ background: `${c.color}22` }}>{c.icon}</span>
+                        <IconTile label={c.name} color={c.color} />
                         <span className="line-clamp-1 text-xs font-medium">{c.name}</span>
                       </button>
                     );

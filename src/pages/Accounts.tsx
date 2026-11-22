@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { Button, EmptyState, Modal, Spinner, PageHeader, ProgressBar, ListGroup, Sheet } from "@/components/ui";
+import { Button, ConfirmDialog, EmptyState, IconTile, Modal, Spinner, PageHeader, ProgressBar, ListGroup, Sheet } from "@/components/ui";
 import { ReconcileAccountForm } from "@/components/forms/ReconcileAccountForm";
 import { AccountForm } from "@/components/forms/AccountForm";
 import { archiveAccount, deleteAccount, updateAccount } from "@/db/accounts";
@@ -323,7 +323,7 @@ export default function Accounts() {
         />
       )}
 
-      <Modal open={!!archiveTarget} onClose={() => setArchiveTarget(null)} title={archiveTarget?.isArchived ? "Pulihkan Akun" : "Arsipkan Akun"}>
+      <Modal open={!!archiveTarget} onClose={() => setArchiveTarget(null)} title={archiveTarget?.isArchived ? "Pulihkan akun" : "Arsipkan akun"}>
         <div className="space-y-4">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {archiveTarget?.isArchived
@@ -341,36 +341,20 @@ export default function Accounts() {
         </div>
       </Modal>
 
-      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Hapus Akun">
-        <div className="space-y-4">
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Yakin ingin menghapus akun <strong>{deleteTarget?.name}</strong>? Semua transaksi di akun ini akan ikut terhapus.
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>
-              Batal
-            </Button>
-            <Button variant="destructive" className="flex-1" onClick={() => deleteTarget && handleDelete(deleteTarget)}>
-              Hapus
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Hapus akun ini?"
+        description={<>Akun <strong>{deleteTarget?.name}</strong> dan semua transaksi di dalamnya akan dihapus permanen.</>}
+        confirmLabel="Hapus"
+        onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
 
 function Avatar({ account, large }: { account: Account; large?: boolean }) {
-  const initials = account.name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
-  return (
-    <span
-      aria-hidden="true"
-      className={cn("flex shrink-0 items-center justify-center rounded-full font-semibold", large ? "h-14 w-14 text-lg" : "h-10 w-10 text-sm")}
-      style={{ background: account.color + "25", color: account.color }}
-    >
-      {initials}
-    </span>
-  );
+  return <IconTile label={account.name} color={account.color} size={large ? "lg" : "md"} />;
 }
 
 function AccountDetail({

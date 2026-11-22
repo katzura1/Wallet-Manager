@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Card, CardHeader, CardTitle, CardContent, Badge, PageHeader, ProgressBar, SegmentedControl } from "@/components/ui";
+import { Card, CardHeader, CardTitle, CardContent, Badge, IconTile, PageHeader, ProgressBar, SegmentedControl } from "@/components/ui";
 import { getTransactions, getMonthlyChartData, getCategoryExpenseData, getMonthlySummary, getTotalBalanceHistory, getSummaryBetween, getCategoryExpenseBetween, getYearToDateSummary, getYearOverYearComparison, getCategoryIncomeData, getCategoryTrends, type YearToDateSummary, type YearOverYearComparison, type CategoryIncomeEntry, type CategoryTrend } from "@/db/transactions";
 import { getBudgetsForMonth, getBudgetsForCategoriesWithInheritance, predictBudgetStatus } from "@/db/budgets";
 import { BudgetForm } from "@/components/forms/BudgetForm";
@@ -542,7 +542,7 @@ export default function Reports() {
                         const delta = mode === "monthly" && prev > 0 ? Math.round(((entry.value - prev) / prev) * 100) : null;
                         return (
                           <div key={entry.name} className="flex items-center gap-2.5">
-                            <span className="text-sm">{entry.icon}</span>
+                            <IconTile label={entry.name} color={entry.color} size="sm" />
                             <div className="min-w-0 flex-1">
                               <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
                                 <span className="truncate">{entry.name}</span>
@@ -580,7 +580,7 @@ export default function Reports() {
                       const pct = totalIncome > 0 ? Math.round((entry.amount / totalIncome) * 100) : 0;
                       return (
                         <div key={entry.categoryId} className="flex items-center gap-2.5">
-                          <span className="text-sm">{category?.icon ?? "💰"}</span>
+                          <IconTile label={category?.name ?? "Lainnya"} color={category?.color} size="sm" />
                           <div className="min-w-0 flex-1">
                             <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
                               <span className="truncate">{category?.name ?? "Lainnya"}</span>
@@ -653,7 +653,7 @@ export default function Reports() {
                   const tone = pct >= 100 ? "danger" : pct >= 80 ? "warning" : "primary";
                   return (
                     <div key={category.id} className="flex items-center gap-3 py-2">
-                      <span className="text-base">{category.icon}</span>
+                      <IconTile label={category.name} color={category.color} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
                           <span className="truncate">{category.name}</span>
@@ -707,7 +707,7 @@ export default function Reports() {
                     <div className="lg:grid lg:grid-cols-2 lg:gap-x-6">
                       {visibleUnusedBudgetRows.map(({ category, budget, isInherited }) => (
                         <div key={category.id} className="flex items-center gap-3 py-2">
-                          <span className="text-base">{category.icon}</span>
+                          <IconTile label={category.name} color={category.color} size="sm" />
                           <div className="min-w-0 flex-1">
                             <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
                               <span className="truncate">{category.name}</span>
@@ -808,7 +808,7 @@ export default function Reports() {
                   .slice(0, showTrends ? undefined : 3)
                   .map((trend) => (
                     <div key={trend.categoryId} className="flex items-center gap-2.5 rounded-xl bg-[hsl(var(--surface-2))] p-2.5">
-                      <span className="text-sm">{trend.categoryIcon}</span>
+                      <IconTile label={trend.categoryName} color={categories.find((c) => c.id === trend.categoryId)?.color} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="flex justify-between gap-2 text-xs">
                           <span className="truncate font-medium">{trend.categoryName}</span>
@@ -846,7 +846,7 @@ export default function Reports() {
                 const totalAll = accounts.filter((a) => !a.isArchived).reduce((s, a) => s + Math.abs(a.currentBalance), 0);
                 return (
                   <div key={acc.id} className="flex items-center gap-2.5">
-                    <span className="text-sm">{acc.icon}</span>
+                    <IconTile label={acc.name} color={acc.color} size="sm" />
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs">
                         <span className="truncate">{acc.name}</span>

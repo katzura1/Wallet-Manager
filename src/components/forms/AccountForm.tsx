@@ -46,7 +46,7 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={existing ? "Edit Akun" : "Tambah Akun"}>
+    <Modal open={open} onClose={onClose} title={existing ? "Edit akun" : "Tambah akun"}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Nama Akun"

@@ -3,6 +3,7 @@ import type { ParsedTransaction } from "@/lib/geminiParser";
 import type { Account, Category } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { Check, Pencil, Trash2, X } from "lucide-react";
+import { IconTile } from "@/components/ui";
 
 interface ChatTransactionCardProps {
   transaction: ParsedTransaction;
@@ -29,7 +30,6 @@ export function ChatTransactionCard({
   const toAccount = tx.toAccountId ? accounts.find((a) => a.id === tx.toAccountId) : undefined;
   const category = tx.categoryId ? categories.find((c) => c.id === tx.categoryId) : undefined;
 
-  const displayIcon = category?.icon || (tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️");
   const toneBg = tx.type === "income" ? "bg-success/10 text-success" : tx.type === "expense" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning";
   const typeLabel = tx.type === "income" ? "Pemasukan" : tx.type === "expense" ? "Pengeluaran" : "Transfer";
 
@@ -47,9 +47,7 @@ export function ChatTransactionCard({
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex gap-3 border-b border-[hsl(var(--border))] px-4 py-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-base flex-none ${toneBg}`}>
-          {displayIcon}
-        </div>
+        <IconTile label={category?.name ?? typeLabel} color={category?.color} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${toneBg}`}>
@@ -152,7 +150,7 @@ export function ChatTransactionCard({
             {category && (
               <p className="flex items-center gap-2">
                 <span className="text-[hsl(var(--muted-foreground))]">Kategori:</span>
-                <span className="font-medium">{category.icon} {category.name}</span>
+                <span className="font-medium">{category.name}</span>
               </p>
             )}
             {tx.note && (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSettingsStore } from "@/stores/walletStore";
-import { Button, Modal, PageHeader, SegmentedControl, ListGroup, ListRow, Sheet, Switch } from "@/components/ui";
+import { Button, ConfirmDialog, PageHeader, SegmentedControl, ListGroup, ListRow, Sheet, Switch } from "@/components/ui";
 import { createBackupData, exportJSON, exportCSV, importJSON } from "@/lib/backup";
 import { useWalletStore } from "@/stores/walletStore";
 import { db } from "@/db/db";
@@ -471,7 +471,7 @@ export default function Settings() {
         </div>
       </Sheet>
 
-      <Sheet open={Boolean(restoreTarget)} onClose={() => setRestoreTarget(null)} title="Restore dari Cloud">
+      <Sheet open={Boolean(restoreTarget)} onClose={() => setRestoreTarget(null)} title="Restore dari cloud">
         <div className="space-y-4">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             Pilih mode restore untuk <span className="font-medium text-[hsl(var(--foreground))]">{restoreTarget?.name}</span>.
@@ -489,21 +489,14 @@ export default function Settings() {
         </div>
       </Sheet>
 
-      <Modal open={clearConfirm} onClose={() => setClearConfirm(false)} title="Hapus Semua Data">
-        <div className="space-y-4">
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Yakin? Semua akun dan transaksi akan dihapus permanen. Pastikan sudah backup terlebih dahulu.
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setClearConfirm(false)}>
-              Batal
-            </Button>
-            <Button variant="destructive" className="flex-1" onClick={handleClearAll}>
-              Ya, Hapus Semua
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={clearConfirm}
+        title="Hapus semua data?"
+        description="Semua akun dan transaksi akan dihapus permanen. Pastikan sudah backup terlebih dahulu."
+        confirmLabel="Ya, Hapus Semua"
+        onConfirm={handleClearAll}
+        onClose={() => setClearConfirm(false)}
+      />
     </div>
   );
 }

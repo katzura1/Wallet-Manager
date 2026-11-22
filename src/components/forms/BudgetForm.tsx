@@ -51,7 +51,7 @@ export function BudgetForm({ open, onClose, onSaved, categories, month, initialC
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Atur Budget">
+    <Modal open={open} onClose={onClose} title="Atur budget">
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="rounded-[24px] border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-4">
           <p className="text-sm font-semibold">Periode anggaran</p>

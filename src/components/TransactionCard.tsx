@@ -1,13 +1,14 @@
 import type { Transaction } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Pencil, Trash2 } from "lucide-react";
+import { IconTile } from "@/components/ui";
 
 interface TransactionCardProps {
   transaction: Transaction;
   accountName: string;
   toAccountName?: string;
   categoryLabel?: string;
-  categoryIcon?: string;
+  categoryColor?: string;
   currency: string;
   hidden?: boolean;
   desktop?: boolean;
@@ -25,7 +26,7 @@ export function TransactionCard({
   accountName,
   toAccountName,
   categoryLabel,
-  categoryIcon,
+  categoryColor,
   currency,
   hidden = false,
   desktop = false,
@@ -40,16 +41,15 @@ export function TransactionCard({
   const displayLabel = tx.note || (hasSplits ? "Split Kategori" : categoryLabel) || accountName;
   const metaCategory = tx.isAdjustment ? "Penyesuaian saldo" : tx.debtId ? "Utang/Piutang" : categoryLabel ?? (tx.type === "income" ? "Pemasukan" : tx.type === "expense" ? "Pengeluaran" : "Transfer");
   const accountLabel = `${accountName}${toAccountName ? ` → ${toAccountName}` : ""}`;
-  const displayIcon = tx.isAdjustment ? "⚖️" : hasSplits ? "✂️" : categoryIcon || (tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️");
+  const tileLabel = tx.isAdjustment ? "Penyesuaian saldo" : hasSplits ? "Split Kategori" : metaCategory;
+  const tileColor = tx.isAdjustment || hasSplits ? undefined : categoryColor;
   const amountColor = hidden || tx.type === "transfer"
     ? "text-[hsl(var(--muted-foreground))]"
     : tx.type === "income" ? "text-success" : "text-[hsl(var(--foreground))]";
   const amount = hidden ? "•••" : `${tx.type === "expense" ? "−" : tx.type === "income" ? "+" : ""}${formatCurrency(tx.amount, currency)}`;
   const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]";
 
-  const avatar = (
-    <span aria-hidden="true" className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-base">{displayIcon}</span>
-  );
+  const avatar = <IconTile label={tileLabel} color={tileColor} />;
 
   const actions = (
     <div className="flex items-center">

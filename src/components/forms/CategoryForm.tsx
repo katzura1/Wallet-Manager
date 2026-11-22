@@ -57,7 +57,7 @@ export function CategoryForm({ open, onClose, onSaved, existing }: CategoryFormP
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={existing ? "Edit Kategori" : "Tambah Kategori"}>
+    <Modal open={open} onClose={onClose} title={existing ? "Edit kategori" : "Tambah kategori"}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Type toggle */}
         <div>

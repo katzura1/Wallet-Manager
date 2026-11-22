@@ -1,7 +1,8 @@
 import { cn } from "@/lib/utils";
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]", className)} {...props} />;
@@ -125,37 +126,164 @@ interface ModalProps {
   noScroll?: boolean;
 }
 
+function GrabHandle() {
+  return <div aria-hidden="true" className="flex justify-center pt-2.5 lg:hidden"><span className="h-1 w-10 rounded-full bg-[hsl(var(--surface-3))]" /></div>;
+}
+
 export function Modal({ open, onClose, title, children, noScroll }: ModalProps) {
   const titleId = React.useId();
 
   React.useEffect(() => {
     if (open) {
+      const previous = document.body.style.overflow;
       document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = ""; };
+      return () => { document.body.style.overflow = previous; };
     }
   }, [open]);
 
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50" data-modal-open="true">
+  // Rendered into document.body so no ancestor stacking context can place the bottom nav above it.
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-end justify-center lg:items-center lg:p-4" data-modal-open="true">
       <div className="absolute inset-0 bg-black/45" aria-hidden="true" onClick={onClose} />
-      <div className="relative z-10 flex min-h-full items-end justify-center px-0 pt-4 pb-24 safe-bottom sm:items-center sm:p-4 sm:pb-4">
-        <div className={cn(
-          "relative flex w-full flex-col overflow-hidden rounded-t-3xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl overscroll-contain sm:max-w-lg sm:rounded-3xl",
-          noScroll ? "h-full max-h-[calc(100dvh-7rem)] sm:max-h-[90vh]" : "max-h-[calc(100dvh-7rem)] sm:max-h-[90vh]"
-        )} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 p-5 backdrop-blur-sm">
-            <div>
-              <h2 id={titleId} className="font-semibold text-lg leading-tight">{title}</h2>
-            </div>
-            <button onClick={onClose} aria-label="Tutup dialog" className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] text-xl leading-none hover:text-[hsl(var(--foreground))]">
-              ✕
-            </button>
-          </div>
-          <div className={noScroll ? "flex-1 min-h-0 overflow-hidden flex flex-col" : "min-h-0 overflow-y-auto p-5 pb-24 safe-bottom"}>{children}</div>
+      <div
+        className={cn(
+          "relative z-10 flex w-full flex-col overflow-hidden rounded-t-3xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl overscroll-contain lg:max-w-lg lg:rounded-3xl",
+          noScroll ? "h-[90dvh] lg:h-auto lg:max-h-[90dvh]" : "max-h-[90dvh]",
+        )}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <GrabHandle />
+        <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] px-5 pb-3 pt-2 lg:pt-4">
+          <h2 id={titleId} className="min-w-0 truncate text-lg font-semibold leading-tight">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Tutup dialog" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+            <X size={18} aria-hidden="true" />
+          </button>
         </div>
+        <div className={noScroll ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "min-h-0 overflow-y-auto p-5 safe-bottom"}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
+  );
+}
+
+interface ConfirmDialogProps {
+  open: boolean;
+  title: string;
+  description: React.ReactNode;
+  confirmLabel: string;
+  cancelLabel?: string;
+  tone?: "danger";
+  onConfirm: () => unknown;
+  onClose: () => void;
+}
+
+export function ConfirmDialog({ open, title, description, confirmLabel, cancelLabel = "Batal", tone = "danger", onConfirm, onClose }: ConfirmDialogProps) {
+  const titleId = React.useId();
+  const descId = React.useId();
+  const cancelRef = React.useRef<HTMLButtonElement>(null);
+  const panelRef = React.useRef<HTMLElement>(null);
+  const onCloseRef = React.useRef(onClose);
+  React.useEffect(() => { onCloseRef.current = onClose; });
+
+  React.useEffect(() => {
+    if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    cancelRef.current?.focus();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") { onCloseRef.current(); return; }
+      if (event.key !== "Tab") return;
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>("button:not([disabled])");
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus?.();
+    };
+  }, [open]);
+
+  if (!open) return null;
+  const danger = tone === "danger";
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center px-6">
+      <div className="absolute inset-0 bg-black/45" aria-hidden="true" onClick={onClose} />
+      <section
+        ref={panelRef}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descId}
+        className="relative z-10 flex w-full max-w-sm flex-col gap-3 rounded-3xl bg-[hsl(var(--card))] px-5 pb-5 pt-6 shadow-2xl"
+      >
+        <span aria-hidden="true" className={cn("flex h-12 w-12 items-center justify-center rounded-2xl", danger && "bg-danger/10 text-danger")}>
+          <Trash2 size={22} />
+        </span>
+        <h2 id={titleId} className="text-lg font-extrabold leading-tight text-[hsl(var(--foreground))]">{title}</h2>
+        <p id={descId} className="break-words text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">{description}</p>
+        <div className="mt-1.5 grid grid-cols-2 gap-2.5">
+          <button
+            ref={cancelRef}
+            type="button"
+            onClick={onClose}
+            className="h-12 rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[15px] font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => { void onConfirm(); }}
+            className="h-12 rounded-[14px] bg-danger text-[15px] font-bold text-[hsl(var(--primary-foreground))] hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
+const tileSizes = {
+  sm: "h-8 w-8 rounded-[10px] text-[11px]",
+  md: "h-10 w-10 rounded-xl text-sm",
+  lg: "h-12 w-12 rounded-2xl text-base",
+} as const;
+
+function initialsOf(label: string): string {
+  const words = label.trim().split(/\s+/).filter(Boolean);
+  const letters = (w: string) => Array.from(w.replace(/[^\p{L}\p{N}]/gu, ""));
+  if (words.length === 0) return "?";
+  if (words.length === 1) return letters(words[0]).slice(0, 2).join("").toUpperCase() || "?";
+  const first = letters(words[0])[0] ?? "";
+  const second = letters(words[1])[0] ?? "";
+  return (first + second).toUpperCase() || "?";
+}
+
+function validColor(color?: string): string | undefined {
+  if (!color) return undefined;
+  return typeof CSS !== "undefined" && CSS.supports?.("color", color) ? color : undefined;
+}
+
+export function IconTile({ label, color, size = "md", className }: { label: string; color?: string; size?: keyof typeof tileSizes; className?: string }) {
+  const tint = validColor(color) ?? "hsl(var(--primary))";
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("inline-flex shrink-0 select-none items-center justify-center font-bold leading-none", tileSizes[size], className)}
+      style={{ background: `color-mix(in srgb, ${tint} 14%, transparent)`, color: tint }}
+    >
+      {initialsOf(label)}
+    </span>
   );
 }
 
@@ -350,6 +478,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
     closeRef.current?.focus();
     document.body.style.overflow = "hidden";
     function handleKeyDown(event: KeyboardEvent) {
+      if (document.querySelector('[role="alertdialog"]')) return;
       if (event.key === "Escape") {
         onCloseRef.current();
         return;
@@ -380,8 +509,8 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
   }, [open]);
 
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center lg:p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-end justify-center lg:items-center lg:p-4">
       <div className="absolute inset-0 bg-black/45" aria-hidden="true" onClick={onClose} />
       <div
         ref={panelRef}
@@ -390,8 +519,9 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         aria-labelledby={titleId}
         className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl lg:max-w-lg lg:rounded-3xl"
       >
-        <div className="flex items-center justify-between border-b border-[hsl(var(--border))] p-5">
-          <h2 id={titleId} className="text-lg font-semibold leading-tight">{title}</h2>
+        <GrabHandle />
+        <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] px-5 pb-3 pt-2 lg:pt-4">
+          <h2 id={titleId} className="min-w-0 truncate text-lg font-semibold leading-tight">{title}</h2>
           <button
             ref={closeRef}
             type="button"
@@ -404,6 +534,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         </div>
         <div className="min-h-0 overflow-y-auto p-5 safe-bottom">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

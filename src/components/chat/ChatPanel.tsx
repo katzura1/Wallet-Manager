@@ -214,7 +214,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Asisten Keuangan" noScroll>
+    <Modal open={open} onClose={handleClose} title="Asisten keuangan" noScroll>
       <div className="flex flex-col min-h-0 flex-1">
         {/* Messages - scrollable */}
         <div className="flex-1 overflow-y-auto space-y-4 min-h-0 p-5 pb-4">
