@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { Button, ConfirmDialog, IconTile, Input, Select, EmptyState, Modal, Badge, Spinner, PageHeader, Sheet } from "@/components/ui";
+import { Button, ConfirmDialog, IconTile, Input, Select, EmptyState, Modal, Badge, Spinner, Sheet, ListGroup, ListRow } from "@/components/ui";
 import { describeTransactionDelete } from "@/lib/deleteDescription";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { AITransactionForm } from "@/components/forms/AITransactionForm";
@@ -16,7 +16,7 @@ import { db } from "@/db/db";
 import { formatCurrency, formatDate, todayISO, readBalanceHidden } from "@/lib/utils";
 import { getRecurringDetectionSuggestions, type RecurringDetectionSuggestion } from "@/services/recurringDetection";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
-import { Plus, Search, Filter, Pencil, Trash2, Pause, Play } from "lucide-react";
+import { Plus, Search, Filter, ChevronLeft, MoreHorizontal, Sparkles, ClipboardList } from "lucide-react";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 
 const PAGE_SIZE = 100;
@@ -67,6 +67,9 @@ export default function Transactions() {
   const [pendingRecurringAction, setPendingRecurringAction] = useState<{ rec: RecurringTransaction; action: "toggle" | "run" | "skip" } | null>(null);
   const [splitMap, setSplitMap] = useState<Record<number, TransactionSplit[]>>({});
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [actionRec, setActionRec] = useState<RecurringTransaction | null>(null);
+  const hidden = readBalanceHidden();
+  const money = (amount: number) => (hidden ? "•••" : formatCurrency(amount, currency));
   const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
 
   useEffect(() => {
@@ -247,13 +250,6 @@ export default function Transactions() {
     }
   }
 
-  function getDueClass(tone: "overdue" | "today" | "soon" | "upcoming") {
-    if (tone === "overdue") return "bg-danger/10 text-danger";
-    if (tone === "today") return "bg-warning/10 text-warning";
-    if (tone === "soon") return "bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]";
-    return "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]";
-  }
-
   function requestRecurringAction(rec: RecurringTransaction, action: "toggle" | "run" | "skip") {
     setPendingRecurringAction({ rec, action });
   }
@@ -369,6 +365,7 @@ export default function Transactions() {
           categoryLabel={hasSplits ? `Split · ${txSplits.length} kategori` : cat?.name}
           categoryColor={cat?.color}
           currency={currency}
+          hidden={hidden}
           hasSplits={hasSplits}
           selected={selectedId === tx.id}
           onSelect={() => setSelectedId(tx.id!)}
@@ -413,7 +410,12 @@ export default function Transactions() {
   const typeChips: { value: Transaction["type"] | undefined; label: string }[] = [
     { value: undefined, label: "Semua" }, { value: "expense", label: "Keluar" }, { value: "income", label: "Masuk" }, { value: "transfer", label: "Transfer" },
   ];
-  const pillCls = (on: boolean) => `inline-flex min-h-11 items-center rounded-full px-3.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${on ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))]"}`;
+  const pillCls = (on: boolean) => `inline-flex min-h-11 items-center rounded-full px-3.5 text-[13px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] ${on ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))]" : "border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]"}`;
+  const monthlyFactor: Record<string, number> = { daily: 30, weekly: 52 / 12, monthly: 1, yearly: 1 / 12 };
+  const monthlyOutflow = Math.round(recurring.filter((r) => r.isActive && r.type === "expense").reduce((sum, r) => sum + r.amount * (monthlyFactor[r.interval] ?? 1), 0));
+  const scheduledPill = "inline-flex min-h-11 items-center";
+  const scheduledPillLabel = "rounded-full bg-[hsl(var(--primary))]/10 px-2.5 py-1 text-xs font-bold text-[hsl(var(--primary))]";
+  const addSchedule = () => { setRecurringDraft(null); setRecurringFormOpen(true); };
 
   const detailPane = selectedTx ? (
     <TransactionDetail
@@ -424,6 +426,7 @@ export default function Transactions() {
       splits={splitMap[selectedTx.id!] ?? []}
       categories={categories}
       currency={currency}
+      hidden={hidden}
       onEdit={() => { if (!desktop) setSelectedId(null); editTx(selectedTx); }}
       onDelete={() => { if (!desktop) setSelectedId(null); deleteTx(selectedTx); }}
     />
@@ -431,19 +434,39 @@ export default function Transactions() {
 
   return (
     <div className="space-y-4 px-4 pt-6 pb-4 lg:px-0 lg:pt-8">
-      <PageHeader
-        title="Transaksi"
-        actions={
-          <>
-            <div className="flex items-center gap-2" role="group" aria-label="Tampilan transaksi">
-              <button type="button" onClick={() => handleTabChange("all")} aria-pressed={activeTab === "all"} className={pillCls(activeTab === "all")}>Riwayat</button>
-              <button type="button" onClick={() => handleTabChange("recurring")} aria-pressed={activeTab === "recurring"} className={pillCls(activeTab === "recurring")}>Terjadwal · {activeRecurringCount}</button>
+      {activeTab === "all" ? (
+        <header className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h1 className="truncate text-2xl font-extrabold tracking-tight">Transaksi</h1>
+            <div role="group" aria-label="Tampilan transaksi">
+              <button type="button" onClick={() => handleTabChange("recurring")} aria-pressed={false} className={`${scheduledPill} rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]`}>
+                <span className={scheduledPillLabel}>Terjadwal · {activeRecurringCount}</span>
+              </button>
             </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <span className="hidden text-sm text-[hsl(var(--muted-foreground))] lg:inline">{monthLabel}</span>
             <Button variant="outline" className="hidden lg:inline-flex" onClick={() => void exportCSV()}>Ekspor CSV</Button>
-          </>
-        }
-      />
+          </div>
+        </header>
+      ) : (
+        <header className="flex items-center gap-3">
+          <button type="button" onClick={() => handleTabChange("all")} aria-label="Kembali ke transaksi" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:hidden">
+            <ChevronLeft size={20} aria-hidden="true" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-xl font-extrabold tracking-tight lg:text-2xl">Terjadwal</h1>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">{activeRecurringCount > 0 ? `${activeRecurringCount} jadwal aktif${monthlyOutflow > 0 ? ` · ${money(monthlyOutflow)}/bulan` : ""}` : "Belum ada jadwal aktif"}</p>
+          </div>
+          <div className="hidden items-center gap-2 lg:flex" role="group" aria-label="Tampilan transaksi">
+            <button type="button" onClick={() => handleTabChange("all")} aria-pressed={false} className={pillCls(false)}>Riwayat</button>
+            <button type="button" onClick={() => handleTabChange("recurring")} aria-pressed={true} className={pillCls(true)}>Terjadwal · {activeRecurringCount}</button>
+          </div>
+          <button type="button" onClick={addSchedule} aria-label="Tambah jadwal" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:hidden">
+            <Plus size={20} aria-hidden="true" />
+          </button>
+        </header>
+      )}
 
       {activeTab === "all" && (
         <div className="space-y-3">
@@ -579,11 +602,13 @@ export default function Transactions() {
           )}
 
           {transactions.length > 0 && (
-            <dl className="flex gap-6 px-1 text-sm" aria-label="Ringkasan periode">
-              <div><dt className="text-xs text-[hsl(var(--muted-foreground))]">Masuk</dt><dd className="font-semibold tabular-nums text-success">{formatCurrency(totals.income, currency)}</dd></div>
-              <div><dt className="text-xs text-[hsl(var(--muted-foreground))]">Keluar</dt><dd className="font-semibold tabular-nums">{formatCurrency(totals.expense, currency)}</dd></div>
-              <div><dt className="text-xs text-[hsl(var(--muted-foreground))]">Transfer</dt><dd className="font-semibold tabular-nums text-[hsl(var(--muted-foreground))]">{formatCurrency(totals.transfer, currency)}</dd></div>
-            </dl>
+            <div aria-label="Ringkasan periode" role="group" className="space-y-1.5">
+              <dl className="grid grid-cols-2 gap-2.5">
+                <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-3"><dt className="text-xs text-[hsl(var(--muted-foreground))]">Masuk</dt><dd className={`break-words text-base font-bold tabular-nums ${hidden ? "text-[hsl(var(--muted-foreground))]" : "text-success"}`}>{money(totals.income)}</dd></div>
+                <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-3"><dt className="text-xs text-[hsl(var(--muted-foreground))]">Keluar</dt><dd className="break-words text-base font-bold tabular-nums">{money(totals.expense)}</dd></div>
+              </dl>
+              {totals.transfer > 0 && <p className="px-1 text-xs text-[hsl(var(--muted-foreground))]">Transfer <span className="font-semibold tabular-nums">{money(totals.transfer)}</span></p>}
+            </div>
           )}
         </div>
       )}
@@ -591,7 +616,25 @@ export default function Transactions() {
       {/* All Transactions tab */}
       {activeTab === "all" && (
         transactions.length === 0 ? (
-          <EmptyState icon="📋" title={activeFilterChips.length ? "Tidak ada transaksi yang cocok" : "Belum ada transaksi"} description={activeFilterChips.length ? "Ubah pencarian atau reset filter untuk melihat transaksi lainnya." : "Tekan tombol + untuk mencatat transaksi pertama."} />
+          activeFilterChips.length > 0 ? (
+            <EmptyState icon="📋" title="Tidak ada transaksi yang cocok" description="Ubah pencarian atau reset filter untuk melihat transaksi lainnya." />
+          ) : (
+            <div className="space-y-8">
+              <section aria-label="Belum ada transaksi" className="mt-10 flex flex-col items-center gap-3.5 px-4 text-center">
+                <div aria-hidden="true" className="flex h-24 w-24 items-center justify-center rounded-[32px] bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]"><ClipboardList size={44} /></div>
+                <h2 className="text-lg font-extrabold">Belum ada transaksi</h2>
+                <p className="text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">Catat pengeluaran pertamamu. Bisa diketik manual, atau tulis saja “makan 25rb pakai GoPay” ke asisten.</p>
+                <div className="mt-1.5 flex flex-wrap justify-center gap-2">
+                  <button type="button" onClick={() => setAddOpen(true)} className="inline-flex h-[46px] items-center rounded-[14px] bg-[hsl(var(--primary))] px-[18px] text-sm font-bold text-[hsl(var(--primary-foreground))]">Catat manual</button>
+                  <button type="button" onClick={() => setAiOpen(true)} className="inline-flex h-[46px] items-center gap-1.5 rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-[18px] text-sm font-semibold"><Sparkles size={15} aria-hidden="true" />Pakai asisten</button>
+                </div>
+              </section>
+              <div className="flex items-center gap-2.5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-2">
+                <span className="flex-1 text-[13px]">Punya data dari aplikasi lama?</span>
+                <Link to="/settings" className="inline-flex min-h-11 items-center text-[13px] font-bold text-[hsl(var(--primary))]">Impor backup</Link>
+              </div>
+            </div>
+          )
         ) : (
           <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
             <div className="space-y-4">
@@ -612,7 +655,7 @@ export default function Transactions() {
                           <Fragment key={date}>
                             <tr className="border-t border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]">
                               <th scope="colgroup" colSpan={3} className="px-3 py-2 text-xs font-semibold text-[hsl(var(--muted-foreground))]">{dayLabel(date)}</th>
-                              <td colSpan={2} className={`px-3 py-2 text-right text-xs font-semibold tabular-nums ${net > 0 ? "text-success" : "text-[hsl(var(--muted-foreground))]"}`}>{net > 0 ? "+" : net < 0 ? "−" : ""}{formatCurrency(Math.abs(net), currency)}</td>
+                              <td colSpan={2} className={`px-3 py-2 text-right text-xs font-semibold tabular-nums ${net > 0 && !hidden ? "text-success" : "text-[hsl(var(--muted-foreground))]"}`}>{hidden ? "" : net > 0 ? "+" : net < 0 ? "−" : ""}{money(Math.abs(net))}</td>
                             </tr>
                             {renderTransactions(dayTxs)}
                           </Fragment>
@@ -627,8 +670,8 @@ export default function Transactions() {
                   return (
                     <section key={date} aria-label={dayLabel(date)} className="space-y-2">
                       <div className="flex items-baseline justify-between gap-3 px-1">
-                        <h2 className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">{dayLabel(date)}</h2>
-                        <span className={`text-xs font-semibold tabular-nums ${net > 0 ? "text-success" : "text-[hsl(var(--muted-foreground))]"}`}>{net > 0 ? "+" : net < 0 ? "−" : ""}{formatCurrency(Math.abs(net), currency)}</span>
+                        <h2 className="text-[13px] font-bold text-[hsl(var(--foreground))]">{dayLabel(date)}</h2>
+                        <span className={`text-xs font-medium tabular-nums ${net > 0 && !hidden ? "text-success" : "text-[hsl(var(--muted-foreground))]"}`}>{hidden ? "" : net > 0 ? "+" : net < 0 ? "−" : ""}{money(Math.abs(net))}</span>
                       </div>
                       <div className="divide-y divide-[hsl(var(--border))] overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">{renderTransactions(dayTxs)}</div>
                     </section>
@@ -656,12 +699,6 @@ export default function Transactions() {
       )}
       {/* Recurring tab */}
       {activeTab === "recurring" && (
-        <Button className="min-h-11 w-full gap-1 lg:hidden" onClick={() => { setRecurringDraft(null); setRecurringFormOpen(true); }}>
-          <Plus size={16} aria-hidden="true" />Tambah jadwal
-        </Button>
-      )}
-
-      {activeTab === "recurring" && (
         recurringLoading ? (
           <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
             <Spinner />
@@ -672,25 +709,21 @@ export default function Transactions() {
             <Button size="sm" variant="outline" onClick={() => void loadRecurring()}>Coba lagi</Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="space-y-4">
             {recurringFeedback && (
-              <div className={`rounded-xl border px-3 py-2 text-sm lg:col-span-2 ${recurringFeedback.type === "success" ? "border-success/40 bg-success/10 text-success" : "border-danger/40 bg-danger/10 text-danger"}`}>
+              <div role="status" className={`rounded-xl border px-3 py-2 text-sm ${recurringFeedback.type === "success" ? "border-success/40 bg-success/10 text-success" : "border-danger/40 bg-danger/10 text-danger"}`}>
                 {recurringFeedback.text}
               </div>
             )}
 
             {recurringSuggestions.length > 0 && (
-              <div className="space-y-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 lg:col-span-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">Deteksi Jadwal Otomatis</p>
-                    <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
-                      AI lokal menemukan pola yang layak dijadikan transaksi terjadwal.
-                    </p>
+              <section aria-label="Deteksi jadwal otomatis" className="space-y-3 rounded-[18px] border border-dashed border-[hsl(var(--primary))]/50 bg-[hsl(var(--card))] p-4">
+                <div className="flex items-start gap-2.5">
+                  <span aria-hidden="true" className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]"><Sparkles size={18} /></span>
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-bold">{recurringSuggestions.length} pola rutin terdeteksi</h2>
+                    <p className="text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">AI lokal menemukan pola yang layak dijadikan transaksi terjadwal.</p>
                   </div>
-                  <Badge className="bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
-                    {recurringSuggestions.length} saran
-                  </Badge>
                 </div>
 
                 <div className="space-y-2">
@@ -703,7 +736,7 @@ export default function Transactions() {
                           <IconTile label={category?.name ?? suggestion.note ?? (isIncome ? "Pemasukan" : "Pengeluaran")} color={category?.color} />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate text-sm font-medium">{suggestion.note || category?.name || "Pola berulang terdeteksi"}</p>
+                              <p className="truncate text-sm font-semibold">{suggestion.note || category?.name || "Pola berulang terdeteksi"}</p>
                               <Badge className={suggestion.confidence === "high" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}>
                                 {suggestion.confidence === "high" ? "High confidence" : "Perlu review"}
                               </Badge>
@@ -712,10 +745,11 @@ export default function Transactions() {
                               {getAccountName(suggestion.accountId)} · {INTERVAL_LABEL[suggestion.interval]} · {suggestion.occurrences} transaksi mirip
                             </p>
                             <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
-                              Rata-rata {formatCurrency(suggestion.averageAmount, currency)} · berikutnya {formatDate(suggestion.nextDate, "dd MMM yyyy")}
+                              Rata-rata {money(suggestion.averageAmount)} · berikutnya {formatDate(suggestion.nextDate, "dd MMM yyyy")}
                             </p>
                           </div>
                           <Button
+                            className="min-h-11"
                             onClick={() => {
                               setEditRecurring(null);
                               setRecurringDraft(buildRecurringDraft(suggestion));
@@ -729,67 +763,66 @@ export default function Transactions() {
                     );
                   })}
                 </div>
-              </div>
+              </section>
             )}
 
             {recurring.length === 0 && (
-              <div className="lg:col-span-2">
-                <EmptyState icon="🔄" title="Belum ada transaksi terjadwal" description="Tap + Tambah untuk membuat transaksi otomatis seperti gaji atau tagihan bulanan" />
-              </div>
+              <EmptyState icon="🔄" title="Belum ada transaksi terjadwal" description="Tekan + untuk membuat transaksi otomatis seperti gaji atau tagihan bulanan." />
             )}
 
-            {recurring.map((rec) => {
-              const cat = getCategory(rec.categoryId);
-              const due = getRecurringDueInfo(rec.nextDate);
-              const isBusy = recurringBusyId === rec.id;
-              const iconBtn = "flex h-11 w-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--foreground))] disabled:opacity-50";
-              return (
-                <div key={rec.id} className={`rounded-2xl border bg-[hsl(var(--card))] ${rec.isActive ? "border-[hsl(var(--border))]" : "border-dashed border-[hsl(var(--border))] opacity-75"}`}>
-                  <div className="flex items-start gap-3 p-4">
-                    <div className="flex h-12 w-12 flex-none flex-col items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] leading-tight" aria-hidden="true">
-                      <span className="text-base font-semibold tabular-nums">{formatDate(rec.nextDate, "d")}</span>
-                      <span className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">{formatDate(rec.nextDate, "MMM")}</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="min-w-0 flex-1 truncate text-sm font-semibold">{rec.note || cat?.name || "Tanpa nama"}</p>
-                        <p className={`shrink-0 text-sm font-semibold tabular-nums ${rec.type === "income" ? "text-success" : ""}`}>
-                          {rec.type === "expense" ? "−" : "+"}{formatCurrency(rec.amount, currency)}
-                        </p>
+            {recurring.length > 0 && (
+              <section aria-label="Berikutnya" className="space-y-2">
+                <h2 className="px-1 text-[13px] font-bold">Berikutnya</h2>
+                <div className="divide-y divide-[hsl(var(--border))] overflow-hidden rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
+                  {recurring.map((rec) => {
+                    const cat = getCategory(rec.categoryId);
+                    const due = getRecurringDueInfo(rec.nextDate);
+                    const isBusy = recurringBusyId === rec.id;
+                    const name = rec.note || cat?.name || "Tanpa nama";
+                    const dueTone = due.tone === "overdue" ? "text-danger" : due.tone === "today" ? "text-warning" : "text-[hsl(var(--muted-foreground))]";
+                    return (
+                      <div key={rec.id} className={`space-y-2.5 px-4 py-3.5 ${rec.isActive ? "" : "opacity-75"}`}>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 flex-none flex-col items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] leading-tight" aria-hidden="true">
+                            <span className="text-[15px] font-extrabold tabular-nums">{formatDate(rec.nextDate, "dd")}</span>
+                            <span className="text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">{formatDate(rec.nextDate, "MMM")}</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold">{name}</p>
+                            <p className="break-words text-xs text-[hsl(var(--muted-foreground))]">
+                              {INTERVAL_LABEL[rec.interval]} · {getAccountName(rec.accountId)}{rec.isActive ? "" : " · Pause"} · <span className={dueTone}>{due.label}</span>
+                            </p>
+                          </div>
+                          <p className={`shrink-0 text-sm font-bold tabular-nums ${rec.type === "income" && !hidden ? "text-success" : ""}`}>
+                            {hidden ? "" : rec.type === "expense" ? "−" : "+"}{money(rec.amount)}
+                          </p>
+                          <button type="button" onClick={() => setActionRec(rec)} disabled={isBusy} aria-label={`Aksi jadwal ${name}`} className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] disabled:opacity-50">
+                            <MoreHorizontal size={18} aria-hidden="true" />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pl-14">
+                          <Button variant="outline" size="sm" className="min-h-11" disabled={isBusy} onClick={() => requestRecurringAction(rec, "run")}>Jalankan sekarang</Button>
+                          <Button variant="outline" size="sm" className="min-h-11 text-[hsl(var(--muted-foreground))]" disabled={isBusy} aria-label="Lewati jadwal berikutnya" onClick={() => requestRecurringAction(rec, "skip")}>Lewati</Button>
+                        </div>
                       </div>
-                      <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                        {INTERVAL_LABEL[rec.interval]} · {getAccountName(rec.accountId)}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <Badge className={rec.isActive ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}>
-                          {rec.isActive ? "Aktif" : "Pause"}
-                        </Badge>
-                        <Badge className={getDueClass(due.tone)}>{due.label}</Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 border-t border-[hsl(var(--border))] px-4 py-3">
-                    <Button variant="outline" disabled={isBusy} onClick={() => requestRecurringAction(rec, "run")}>Jalankan sekarang</Button>
-                    <Button variant="outline" disabled={isBusy} aria-label="Lewati jadwal berikutnya" onClick={() => requestRecurringAction(rec, "skip")}>Lewati</Button>
-                    <div className="ml-auto flex items-center gap-1">
-                      <button type="button" onClick={() => requestRecurringAction(rec, "toggle")} disabled={isBusy} aria-label={rec.isActive ? "Pause jadwal" : "Aktifkan jadwal"} title={rec.isActive ? "Pause" : "Aktifkan"} className={iconBtn}>
-                        {rec.isActive ? <Pause size={15} /> : <Play size={15} />}
-                      </button>
-                      <button type="button" onClick={() => setEditRecurring(rec)} disabled={isBusy} aria-label="Edit jadwal" title="Edit jadwal" className={iconBtn}>
-                        <Pencil size={15} />
-                      </button>
-                      <button type="button" onClick={() => setDeleteRecurringId(rec.id!)} disabled={isBusy} aria-label="Hapus jadwal" title="Hapus jadwal" className={`${iconBtn} hover:text-danger hover:bg-danger/10`}>
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </section>
+            )}
           </div>
         )
       )}
+
+      <Sheet open={actionRec !== null} onClose={() => setActionRec(null)} title={actionRec ? actionRec.note || getCategory(actionRec.categoryId)?.name || "Jadwal" : "Jadwal"}>
+        {actionRec && (
+          <ListGroup>
+            <ListRow label={actionRec.isActive ? "Pause jadwal" : "Aktifkan jadwal"} onClick={() => { const rec = actionRec; setActionRec(null); requestRecurringAction(rec, "toggle"); }} />
+            <ListRow label="Edit jadwal" onClick={() => { const rec = actionRec; setActionRec(null); setEditRecurring(rec); }} />
+            <ListRow label="Hapus jadwal" tone="danger" onClick={() => { const id = actionRec.id!; setActionRec(null); setDeleteRecurringId(id); }} />
+          </ListGroup>
+        )}
+      </Sheet>
 
       {/* ── Modals ── */}
       <TransactionForm

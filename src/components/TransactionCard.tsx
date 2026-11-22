@@ -51,8 +51,9 @@ export function TransactionCard({
 
   const avatar = <IconTile label={tileLabel} color={tileColor} />;
 
+  // Desktop-only row actions: hidden until the row is hovered or focused, but always in the DOM.
   const actions = (
-    <div className="flex items-center">
+    <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
       <button type="button" onClick={onEdit} aria-label={`Edit ${displayLabel}`} title={tx.isAdjustment ? "Cocokkan kembali di Akun" : tx.debtId ? "Kelola di Utang/Piutang" : "Edit"} className={`flex h-11 w-11 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--foreground))] ${focusRing}`}>
         <Pencil size={15} />
       </button>
@@ -64,7 +65,7 @@ export function TransactionCard({
 
   if (desktop) {
     return (
-      <tr className={`border-t border-[hsl(var(--border))] ${selected ? "bg-[hsl(var(--primary))]/8" : "hover:bg-[hsl(var(--surface-2))]"}`} aria-selected={selected}>
+      <tr className={`group border-t border-[hsl(var(--border))] ${selected ? "bg-[hsl(var(--primary))]/8" : "hover:bg-[hsl(var(--surface-2))]"}`} aria-selected={selected}>
         <td className="px-3 py-1.5">
           <button type="button" onClick={onSelect} aria-label={`Lihat detail ${displayLabel}`} aria-pressed={selected} className={`flex min-h-11 w-full items-center gap-3 rounded-xl text-left ${focusRing}`}>
             {avatar}
@@ -79,7 +80,7 @@ export function TransactionCard({
     );
   }
 
-  const bodyCls = `flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-xl py-2 text-left ${focusRing}`;
+  const bodyCls = `flex min-h-14 w-full min-w-0 items-center gap-3 px-4 py-2 text-left focus-visible:ring-inset ${focusRing}`;
   const body = (
     <>
       {avatar}
@@ -91,12 +92,12 @@ export function TransactionCard({
     </>
   );
 
+  // Mobile rows carry no inline actions: tapping opens the detail sheet, which has Edit and Hapus.
   return (
-    <div className={`flex items-center gap-1 pl-4 pr-1 ${bordered ? "rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]" : ""}`}>
+    <div className={bordered ? "overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]" : ""}>
       {onSelect
         ? <button type="button" onClick={onSelect} aria-label={`Lihat detail ${displayLabel}`} className={bodyCls}>{body}</button>
         : <div className={bodyCls}>{body}</div>}
-      {actions}
     </div>
   );
 }

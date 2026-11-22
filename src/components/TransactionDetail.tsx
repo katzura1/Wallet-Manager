@@ -10,17 +10,19 @@ interface TransactionDetailProps {
   splits: TransactionSplit[];
   categories: Category[];
   currency: string;
+  hidden?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }
 
 const TYPE_LABEL = { income: "Pemasukan", expense: "Pengeluaran", transfer: "Transfer" } as const;
 
-export function TransactionDetail({ transaction: tx, accountName, toAccountName, category, splits, categories, currency, onEdit, onDelete }: TransactionDetailProps) {
+export function TransactionDetail({ transaction: tx, accountName, toAccountName, category, splits, categories, currency, hidden = false, onEdit, onDelete }: TransactionDetailProps) {
   const isSplit = splits.length > 0;
   const name = tx.note || (isSplit ? "Split Kategori" : category?.name) || accountName;
   const tileLabel = tx.isAdjustment ? "Penyesuaian saldo" : isSplit ? "Split Kategori" : category?.name ?? TYPE_LABEL[tx.type];
   const amountColor = tx.type === "income" ? "text-success" : tx.type === "transfer" ? "text-[hsl(var(--muted-foreground))]" : "text-[hsl(var(--foreground))]";
+  const money = (n: number) => (hidden ? "•••" : formatCurrency(n, currency));
   const kind = tx.isAdjustment ? "Penyesuaian saldo" : tx.debtId ? "Utang/Piutang" : TYPE_LABEL[tx.type];
   return (
     <div className="space-y-4">
@@ -28,7 +30,7 @@ export function TransactionDetail({ transaction: tx, accountName, toAccountName,
         <IconTile label={tileLabel} color={tx.isAdjustment || isSplit ? undefined : category?.color} size="lg" />
         <p className="text-sm text-[hsl(var(--muted-foreground))] break-words">{name}</p>
         <p className={`text-3xl font-semibold tabular-nums tracking-tight ${amountColor}`}>
-          {tx.type === "expense" ? "−" : tx.type === "income" ? "+" : ""}{formatCurrency(tx.amount, currency)}
+          {hidden ? "" : tx.type === "expense" ? "−" : tx.type === "income" ? "+" : ""}{money(tx.amount)}
         </p>
         {isSplit && <span className="rounded-full bg-[hsl(var(--primary))]/10 px-3 py-1 text-xs font-medium text-[hsl(var(--primary))]">Split · {splits.length} kategori</span>}
       </div>
@@ -42,7 +44,7 @@ export function TransactionDetail({ transaction: tx, accountName, toAccountName,
         <ListGroup title="Rincian split">
           {splits.map((s, i) => {
             const cat = categories.find((c) => c.id === s.categoryId);
-            return <ListRow key={i} label={cat?.name ?? "Kategori tidak ditemukan"} sub={s.note || undefined} value={<span className="tabular-nums">{formatCurrency(s.amount, currency)}</span>} />;
+            return <ListRow key={i} label={cat?.name ?? "Kategori tidak ditemukan"} sub={s.note || undefined} value={<span className="tabular-nums">{money(s.amount)}</span>} />;
           })}
         </ListGroup>
       )}
