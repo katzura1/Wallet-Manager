@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Input, Select, Textarea, Modal } from "@/components/ui";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Button, Input, Select, Textarea, Sheet, PageHeader, SegmentedControl, Switch, ProgressBar } from "@/components/ui";
 import { getDebts, addDebt, updateDebt, deleteDebt, payDebt, getDebtPayments, updateDebtPayment, deleteDebtPayment, getOrphanDebtTransactions, deleteOrphanDebtTransactions } from "@/db/debts";
 import { formatCurrency, formatDate, formatNumberWithSeparator, todayISO } from "@/lib/utils";
+import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { Debt, DebtPayment, Transaction } from "@/types";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
 import { usePageAction } from "@/components/layout/appLayoutContext";
@@ -60,24 +62,14 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={existing ? "Edit Hutang/Piutang" : "Tambah Hutang/Piutang"}>
+    <Sheet open={open} onClose={onClose} title={existing ? "Edit Hutang/Piutang" : "Tambah Hutang/Piutang"}>
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="flex rounded-lg border border-[hsl(var(--border))] overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setType("owe")}
-            className={`flex-1 py-1.5 text-xs font-medium transition-colors ${type === "owe" ? "bg-red-500 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-          >
-            💸 Kita Hutang
-          </button>
-          <button
-            type="button"
-            onClick={() => setType("owed")}
-            className={`flex-1 py-1.5 text-xs font-medium transition-colors ${type === "owed" ? "bg-emerald-500 text-white" : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]"}`}
-          >
-            🤝 Piutang
-          </button>
-        </div>
+        <SegmentedControl
+          label="Jenis"
+          value={type}
+          onChange={setType}
+          options={[{ value: "owe", label: "Kita hutang" }, { value: "owed", label: "Piutang" }]}
+        />
         <Input
           label="Nama"
           placeholder={type === "owe" ? "Nama kreditur (siapa yang meminjamkan)" : "Nama debitur (siapa yang berhutang)"}
@@ -110,7 +102,7 @@ function DebtForm({ open, onClose, onSaved, existing }: DebtFormProps) {
           {loading ? "Menyimpan..." : existing ? "Simpan Perubahan" : "Tambah"}
         </Button>
       </form>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -152,13 +144,13 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Bayar: ${debt.name}`}>
+    <Sheet open={open} onClose={onClose} title={`${debt.type === "owe" ? "Bayar" : "Terima"}: ${debt.name}`}>
       <form onSubmit={handleSubmit} className="space-y-3">
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Sisa: <span className="font-semibold text-[hsl(var(--foreground))]">{formatCurrency(debt.remaining, currency)}</span>
+        <p className="text-sm tabular-nums text-[hsl(var(--muted-foreground))]">
+          Sisa <span className="font-semibold text-[hsl(var(--foreground))]">{formatCurrency(debt.remaining, currency)}</span> dari {formatCurrency(debt.amount, currency)}
         </p>
         <Input
-          label="Jumlah Pembayaran"
+          label="Jumlah pembayaran"
           type="text"
           inputMode="numeric"
           value={formatNumberWithSeparator(amount)}
@@ -169,6 +161,7 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
           }}
           error={error}
         />
+        <Button type="button" size="sm" variant="outline" className="min-h-11" onClick={() => { setAmount(String(debt.remaining)); setError(""); }}>Lunasi</Button>
         <Select label={creditAccount ? "Bayar dari akun (opsional)" : "Akun (opsional)"} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
           <option value="">-- Tidak Ada --</option>
           {accounts.filter((a) => a.id !== creditAccount?.id).map((a) => (
@@ -176,13 +169,13 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
           ))}
         </Select>
         {creditAccount && <p className="text-xs text-[hsl(var(--muted-foreground))]">Jika dipilih, dicatat sebagai transfer ke {creditAccount.icon} {creditAccount.name}. Kosongkan jika refund: dicatat sebagai pemasukan ke akun CC.</p>}
-        <Input label="Tanggal" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <Textarea label="Catatan (opsional)" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+        <Input label="Tanggal pembayaran" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <Textarea label="Catatan pembayaran" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Memproses..." : "Bayar"}
+          {loading ? "Memproses..." : debt.type === "owe" ? "Bayar" : "Terima"}
         </Button>
       </form>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -251,28 +244,28 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Riwayat: ${debt.name}`}>
-      {editError && <p role="alert" className="mb-3 text-xs text-red-500">{editError}</p>}
+    <Sheet open={open} onClose={onClose} title={`Riwayat: ${debt.name}`}>
+      {editError && <p role="alert" className="mb-3 text-xs text-danger">{editError}</p>}
       {payments.length === 0 ? (
         <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-4">Belum ada pembayaran</p>
       ) : (
-        <ul className="space-y-1">
+        <ul>
           {payments.map((p) => (
-            <li key={p.id} className="text-xs py-1.5 border-b border-[hsl(var(--border))] last:border-0">
+            <li key={p.id} className="text-xs py-2 border-b border-[hsl(var(--border))] last:border-0">
               {editingId === p.id ? (
                 <div className="space-y-1.5">
                   <div className="flex gap-1.5">
                     <input
                       type="number"
                       aria-label="Jumlah pembayaran"
-                      className="flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] min-h-11 px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                       value={editAmount}
                       onChange={(e) => setEditAmount(e.target.value)}
                     />
                     <input
                       type="date"
                       aria-label="Tanggal pembayaran"
-                      className="flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] min-h-11 px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
                     />
@@ -281,13 +274,13 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
                     type="text"
                     aria-label="Catatan pembayaran"
                     placeholder="Catatan (opsional)"
-                    className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] min-h-11 px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                     value={editNote}
                     onChange={(e) => setEditNote(e.target.value)}
                   />
                   <div className="flex gap-1.5">
-                    <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => setEditingId(null)}>Batal</Button>
-                    <Button size="sm" className="flex-1 text-xs" disabled={saving} onClick={() => saveEdit(p)}>
+                    <Button size="sm" variant="outline" className="min-h-11 flex-1 text-xs" onClick={() => setEditingId(null)}>Batal</Button>
+                    <Button size="sm" className="min-h-11 flex-1 text-xs" disabled={saving} onClick={() => saveEdit(p)}>
                       {saving ? "Menyimpan…" : "Simpan"}
                     </Button>
                   </div>
@@ -300,9 +293,9 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
                     {p.accountId && (() => { const acc = accounts.find(a => a.id === p.accountId); return acc ? <div className="text-[hsl(var(--muted-foreground))] text-xs">{acc.icon} {acc.name}</div> : null; })()}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <span className="font-semibold text-emerald-500 text-xs">{formatCurrency(p.amount, currency)}</span>
-                    <button aria-label="Edit pembayaran" onClick={() => startEdit(p)} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
-                    <button aria-label="Hapus pembayaran" onClick={() => handleDelete(p)} className="p-0.5 text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
+                    <span className="font-semibold text-success text-xs tabular-nums">{formatCurrency(p.amount, currency)}</span>
+                    <button aria-label="Edit pembayaran" onClick={() => startEdit(p)} className="flex h-11 w-11 items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"><Pencil size={16} aria-hidden="true" /></button>
+                    <button aria-label="Hapus pembayaran" onClick={() => handleDelete(p)} className="flex h-11 w-11 items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-danger"><Trash2 size={16} aria-hidden="true" /></button>
                   </div>
                 </div>
               )}
@@ -310,7 +303,7 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
           ))}
         </ul>
       )}
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -319,61 +312,62 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged }: PaymentsHist
 interface DebtCardProps {
   debt: Debt;
   currency: string;
+  accountName?: string;
   onEdit: () => void;
   onPay: () => void;
   onHistory: () => void;
   onDelete: () => void;
 }
 
-function DebtCard({ debt, currency, onEdit, onPay, onHistory, onDelete }: DebtCardProps) {
-  const pct = Math.round(((debt.amount - debt.remaining) / debt.amount) * 100);
-  const isOverdue = debt.dueDate && !debt.isSettled && debt.dueDate < todayISO();
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0]?.slice(0, 2) ?? "?").toUpperCase();
+}
+
+function dueInfo(debt: Debt): { text: string; cls: string } | null {
+  if (!debt.dueDate) return null;
+  if (debt.isSettled) return { text: `Jatuh tempo ${formatDate(debt.dueDate)}`, cls: "text-[hsl(var(--muted-foreground))]" };
+  const days = differenceInCalendarDays(parseISO(debt.dueDate), parseISO(todayISO()));
+  if (days < 0) return { text: `Terlambat ${-days} hari · ${formatDate(debt.dueDate)}`, cls: "text-danger font-medium" };
+  if (days <= 7) return { text: days === 0 ? "Jatuh tempo hari ini" : `Jatuh tempo ${days} hari lagi · ${formatDate(debt.dueDate)}`, cls: "text-warning font-medium" };
+  return { text: `Jatuh tempo ${formatDate(debt.dueDate)}`, cls: "text-[hsl(var(--muted-foreground))]" };
+}
+
+function DebtCard({ debt, currency, accountName, onEdit, onPay, onHistory, onDelete }: DebtCardProps) {
+  const owe = debt.type === "owe";
+  const due = dueInfo(debt);
+  const meta = [debt.note, accountName].filter(Boolean).join(" · ");
+  const iconBtn = "flex h-11 w-11 items-center justify-center rounded-full text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]";
 
   return (
-    <div className="rounded-[28px] border border-[hsl(var(--border))] p-4 space-y-3 bg-[hsl(var(--card))] shadow-sm">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-sm text-[hsl(var(--foreground))]">{debt.name}</p>
-          {debt.date && <p className="text-xs mt-0.5 text-[hsl(var(--muted-foreground))]">🗓️ {formatDate(debt.date)}</p>}
-          {debt.dueDate && (
-            <p className={`text-xs mt-0.5 ${isOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--muted-foreground))]"}`}>
-              {isOverdue ? "⚠️ Jatuh tempo " : "📅 "}{formatDate(debt.dueDate)}
-            </p>
-          )}
-          {debt.isSettled && <span className="inline-block mt-1 text-xs bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">✅ Lunas</span>}
+    <article className="space-y-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+      <div className="flex items-start gap-3">
+        <div aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-sm font-semibold ${owe ? "text-danger" : "text-success"}`}>{initials(debt.name)}</div>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold text-[hsl(var(--foreground))]">{debt.name}</h3>
+          {meta && <p className="truncate text-xs text-[hsl(var(--muted-foreground))]">{meta}</p>}
+          {due && <p className={`text-xs ${due.cls}`}>{due.text}</p>}
+          {debt.isSettled && <span className="mt-1 inline-block rounded-full bg-[hsl(var(--surface-2))] px-2 py-0.5 text-xs font-medium text-success">Lunas</span>}
         </div>
-        <div className="flex gap-1">
-          <button onClick={onEdit} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">✏️</button>
-          <button onClick={onDelete} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--surface-2))] text-xs text-[hsl(var(--muted-foreground))] hover:text-red-500">🗑️</button>
+        <div className="-my-1 -mr-2 flex shrink-0">
+          <button type="button" aria-label={`Edit ${debt.name}`} onClick={onEdit} className={iconBtn}><Pencil size={16} aria-hidden="true" /></button>
+          <button type="button" aria-label={`Hapus ${debt.name}`} onClick={onDelete} className={`${iconBtn} hover:text-danger`}><Trash2 size={16} aria-hidden="true" /></button>
         </div>
       </div>
 
-      <div className="space-y-0.5">
-        <div className="flex justify-between text-xs">
-          <span className="text-[hsl(var(--muted-foreground))]">Sisa</span>
-          <span className="font-semibold">{formatCurrency(debt.remaining, currency)}</span>
+      <div className="space-y-1.5">
+        <div className="flex items-baseline justify-between gap-2 text-xs tabular-nums text-[hsl(var(--muted-foreground))]">
+          <span>Sisa <span className="text-sm font-semibold text-[hsl(var(--foreground))]">{formatCurrency(debt.remaining, currency)}</span></span>
+          <span>dari {formatCurrency(debt.amount, currency)}</span>
         </div>
-        <div className="w-full h-1.5 rounded-full bg-[hsl(var(--surface-2))]">
-          <div className="h-1.5 rounded-full bg-[hsl(var(--primary))] transition-all" style={{ width: `${pct}%` }} />
-        </div>
-        <div className="flex justify-between text-xs text-[hsl(var(--muted-foreground))]">
-          <span>Terbayar {pct}%</span>
-          <span>Total {formatCurrency(debt.amount, currency)}</span>
-        </div>
+        <ProgressBar value={debt.amount - debt.remaining} max={debt.amount} tone="success" label={`Terbayar ${debt.name}`} />
       </div>
 
-      {!debt.isSettled && (
-        <div className="flex gap-1.5 pt-0.5">
-          <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={onHistory}>Riwayat</Button>
-          <Button size="sm" className="flex-1 text-xs" onClick={onPay}>💳 Bayar</Button>
-        </div>
-      )}
-      {debt.isSettled && (
-        <button onClick={onHistory} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline block">
-          Lihat Riwayat Pembayaran
-        </button>
-      )}
-    </div>
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" className="min-h-11 flex-1" onClick={onHistory}>Riwayat</Button>
+        {!debt.isSettled && <Button size="sm" className="min-h-11 flex-1" onClick={onPay}>{owe ? "Bayar" : "Terima"}</Button>}
+      </div>
+    </article>
   );
 }
 
@@ -388,15 +382,15 @@ interface DeleteModalProps {
 
 function DeleteModal({ open, name, onClose, onConfirm }: DeleteModalProps) {
   return (
-    <Modal open={open} onClose={onClose} title="Hapus Hutang/Piutang">
-      <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
+    <Sheet open={open} onClose={onClose} title="Hapus Hutang/Piutang">
+      <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
         Hapus <span className="font-semibold text-[hsl(var(--foreground))]">{name}</span>? Semua riwayat pembayaran juga akan dihapus.
       </p>
       <div className="flex gap-2">
-        <Button variant="outline" className="flex-1" onClick={onClose}>Batal</Button>
-        <Button variant="destructive" className="flex-1" onClick={onConfirm}>Hapus</Button>
+        <Button variant="outline" className="min-h-11 flex-1" onClick={onClose}>Batal</Button>
+        <Button variant="destructive" className="min-h-11 flex-1" onClick={onConfirm}>Hapus</Button>
       </div>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -404,8 +398,10 @@ function DeleteModal({ open, name, onClose, onConfirm }: DeleteModalProps) {
 
 export default function Debts() {
   const { currency } = useSettingsStore();
-  const [debts, setDebts] = useState<Debt[]>([]);
+  const { accounts } = useWalletStore();
+  const [allDebts, setAllDebts] = useState<Debt[]>([]);
   const [showSettled, setShowSettled] = useState(false);
+  const [tab, setTab] = useState<"owe" | "owed">("owe");
   const [addOpen, setAddOpen] = useState(false);
   const [editDebt, setEditDebt] = useState<Debt | null>(null);
   const [payDebtTarget, setPayDebtTarget] = useState<Debt | null>(null);
@@ -414,11 +410,11 @@ export default function Debts() {
   const [orphans, setOrphans] = useState<Transaction[]>([]);
 
   const load = useCallback(() => {
-    return useWalletStore.getState().refreshAll().then(async () => { setOrphans(await getOrphanDebtTransactions()); return getDebts(true); }).then((allDebts) => {
-      setDebts(showSettled ? allDebts : allDebts.filter((debt) => !debt.isSettled));
-      setHistoryDebt((current) => current ? allDebts.find((debt) => debt.id === current.id) ?? null : null);
+    return useWalletStore.getState().refreshAll().then(async () => { setOrphans(await getOrphanDebtTransactions()); return getDebts(true); }).then((all) => {
+      setAllDebts(all);
+      setHistoryDebt((current) => current ? all.find((debt) => debt.id === current.id) ?? null : null);
     });
-  }, [showSettled]);
+  }, []);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -436,96 +432,100 @@ export default function Debts() {
     load();
   }
 
+  const settledCount = allDebts.filter((d) => d.isSettled).length;
+  const debts = showSettled ? allDebts : allDebts.filter((d) => !d.isSettled);
   const oweDebts = debts.filter((d) => d.type === "owe");
   const owedDebts = debts.filter((d) => d.type === "owed");
   const totalOwe = oweDebts.filter((d) => !d.isSettled).reduce((s, d) => s + d.remaining, 0);
   const totalOwed = owedDebts.filter((d) => !d.isSettled).reduce((s, d) => s + d.remaining, 0);
+  const net = totalOwed - totalOwe;
 
   usePageAction({ label: "Tambah hutang/piutang", onClick: () => setAddOpen(true) });
 
+  function renderColumn(kind: "owe" | "owed", list: Debt[]) {
+    const owe = kind === "owe";
+    return (
+      <section aria-label={owe ? "Hutang saya" : "Piutang saya"} className={`min-w-0 space-y-3 lg:block ${tab === kind ? "block" : "hidden"}`}>
+        <h2 className={`hidden text-sm font-semibold lg:block ${owe ? "text-danger" : "text-success"}`}>{owe ? "Hutang saya" : "Piutang saya"}</h2>
+        {list.length === 0 && <p className="rounded-2xl border border-dashed border-[hsl(var(--border))] py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">{owe ? "Tidak ada hutang" : "Tidak ada piutang"}</p>}
+        {list.map((d) => (
+          <DebtCard
+            key={d.id}
+            debt={d}
+            currency={currency}
+            accountName={accounts.find((a) => a.id === d.accountId)?.name}
+            onEdit={() => setEditDebt(d)}
+            onPay={() => setPayDebtTarget(d)}
+            onHistory={() => setHistoryDebt(d)}
+            onDelete={() => setDeleteTarget(d)}
+          />
+        ))}
+      </section>
+    );
+  }
+
+  const summary: { label: string; value: number; tone: string }[] = [
+    { label: "Hutang saya", value: totalOwe, tone: "text-danger" },
+    { label: "Piutang saya", value: totalOwed, tone: "text-success" },
+    { label: "Bersih", value: net, tone: net >= 0 ? "text-success" : "text-danger" },
+  ];
+
   return (
-    <div className="grid grid-cols-1 gap-5 px-4 pt-6 pb-4 lg:grid-cols-12 lg:gap-6 lg:px-0 lg:pt-8">
-      {/* Header */}
-      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 lg:col-span-12">
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-[hsl(var(--foreground))]">Hutang & Piutang</h1>
-        <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Pantau kewajiban dan piutang, termasuk progres pembayaran dan jatuh tempo.</p>
-      </div>
+    <div className="space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-7">
+      <PageHeader
+        title="Hutang & piutang"
+        actions={
+          <Button size="sm" className="min-h-11 gap-1" onClick={() => setAddOpen(true)}>
+            <Plus size={16} aria-hidden="true" />Tambah
+          </Button>
+        }
+      />
 
       {orphans.length > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs lg:col-span-12 lg:max-w-3xl">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-warning/40 bg-[hsl(var(--card))] px-4 py-3 text-sm">
           <span>{orphans.length} transaksi sisa hutang/piutang yang sudah dihapus.</span>
-          <Button size="sm" variant="outline" onClick={handleCleanOrphans}>Bersihkan</Button>
+          <Button size="sm" variant="outline" className="min-h-11" onClick={handleCleanOrphans}>Bersihkan</Button>
         </div>
       )}
 
-      {/* Summary */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:col-span-12 lg:max-w-3xl">
-        <div className="rounded-[28px] bg-red-50 dark:bg-red-900/20 p-4">
-          <p className="text-[11px] font-semibold text-red-500 mb-1">Hutang Saya</p>
-          <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(totalOwe, currency)}</p>
-        </div>
-        <div className="rounded-[28px] bg-emerald-50 dark:bg-emerald-900/20 p-4">
-          <p className="text-[11px] font-semibold text-emerald-600 mb-1">Piutang Saya</p>
-          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalOwed, currency)}</p>
-        </div>
+      <section aria-label="Ringkasan hutang dan piutang">
+        <dl className="grid grid-cols-3 gap-2 lg:gap-3">
+          {summary.map(({ label, value, tone }) => (
+            <div key={label} className="min-w-0 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 lg:p-4">
+              <dt className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{label}</dt>
+              <dd className={`mt-1 break-words text-sm font-semibold tabular-nums lg:text-lg ${tone}`}>{formatCurrency(value, currency)}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <div className="lg:hidden">
+        <SegmentedControl
+          label="Jenis hutang"
+          value={tab}
+          onChange={setTab}
+          options={[{ value: "owe", label: "Hutang saya" }, { value: "owed", label: "Piutang saya" }]}
+        />
       </div>
 
-      {/* Show settled toggle */}
-      <label className="flex cursor-pointer items-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3 text-xs text-[hsl(var(--muted-foreground))] lg:col-span-12 lg:max-w-3xl">
-        <input
-          type="checkbox"
-          checked={showSettled}
-          onChange={(e) => setShowSettled(e.target.checked)}
-          className="rounded"
-        />
-        Tampilkan yang sudah lunas
-      </label>
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] pl-4 pr-3 text-sm">
+        <span className="text-[hsl(var(--foreground))]">Sudah lunas ({settledCount})</span>
+        <Switch label={`Tampilkan sudah lunas (${settledCount})`} checked={showSettled} onChange={setShowSettled} />
+      </div>
 
-      {/* Hutang Saya */}
-      {oweDebts.length > 0 && (
-        <section className="space-y-2 lg:col-span-6">
-          <h2 className="text-xs font-semibold text-red-500 ">💸 Hutang Saya</h2>
-          {oweDebts.map((d) => (
-            <DebtCard
-              key={d.id}
-              debt={d}
-              currency={currency}
-              onEdit={() => setEditDebt(d)}
-              onPay={() => setPayDebtTarget(d)}
-              onHistory={() => setHistoryDebt(d)}
-              onDelete={() => setDeleteTarget(d)}
-            />
-          ))}
-        </section>
-      )}
-
-      {/* Piutang Saya */}
-      {owedDebts.length > 0 && (
-        <section className="space-y-2 lg:col-span-6">
-          <h2 className="text-xs font-semibold text-emerald-600 ">🤝 Piutang Saya</h2>
-          {owedDebts.map((d) => (
-            <DebtCard
-              key={d.id}
-              debt={d}
-              currency={currency}
-              onEdit={() => setEditDebt(d)}
-              onPay={() => setPayDebtTarget(d)}
-              onHistory={() => setHistoryDebt(d)}
-              onDelete={() => setDeleteTarget(d)}
-            />
-          ))}
-        </section>
-      )}
-
-      {debts.length === 0 && (
-        <div className="rounded-3xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))] py-16 text-center text-[hsl(var(--muted-foreground))] lg:col-span-12">
-          <div className="text-5xl mb-3">🤝</div>
+      {debts.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))] py-16 text-center text-[hsl(var(--muted-foreground))]">
           <p className="font-medium">Belum ada hutang/piutang</p>
-          <p className="text-sm mt-1">Tap + Tambah untuk mencatat</p>
+          <p className="mt-1 text-sm">Tekan Tambah untuk mencatat</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-6">
+          {renderColumn("owe", oweDebts)}
+          {renderColumn("owed", owedDebts)}
         </div>
       )}
 
-      {/* Modals */}
+      {/* Sheets */}
       <DebtForm open={addOpen} onClose={() => setAddOpen(false)} onSaved={load} />
       {editDebt && <DebtForm open onClose={() => setEditDebt(null)} onSaved={load} existing={editDebt} />}
       {payDebtTarget && <PayDebtModal open onClose={() => setPayDebtTarget(null)} onSaved={load} debt={payDebtTarget} />}
@@ -538,7 +538,6 @@ export default function Debts() {
           onConfirm={handleDelete}
         />
       )}
-
     </div>
   );
 }
