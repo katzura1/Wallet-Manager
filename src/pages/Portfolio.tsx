@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { ConfirmDialog, Modal, Sheet, Spinner, PageHeader } from "@/components/ui";
 import { FieldRow, NoteLine, RowsCard, SubmitButton } from "@/components/forms/formParts";
 import { dateInputCls, openDatePicker, rowLabelCls, textInputCls } from "@/components/forms/formStyles";
@@ -7,7 +7,7 @@ import { cn, formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory, backfillPortfolioHistoryUsd, FOREIGN_CURRENCIES } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, getUsdIdr, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
-import { Plus, Search, Eye, EyeOff, Clock, ChevronDown, ChevronUp, Pencil, Trash2, RefreshCw, X } from "lucide-react";
+import { Plus, Search, Eye, EyeOff, ChevronDown, ChevronUp, Pencil, Trash2, RefreshCw, X } from "lucide-react";
 import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
 import { getPortfolioMetrics } from "@/lib/portfolioMetrics";
 
@@ -532,17 +532,24 @@ interface AssetDetailSheetProps {
   onClose: () => void;
   onEdit: (asset: Asset) => void;
   onDelete: (asset: Asset) => void;
-  onHistory: (asset: Asset) => void;
 }
 
-function AssetDetailSheet({ asset, price, hidden, onClose, onEdit, onDelete, onHistory }: AssetDetailSheetProps) {
+function AssetDetailSheet({ asset, price, hidden, onClose, onEdit, onDelete }: AssetDetailSheetProps) {
   const figures = asset ? assetFigures(asset, price) : null;
   const money = (value: number | null) => hidden ? "•••" : value === null ? "—" : formatCurrency(value, PORTFOLIO_CURRENCY);
   const btn = "inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[hsl(var(--border))] px-3 text-sm font-medium hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]";
+  const footer = asset ? (
+    <div className="flex gap-2">
+      <button type="button" onClick={() => onEdit(asset)} aria-label={`Edit ${asset.symbol}`} className={btn}><Pencil size={16} aria-hidden="true" />Edit</button>
+      <button type="button" onClick={() => onDelete(asset)} aria-label={`Hapus ${asset.symbol}`} className={cn(btn, "text-danger")}><Trash2 size={16} aria-hidden="true" />Hapus</button>
+    </div>
+  ) : undefined;
   return (
-    <Sheet open={asset !== null} onClose={onClose} title={asset ? `${asset.symbol} · ${asset.name}` : "Detail aset"}>
+    <Sheet wide footer={footer} open={asset !== null} onClose={onClose} title={asset ? `${asset.symbol} · ${asset.name}` : "Detail aset"}>
       {asset && figures && (
         <div className="space-y-4">
+          <div className="space-y-4 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-5 lg:space-y-0">
+          <div className="min-w-0 space-y-4">
           <div className="flex items-center gap-3">
             <SymbolTile symbol={asset.symbol} size="lg" />
             <div className="min-w-0">
@@ -572,12 +579,10 @@ function AssetDetailSheet({ asset, price, hidden, onClose, onEdit, onDelete, onH
               <dd className={hidden || figures.change === undefined ? "" : gainCls(figures.change)}>{hidden ? "•••" : figures.change === undefined ? "—" : fmtPct(figures.change)}</dd>
             </div>
           </dl>
-          <div className="flex flex-wrap gap-2">
-            {asset.type !== "mutual_fund" && asset.type !== "deposito" && (
-              <button type="button" onClick={() => onHistory(asset)} aria-label={`Riwayat harga ${asset.symbol}`} className={btn}><Clock size={16} aria-hidden="true" />Riwayat harga</button>
-            )}
-            <button type="button" onClick={() => onEdit(asset)} aria-label={`Edit ${asset.symbol}`} className={btn}><Pencil size={16} aria-hidden="true" />Edit</button>
-            <button type="button" onClick={() => onDelete(asset)} aria-label={`Hapus ${asset.symbol}`} className={cn(btn, "text-danger")}><Trash2 size={16} aria-hidden="true" />Hapus</button>
+          </div>
+          {asset.type !== "mutual_fund" && asset.type !== "deposito" && (
+            <AssetPriceHistory key={asset.symbol} symbol={asset.symbol} hidden={hidden} />
+          )}
           </div>
         </div>
       )}
@@ -787,36 +792,136 @@ function PriceHistoryChart({ records, hidden }: { records: PriceRecord[]; hidden
   );
 }
 
-interface PriceHistoryModalProps {
-  asset: Asset;
-  hidden: boolean;
-  onClose: () => void;
-}
-
-function PriceHistoryModal({ asset, hidden, onClose }: PriceHistoryModalProps) {
-  const [records, setRecords] = useState<PriceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+function AssetPriceHistory({ symbol, hidden }: { symbol: string; hidden: boolean }) {
+  const [records, setRecords] = useState<PriceRecord[] | null>(null);
 
   useEffect(() => {
-    getAssetPriceHistory(asset.symbol, 30).then((r) => {
-      setRecords(r);
-      setLoading(false);
-    });
-  }, [asset.symbol]);
+    let alive = true;
+    getAssetPriceHistory(symbol, 30).then((r) => { if (alive) setRecords(r); });
+    return () => { alive = false; };
+  }, [symbol]);
 
   return (
-    <Modal open onClose={onClose} title={`${asset.symbol} — riwayat harga`}>
-      {loading ? (
+    <section aria-label="Riwayat harga" className="space-y-2 rounded-2xl border border-[hsl(var(--border))] p-4">
+      <h3 className="text-sm font-semibold">Riwayat harga</h3>
+      {records === null ? (
         <div className="flex justify-center py-8"><Spinner /></div>
       ) : records.length === 0 ? (
-        <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-8">
+        <p className="py-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
           Belum ada riwayat harga.<br />
           <span className="text-xs">Riwayat tersimpan setiap kali harga berhasil disinkron.</span>
         </p>
       ) : (
         <PriceHistoryChart records={records} hidden={hidden} />
       )}
-    </Modal>
+    </section>
+  );
+}
+
+// ─── Portfolio Value History ──────────────────────────────────────────────────
+
+type HistoryCurrency = "idr" | "usd";
+type HistoryRange = "7" | "30";
+
+function fmtShortUsd(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1e6) return `$${(v / 1e6).toLocaleString("en-US", { maximumSignificantDigits: 3 })}M`;
+  if (abs >= 1e3) return `$${(v / 1e3).toLocaleString("en-US", { maximumSignificantDigits: 3 })}K`;
+  return `$${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+function fmtUsd(v: number): string {
+  return `$${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+function fmtDay(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+}
+
+function PortfolioHistoryCard({ history, hidden }: { history: PortfolioHistory[]; hidden: boolean }) {
+  const [currency, setCurrency] = useState<HistoryCurrency>("idr");
+  const [range, setRange] = useState<HistoryRange>("30");
+  const hasUsd = history.some((h) => typeof h.totalValueUsd === "number" && h.totalValueUsd > 0);
+  const activeCurrency: HistoryCurrency = hasUsd ? currency : "idr";
+
+  const data = history
+    .slice(range === "7" ? -7 : -30)
+    .map((h) => ({ label: fmtDay(h.date), value: activeCurrency === "usd" ? h.totalValueUsd ?? null : h.totalValue }))
+    .filter((d): d is { label: string; value: number } => typeof d.value === "number");
+
+  const fmtFull = activeCurrency === "usd" ? fmtUsd : (v: number) => formatCurrency(v, PORTFOLIO_CURRENCY);
+  const fmtAxis = activeCurrency === "usd" ? fmtShortUsd : fmtShortPrice;
+  const latest = data[data.length - 1];
+  const first = data[0];
+  const diff = latest && first ? latest.value - first.value : 0;
+  const pct = first && first.value > 0 ? (diff / first.value) * 100 : null;
+  const up = diff >= 0;
+  const tone = up ? "hsl(var(--success))" : "hsl(var(--danger))";
+  const chipCls = (active: boolean) => cn(
+    "min-h-9 rounded-full px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
+    active ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))]" : "bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
+  );
+
+  return (
+    <section aria-label="Riwayat nilai portofolio" className="min-w-0 space-y-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold">Riwayat nilai</h2>
+          {latest && (
+            <>
+              <p className="mt-1 text-2xl font-bold tabular-nums">{hidden ? "•••" : fmtFull(latest.value)}</p>
+              {data.length > 1 && (
+                <p className={cn("text-sm font-semibold tabular-nums", hidden ? "text-[hsl(var(--muted-foreground))]" : up ? "text-success" : "text-danger")}>
+                  {hidden ? "•••" : `${up ? "+" : "-"}${fmtFull(Math.abs(diff))}${pct !== null ? ` (${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(2)}%)` : ""}`}
+                  <span className="ml-1 font-normal text-[hsl(var(--muted-foreground))]">sejak {first.label}</span>
+                </p>
+              )}
+            </>
+          )}
+        </div>
+        {hasUsd && (
+          <div role="group" aria-label="Mata uang grafik" className="flex gap-1">
+            <button type="button" aria-pressed={activeCurrency === "idr"} onClick={() => setCurrency("idr")} className={chipCls(activeCurrency === "idr")}>IDR</button>
+            <button type="button" aria-pressed={activeCurrency === "usd"} onClick={() => setCurrency("usd")} className={chipCls(activeCurrency === "usd")}>USD</button>
+          </div>
+        )}
+      </div>
+
+      {hidden ? (
+        <p className="py-10 text-center text-sm text-[hsl(var(--muted-foreground))]">Grafik disembunyikan saat nilai portofolio disembunyikan.</p>
+      ) : data.length < 2 ? (
+        <p className="py-10 text-center text-sm text-[hsl(var(--muted-foreground))]">Belum cukup data untuk rentang ini.</p>
+      ) : (
+        <div role="img" aria-label={`Grafik nilai portofolio ${data.length} hari terakhir`}>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="portfolioValueGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={tone} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={tone} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
+              <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} width={52} />
+              <Tooltip
+                formatter={(val) => [fmtFull(Number(val)), "Nilai"]}
+                labelFormatter={(label) => String(label)}
+                contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", fontSize: "12px" }}
+              />
+              <Area type="monotone" dataKey="value" stroke={tone} strokeWidth={2.5} fill="url(#portfolioValueGrad)" dot={data.length <= 10 ? { r: 2.5 } : false} activeDot={{ r: 4 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {history.length > 7 && (
+        <div role="group" aria-label="Rentang grafik" className="flex gap-1">
+          <button type="button" aria-pressed={range === "7"} onClick={() => setRange("7")} className={chipCls(range === "7")}>7 hari</button>
+          <button type="button" aria-pressed={range === "30"} onClick={() => setRange("30")} className={chipCls(range === "30")}>30 hari</button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -848,8 +953,6 @@ export default function Portfolio() {
     setSyncMsg("");
   }
 
-  // Per-asset price history modal
-  const [historyTarget, setHistoryTarget] = useState<Asset | null>(null);
 
   const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
 
@@ -859,10 +962,8 @@ export default function Portfolio() {
     media.addEventListener("change", updateDesktop);
     return () => media.removeEventListener("change", updateDesktop);
   }, []);
-  const [historyExpanded, setHistoryExpanded] = useState(false);
-  const [allocationExpanded, setAllocationExpanded] = useState(false);
+  const [allocationExpanded, setAllocationExpanded] = useState(true);
   const [usdIdrRate, setUsdIdrRate] = useState<number>(16200);
-  const [historyZoomed, setHistoryZoomed] = useState(false);
 
 
   function togglePortfolioHidden() {
@@ -1206,81 +1307,7 @@ export default function Portfolio() {
 
           <div className="grid items-start gap-3 lg:grid-cols-2">
             {/* Portfolio Value History */}
-            {history.length > 1 && (
-              <div className="min-w-0 rounded-2xl border border-[hsl(var(--border))] p-3 sm:p-4 bg-[hsl(var(--card))] space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setHistoryExpanded((value) => !value)}
-                    aria-expanded={historyExpanded}
-                    className="flex flex-1 items-center justify-between gap-3 text-left"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Riwayat Nilai Portofolio</p>
-                    </div>
-                    <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] shrink-0">
-                      {historyExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </span>
-                  </button>
-                  {historyExpanded && (
-                    <button
-                      onClick={() => setHistoryZoomed((v) => !v)}
-                      aria-label={historyZoomed ? "Perkecil grafik" : "Perbesar grafik"}
-                      className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm font-semibold shrink-0"
-                      title={historyZoomed ? "Perkecil grafik" : "Perbesar grafik"}
-                    >
-                      {historyZoomed ? "−" : "+"}
-                    </button>
-                  )}
-                </div>
-                {historyExpanded && (portfolioHidden ? (
-                  <p className="py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">Grafik disembunyikan saat nilai portofolio disembunyikan.</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={historyZoomed ? 420 : 280}>
-                    <AreaChart data={history} margin={{ top: 4, right: 4, left: 4, bottom: 20 }}>
-                      <defs>
-                        <linearGradient id="portGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="usdGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 9 }}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(d: string) => d.slice(5)}
-                        interval={historyZoomed ? "preserveStartEnd" : Math.max(Math.ceil(history.length / 4) - 1, 0)}
-                      />
-                      <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickFormatter={(v: number) => `Rp ${(v / 1e6).toFixed(0)}M`} width={45} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickFormatter={(v: number) => `$${(v / 1e3).toFixed(0)}K`} width={45} />
-                      <Tooltip
-                        formatter={(val, name) => {
-                          if (name === "Nilai IDR") return [formatCurrency(Number(val), PORTFOLIO_CURRENCY), name];
-                          if (name === "Estimasi USD") return [`$${Number(val).toLocaleString("en-US", { maximumFractionDigits: 0 })}`, name];
-                          return [formatCurrency(Number(val), PORTFOLIO_CURRENCY), String(name)];
-                        }}
-                        labelFormatter={(label) => String(label)}
-                        contentStyle={{
-                          background: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                        }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: "12px" }} />
-                      <Area yAxisId="left" dataKey="totalValue" name="Nilai IDR" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#portGrad)" dot={false} />
-                      <Area yAxisId="right" dataKey="totalValueUsd" name="Estimasi USD" stroke="#22c55e" strokeWidth={2.5} fill="url(#usdGrad)" dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ))}
-              </div>
-            )}
+            {history.length > 1 && <PortfolioHistoryCard history={history} hidden={portfolioHidden} />}
 
             {/* Allocation Table */}
             {pieData.length > 0 && (
@@ -1381,13 +1408,6 @@ export default function Portfolio() {
           onConfirm={handleDelete}
         />
       )}
-      {historyTarget && (
-        <PriceHistoryModal
-          asset={historyTarget}
-          hidden={portfolioHidden}
-          onClose={() => setHistoryTarget(null)}
-        />
-      )}
 
       <AssetDetailSheet
         asset={detailAsset}
@@ -1396,7 +1416,6 @@ export default function Portfolio() {
         onClose={() => setDetailId(null)}
         onEdit={(asset) => { setDetailId(null); setEditTarget(asset); }}
         onDelete={(asset) => { setDetailId(null); setDeleteTarget(asset); }}
-        onHistory={(asset) => { setDetailId(null); setHistoryTarget(asset); }}
       />
 
     </div>

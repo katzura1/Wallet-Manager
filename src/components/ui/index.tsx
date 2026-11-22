@@ -546,9 +546,13 @@ interface SheetProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** Wider centered panel on desktop (lg+); mobile stays a bottom sheet. */
+  wide?: boolean;
+  /** Pinned below the scrolling content (e.g. actions). */
+  footer?: React.ReactNode;
 }
 
-export function Sheet({ open, onClose, title, children }: SheetProps) {
+export function Sheet({ open, onClose, title, children, wide = false, footer }: SheetProps) {
   const titleId = React.useId();
   const panelRef = React.useRef<HTMLDivElement>(null);
   const closeRef = React.useRef<HTMLButtonElement>(null);
@@ -563,7 +567,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl lg:max-w-lg lg:rounded-3xl"
+        className={cn("relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl lg:rounded-3xl", wide ? "lg:max-w-4xl" : "lg:max-w-lg")}
       >
         <GrabHandle />
         <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] px-5 pb-3 pt-2 lg:pt-4">
@@ -578,7 +582,8 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
             <X size={18} />
           </button>
         </div>
-        <div className="min-h-0 overflow-y-auto p-5 safe-bottom">{children}</div>
+        <div className={cn("min-h-0 overflow-y-auto p-5", !footer && "safe-bottom")}>{children}</div>
+        {footer && <div className="border-t border-[hsl(var(--border))] px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-3">{footer}</div>}
       </div>
     </div>,
     document.body,
