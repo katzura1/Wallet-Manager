@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ParsedTransaction } from "@/lib/geminiParser";
 import type { Account, Category } from "@/types";
-import { formatCurrency, TRANSACTION_TYPE_BG } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { Check, Pencil, Trash2, X } from "lucide-react";
 
 interface ChatTransactionCardProps {
@@ -30,6 +30,7 @@ export function ChatTransactionCard({
   const category = tx.categoryId ? categories.find((c) => c.id === tx.categoryId) : undefined;
 
   const displayIcon = category?.icon || (tx.type === "income" ? "💰" : tx.type === "expense" ? "💸" : "↔️");
+  const toneBg = tx.type === "income" ? "bg-success/10 text-success" : tx.type === "expense" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning";
   const typeLabel = tx.type === "income" ? "Pemasukan" : tx.type === "expense" ? "Pengeluaran" : "Transfer";
 
   function handleSaveEdit() {
@@ -44,14 +45,14 @@ export function ChatTransactionCard({
   }
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 shadow-sm backdrop-blur-sm">
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex gap-3 border-b border-[hsl(var(--border))] px-4 py-3">
-        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-base flex-none ${TRANSACTION_TYPE_BG[tx.type]}`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-base flex-none ${toneBg}`}>
           {displayIcon}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-semibold r px-2 py-0.5 rounded-full ${TRANSACTION_TYPE_BG[tx.type]}`}>
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${toneBg}`}>
               {typeLabel}
             </span>
           </div>
@@ -59,10 +60,10 @@ export function ChatTransactionCard({
             {tx.note || category?.name || account?.name || "Transaksi"}
           </p>
           <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate mt-1">
-            {tx.date}
+            {[category?.name, account?.name, tx.date].filter(Boolean).join(" · ")}
           </p>
         </div>
-        <div className={`font-bold text-sm flex-none self-center pl-2 ${tx.type === "income" ? "text-emerald-500" : tx.type === "expense" ? "text-red-500" : "text-amber-500"}`}>
+        <div className={`font-bold text-sm flex-none self-center pl-2 ${tx.type === "income" ? "text-success" : tx.type === "expense" ? "text-danger" : "text-warning"}`}>
           {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
           {formatCurrency(tx.amount, currency)}
         </div>
@@ -168,14 +169,14 @@ export function ChatTransactionCard({
             <>
               <button
                 onClick={handleCancelEdit}
-                className="flex-1 flex items-center justify-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 text-[hsl(var(--foreground))] px-4 py-2.5 text-sm font-medium hover:bg-[hsl(var(--surface-2))]"
+                className="flex-1 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card text-foreground px-4 text-sm font-medium hover:bg-[hsl(var(--surface-2))]"
               >
                 <X size={16} />
                 Batal
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] px-4 py-2.5 text-sm font-medium shadow-[0_12px_24px_-16px_hsl(var(--primary))] hover:brightness-[1.06]"
+                className="flex-1 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 text-sm font-medium hover:brightness-[1.06]"
               >
                 <Check size={16} />
                 Simpan Edit
@@ -186,7 +187,7 @@ export function ChatTransactionCard({
               <button
                 onClick={() => setIsEditing(true)}
                 disabled={isSaved}
-                className="flex items-center justify-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/80 text-[hsl(var(--foreground))] px-4 py-2.5 text-sm font-medium hover:bg-[hsl(var(--surface-2))] disabled:opacity-50 disabled:pointer-events-none"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card text-foreground px-4 text-sm font-medium hover:bg-[hsl(var(--surface-2))] disabled:opacity-50 disabled:pointer-events-none"
               >
                 <Pencil size={16} />
                 Edit
@@ -194,7 +195,7 @@ export function ChatTransactionCard({
               <button
                 onClick={onDelete}
                 disabled={isSaved}
-                className="flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-red-600 px-4 py-2.5 text-sm font-medium hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-400 dark:hover:bg-red-900 disabled:opacity-50 disabled:pointer-events-none"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 text-danger px-4 text-sm font-medium hover:bg-danger/20 disabled:opacity-50 disabled:pointer-events-none"
               >
                 <Trash2 size={16} />
                 Hapus
@@ -205,7 +206,7 @@ export function ChatTransactionCard({
                   onConfirm(tx);
                 }}
                 disabled={isSaved}
-                className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] px-4 py-2.5 text-sm font-medium shadow-[0_12px_24px_-16px_hsl(var(--primary))] hover:brightness-[1.06] disabled:opacity-50 disabled:pointer-events-none"
+                className="flex-1 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 text-sm font-medium hover:brightness-[1.06] disabled:opacity-50 disabled:pointer-events-none"
               >
                 <Check size={16} />
                 {isSaved ? "Tersimpan" : "Simpan"}

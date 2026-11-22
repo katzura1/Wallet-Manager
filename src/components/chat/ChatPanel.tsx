@@ -231,7 +231,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
           ))}
           {isProcessing && (
             <div className="flex justify-start">
-              <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 px-4 py-3 flex items-center gap-2">
+              <div className="rounded-2xl border border-border bg-card px-4 py-3 flex items-center gap-2">
                 <Loader2 size={16} className="animate-spin text-[hsl(var(--primary))]" />
                 <span className="text-sm text-[hsl(var(--muted-foreground))]">Memproses...</span>
               </div>
@@ -251,13 +251,13 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
               onKeyDown={handleKeyDown}
               placeholder="Ketik transaksi atau pertanyaan..."
               disabled={isProcessing}
-              className="flex-1 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-base min-h-[44px] text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] disabled:opacity-50"
+              className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-base min-h-[44px] text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] disabled:opacity-50"
             />
             <Button
               onClick={handleSend}
               disabled={!inputText.trim() || isProcessing}
               size="icon"
-              className="rounded-full w-12 h-12"
+              className="h-11 w-11 flex-none rounded-xl"
             >
               {isProcessing ? (
                 <Loader2 size={20} className="animate-spin" />
@@ -267,7 +267,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
             </Button>
           </div>
           {!apiKey.trim() && (
-            <p className="text-[10px] text-amber-500 mt-2 text-center">
+            <p className="text-[10px] text-warning mt-2 text-center">
               API key belum diset. Silakan set di Pengaturan.
             </p>
           )}

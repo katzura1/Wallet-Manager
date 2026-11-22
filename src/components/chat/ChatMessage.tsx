@@ -41,7 +41,7 @@ export function ChatMessage({
             ))}
           </div>
         ) : message.type === "summary" && message.summaryData ? (
-          <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 shadow-sm backdrop-blur-sm p-4">
+          <div className="rounded-2xl border border-border bg-card p-4">
             <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-2">
               Ringkasan {message.summaryData.type === "daily" ? "Hari Ini" : message.summaryData.type === "weekly" ? "Minggu Ini" : "Bulan Ini"}
             </p>
@@ -49,19 +49,19 @@ export function ChatMessage({
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-[hsl(var(--foreground))]">Pemasukan</span>
-                <span className="text-sm font-semibold text-emerald-500">
+                <span className="text-sm font-semibold text-success">
                   {formatCurrency(message.summaryData.income, currency)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-[hsl(var(--foreground))]">Pengeluaran</span>
-                <span className="text-sm font-semibold text-red-500">
+                <span className="text-sm font-semibold text-danger">
                   -{formatCurrency(message.summaryData.expense, currency)}
                 </span>
               </div>
               <div className="border-t border-[hsl(var(--border))] pt-2 flex justify-between items-center">
                 <span className="text-sm font-semibold text-[hsl(var(--foreground))]">Selisih</span>
-                <span className={`text-sm font-bold ${message.summaryData.net >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                <span className={`text-sm font-bold ${message.summaryData.net >= 0 ? "text-success" : "text-danger"}`}>
                   {formatCurrency(message.summaryData.net, currency)}
                 </span>
               </div>
@@ -69,10 +69,12 @@ export function ChatMessage({
           </div>
         ) : (
           <div
-            className={`rounded-3xl px-4 py-3 text-sm leading-relaxed ${
+            className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
               isUser
-                ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                : "border border-[hsl(var(--border))] bg-[hsl(var(--card))]/96 text-[hsl(var(--foreground))] shadow-sm backdrop-blur-sm"
+                ? "bg-primary text-primary-foreground"
+                : message.type === "error"
+                  ? "border border-danger/30 bg-card text-danger"
+                  : "border border-border bg-card text-foreground"
             }`}
           >
             {message.content}

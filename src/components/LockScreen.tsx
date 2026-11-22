@@ -32,62 +32,48 @@ export function LockScreen() {
   }
 
   const dots = Array.from({ length: 4 }, (_, i) => i < input.length);
+  const keyClass =
+    "flex h-16 items-center justify-center rounded-2xl border border-border bg-card text-xl font-semibold text-foreground transition-transform hover:bg-surface-2 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]";
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[hsl(var(--background))] select-none app-shell">
-      <div className="flex flex-col items-center gap-8 w-full max-w-sm px-8">
-        {/* App icon */}
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background select-none app-shell">
+      <div className="flex w-full max-w-sm flex-col items-center gap-7 px-8">
         <div className="flex flex-col items-center gap-2">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(var(--primary))] text-2xl text-[hsl(var(--primary-foreground))] shadow-sm">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-2xl text-primary-foreground">
             💰
           </div>
-          <p className="text-xl font-bold text-[hsl(var(--foreground))]">Wallet</p>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] text-center">Masukkan PIN untuk membuka kembali ruang kerja finansial kamu</p>
+          <h1 className="text-xl font-bold text-foreground">Masukkan PIN</h1>
+          <p className="text-center text-sm text-muted-foreground">Masukkan PIN untuk membuka kembali ruang kerja finansial kamu</p>
         </div>
 
-        {/* Dots */}
-        <div className={`flex gap-4 ${shake ? "animate-[shake_0.4s_ease]" : ""}`}>
+        <div
+          role="status"
+          aria-label={`${input.length} dari 4 digit terisi`}
+          className={`flex gap-4 ${shake ? "animate-[shake_0.4s_ease]" : ""}`}
+        >
           {dots.map((filled, i) => (
             <div
               key={i}
-              className={`w-4 h-4 rounded-full border-2 transition-all ${
-                filled
-                  ? error
-                    ? "bg-red-500 border-red-500"
-                    : "bg-[hsl(var(--primary))] border-[hsl(var(--primary))]"
-                  : "border-[hsl(var(--border))]"
+              className={`h-4 w-4 rounded-full border-2 transition-all ${
+                filled ? (error ? "border-danger bg-danger" : "border-primary bg-primary") : "border-border"
               }`}
             />
           ))}
         </div>
 
-        {error && (
-          <p className="text-xs text-red-500 -mt-4">PIN salah, coba lagi</p>
-        )}
+        <p role="alert" className="-mt-3 h-4 text-xs text-danger">{error ? "PIN salah, coba lagi" : ""}</p>
 
-        {/* Numpad */}
-        <div className="grid w-full grid-cols-3 gap-3 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+        <div className="grid w-full grid-cols-3 gap-3">
           {["1","2","3","4","5","6","7","8","9"].map((d) => (
-            <button
-              key={d}
-              onClick={() => press(d)}
-              className="h-16 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-xl font-semibold text-[hsl(var(--foreground))] shadow-sm transition-transform hover:bg-[hsl(var(--surface-2))] active:scale-95"
-            >
+            <button key={d} onClick={() => press(d)} className={keyClass}>
               {d}
             </button>
           ))}
-          {/* empty, 0, delete */}
           <div />
-          <button
-            onClick={() => press("0")}
-            className="h-16 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-xl font-semibold text-[hsl(var(--foreground))] shadow-sm transition-transform hover:bg-[hsl(var(--surface-2))] active:scale-95"
-          >
+          <button onClick={() => press("0")} className={keyClass}>
             0
           </button>
-          <button
-            onClick={del}
-            className="h-16 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-xl font-semibold text-[hsl(var(--foreground))] shadow-sm transition-transform hover:bg-[hsl(var(--surface-2))] active:scale-95"
-          >
+          <button onClick={del} aria-label="Hapus digit" className={keyClass}>
             ⌫
           </button>
         </div>
