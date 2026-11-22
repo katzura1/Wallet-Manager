@@ -208,7 +208,7 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
     ? owe
       ? `Pembayaran mengurangi saldo ${account.name}, tapi tidak masuk laporan pengeluaran.`
       : `Penerimaan menambah saldo ${account.name}, tapi tidak masuk laporan pemasukan.`
-    : "Tanpa akun, saldo tidak berubah.";
+    : creditAccount ? null : "Tanpa akun, saldo tidak berubah.";
 
   return (
     <>
@@ -254,7 +254,7 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
             ))}
           </div>
           <RowsCard>
-            <PickerRow label="Bayar dari" value={account ? `${account.name} · ${money(account.currentBalance)}` : "Tidak dicatat"} muted={!account} onClick={() => setPickerOpen(true)} />
+            <PickerRow label={owe ? "Bayar dari" : "Terima ke"} value={account ? `${account.name} · ${money(account.currentBalance)}` : creditAccount ? `Refund ke ${creditAccount.name}` : "Tidak dicatat"} muted={!account} onClick={() => setPickerOpen(true)} />
             <FieldRow label="Tanggal">
               <input type="date" aria-label="Tanggal pembayaran" value={date} onChange={(e) => setDate(e.target.value)} onClick={openDatePicker} className={dateInputCls} />
             </FieldRow>
@@ -262,17 +262,17 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
               <input type="text" aria-label="Catatan pembayaran" placeholder="Opsional" value={note} onChange={(e) => setNote(e.target.value)} className={textInputCls} />
             </FieldRow>
           </RowsCard>
-          <NoteLine>{accountNote}</NoteLine>
+          {accountNote && <NoteLine>{accountNote}</NoteLine>}
           {creditAccount && <NoteLine>Jika dipilih, dicatat sebagai transfer ke {creditAccount.name}. Kosongkan jika refund: dicatat sebagai pemasukan ke akun CC.</NoteLine>}
         </form>
       </Modal>
       <AccountPickerSheet
         open={open && pickerOpen}
         onClose={() => setPickerOpen(false)}
-        title="Bayar dari"
+        title={owe ? "Bayar dari" : "Terima ke"}
         accounts={accounts.filter((a) => a.id !== creditAccount?.id)}
         selectedId={accountId}
-        noneLabel="Tidak dicatat"
+        noneLabel={creditAccount ? `Refund ke ${creditAccount.name}` : "Tidak dicatat"}
         hidden={readBalanceHidden()}
         currency={currency}
         onPick={(id) => { setAccountId(id); setPickerOpen(false); }}
