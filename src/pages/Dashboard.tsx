@@ -268,9 +268,10 @@ export default function Dashboard() {
   // Reserve one slot for the most severe budget alert so debts/bills can never push it off Home.
   const allAttention = getAttentionItems(attentionInput, 100);
   const topBudgetItem = allAttention.find((item) => item.kind === "budget");
-  const baseAttention = topBudgetItem
-    ? [...allAttention.filter((item) => item.kind !== "budget").slice(0, 2), topBudgetItem]
-    : allAttention.slice(0, 3);
+  const firstThree = allAttention.slice(0, 3);
+  const baseAttention = topBudgetItem && !firstThree.includes(topBudgetItem)
+    ? [...firstThree.slice(0, 2), topBudgetItem]
+    : firstThree;
   const attentionItems: HomeAttention[] = baseAttention.map((item) => {
     if (item.kind !== "budget") return item;
     const alert = budgetAlerts.find((entry) => `budget-${entry.categoryId}` === item.key);

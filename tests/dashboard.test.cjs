@@ -82,3 +82,36 @@ test('home keeps the over-budget alert when debts and bills fill the attention l
     await browser.close();
   }
 });
+
+test('home fills the attention list with up to 3 budget alerts when nothing else is due', async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  try {
+    const context = await browser.newContext({ timezoneId: 'Asia/Jakarta', serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    await page.goto(url);
+    await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
+    await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts');
+      const stamp = new Date().toISOString();
+      const today = stamp.slice(0, 10);
+      await db.transaction('rw', db.tables, async () => {
+        for (const table of db.tables) await table.clear();
+        await db.accounts.add({ id: 1, name: 'Bank', type: 'bank', icon: '🏦', color: '#123456', initialBalance: 1000000, currentBalance: 700000, isArchived: false, createdAt: stamp, updatedAt: stamp });
+        for (const [id, name] of [[1, 'Makan'], [2, 'Transport'], [3, 'Belanja']]) {
+          await db.categories.add({ id, name, type: 'expense', icon: '🍜', color: '#123456', isDefault: false, createdAt: stamp });
+          await db.transactions.add({ amount: 100000, type: 'expense', categoryId: id, accountId: 1, date: today, note: `Beli ${name}`, createdAt: stamp, updatedAt: stamp });
+          await db.budgets.add({ categoryId: id, amount: 100000, month: today.slice(0, 7), createdAt: stamp, recurring: false });
+        }
+      });
+    });
+    await page.reload();
+    await page.getByRole('region', { name: 'Total saldo' }).waitFor();
+    for (const name of ['Makan', 'Transport', 'Belanja']) {
+      await page.getByText(`Anggaran ${name}`).first().waitFor();
+    }
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+});
