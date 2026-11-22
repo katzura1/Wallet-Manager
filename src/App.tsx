@@ -67,24 +67,24 @@ export default function App() {
 
       {showUpdateToast && (
         <div className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 sm:bottom-6 sm:left-auto sm:right-6 sm:w-80">
-          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-lg">
-            <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Pembaruan aplikasi</p>
-            <p className="mt-1 text-base font-semibold text-[hsl(var(--foreground))]">Versi baru tersedia</p>
-            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]" role="status" aria-live="polite">
+          <div className="rounded-2xl bg-[hsl(var(--foreground))] p-4 text-[hsl(var(--background))] shadow-lg">
+            <p className="text-xs font-medium opacity-70">Pembaruan aplikasi</p>
+            <p className="mt-1 text-base font-semibold">Versi baru tersedia</p>
+            <p className="mt-1 text-xs opacity-70" role="status" aria-live="polite">
               {swUpdateState === "ready" && "Update sekarang untuk melihat perubahan terbaru."}
               {swUpdateState === "updating" && "Sedang menerapkan update aplikasi..."}
               {swUpdateState === "updated" && "Update berhasil. Aplikasi akan dimuat ulang."}
             </p>
             <div className="mt-3 flex items-center justify-end gap-2">
-              <Button size="sm" variant="ghost" disabled={swUpdateState !== "ready"} onClick={() => setShowUpdateToast(false)}>
+              <Button size="sm" variant="ghost" className="min-h-11 text-[hsl(var(--background))] hover:bg-[hsl(var(--background))]/15 hover:text-[hsl(var(--background))]" disabled={swUpdateState !== "ready"} onClick={() => setShowUpdateToast(false)}>
                 Nanti
               </Button>
-              <Button size="sm" disabled={swUpdateState !== "ready"} onClick={() => void applyUpdate()}>
-                {swUpdateState === "ready" && "Update"}
+              <Button size="sm" className="min-h-11" disabled={swUpdateState !== "ready"} onClick={() => void applyUpdate()}>
+                {swUpdateState === "ready" && "Perbarui"}
                 {swUpdateState === "updating" && (
                   <>
                     <span className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden="true" />
-                    Updating...
+                    Memperbarui...
                   </>
                 )}
                 {swUpdateState === "updated" && "Berhasil"}

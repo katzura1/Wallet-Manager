@@ -4,7 +4,7 @@ import { Button, Modal, PageHeader, SegmentedControl } from "@/components/ui";
 import { CategoryForm } from "@/components/forms/CategoryForm";
 import { deleteCategory } from "@/db/categories";
 import { seedMissingDefaultCategories } from "@/db/db";
-import { Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { Category } from "@/types";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 
@@ -57,6 +57,10 @@ export default function Categories() {
       />
 
       <p className="text-xs text-[hsl(var(--muted-foreground))]">{categories.length} kategori · {categories.filter((cat) => cat.isDefault).length} bawaan · {categories.filter((cat) => !cat.isDefault).length} buatan sendiri</p>
+
+      <Button className="min-h-11 w-full gap-1 lg:hidden" onClick={() => setCatFormOpen(true)}>
+        <Plus size={16} aria-hidden="true" />Tambah kategori
+      </Button>
 
       <SegmentedControl
         label="Jenis kategori"

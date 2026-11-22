@@ -110,11 +110,6 @@
     background: hsl(var(--background));
   }
 
-  body:has([data-modal-open="true"]) .app-floating-action,
-  body:has([data-action-sheet]) .app-floating-action {
-    display: none;
-  }
-
   @media print {
     body {
       background: #fff !important;

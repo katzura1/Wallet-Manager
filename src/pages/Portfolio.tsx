@@ -5,7 +5,7 @@ import { formatCurrency, formatNumberWithSeparator } from "@/lib/utils";
 import { getAssets, addAsset, updateAsset, deleteAsset, savePortfolioSnapshot, getPortfolioHistory, saveSyncLog, getAssetPriceHistory, backfillPortfolioHistoryUsd, FOREIGN_CURRENCIES } from "@/db/assets";
 import { syncAllPrices, searchCoins, anyPriceStale, getUsdIdr, type CoinSearchResult } from "@/services/priceSync";
 import { db } from "@/db/db";
-import { Eye, EyeOff, Clock, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
+import { Plus, Eye, EyeOff, Clock, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
 import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 import { getPortfolioMetrics } from "@/lib/portfolioMetrics";
@@ -1061,6 +1061,9 @@ export default function Portfolio() {
           </>
         }
       />
+      <Button className="min-h-11 w-full gap-1 lg:hidden" onClick={() => setAddOpen(true)}>
+        <Plus size={16} aria-hidden="true" />Tambah aset
+      </Button>
       {lastSynced && <p className="-mt-2 px-1 text-xs text-[hsl(var(--muted-foreground))]">Harga terakhir diperbarui {fmtAge(lastSynced)} lalu</p>}
 
       <section aria-label="Ringkasan dan performa portofolio" className="rounded-[20px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-5">

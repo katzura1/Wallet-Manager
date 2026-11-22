@@ -1,24 +1,14 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
-
-export interface QuickAction {
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  onClick: () => void;
-}
 
 export interface PageAction {
   label: string;
   onClick: () => void;
-  mobileActions?: QuickAction[];
 }
 
 export interface RegisteredPageAction {
   label: string;
   onClick: () => void;
-  getMobileActions: () => QuickAction[];
 }
 
 export interface AppLayoutContext {
@@ -43,7 +33,6 @@ export function usePageAction(action: PageAction | null) {
     registerPageAction({
       label: action.label,
       onClick: () => actionRef.current?.onClick(),
-      getMobileActions: () => actionRef.current?.mobileActions ?? [],
     });
     return () => registerPageAction(null);
   }, [action?.label, registerPageAction]);

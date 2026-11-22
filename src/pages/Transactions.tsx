@@ -14,7 +14,7 @@ import { db } from "@/db/db";
 import { formatCurrency, formatDate, todayISO } from "@/lib/utils";
 import { getRecurringDetectionSuggestions, type RecurringDetectionSuggestion } from "@/services/recurringDetection";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
-import { Search, Filter, Pencil, Trash2, Pause, Play } from "lucide-react";
+import { Plus, Search, Filter, Pencil, Trash2, Pause, Play } from "lucide-react";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 
 const PAGE_SIZE = 100;
@@ -650,6 +650,12 @@ export default function Transactions() {
         </Sheet>
       )}
       {/* Recurring tab */}
+      {activeTab === "recurring" && (
+        <Button className="min-h-11 w-full gap-1 lg:hidden" onClick={() => { setRecurringDraft(null); setRecurringFormOpen(true); }}>
+          <Plus size={16} aria-hidden="true" />Tambah jadwal
+        </Button>
+      )}
+
       {activeTab === "recurring" && (
         recurringLoading ? (
           <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">

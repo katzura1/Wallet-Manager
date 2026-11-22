@@ -328,7 +328,6 @@ export default function Dashboard() {
   usePageAction(activeAccounts.length > 0 ? {
     label: "Tambah transaksi",
     onClick: () => openTransaction("expense"),
-    mobileActions: fabActions.map(({ label, helper, icon, onClick }) => ({ label, description: helper, icon, onClick })),
   } : null);
 
   const hasAccounts = activeAccounts.length > 0;
