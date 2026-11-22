@@ -85,8 +85,8 @@ test('budget inheritance, migration, backup and monthly UI', async () => {
       return ['migration', 'inheritance', 'one-month overrides', 'backup replace and merge'];
     });
     assert.equal(results.length, 4);
-    await page.goto(url + '/reports');
-    await page.getByText('Anggaran Bulan Ini', { exact: true }).waitFor();
+    await page.goto(url + '/budgets');
+    await page.getByRole('region', { name: 'Anggaran', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Atur anggaran Budget 1', exact: true }).click();
     const dialog = page.getByRole('dialog');
     assert.equal(await dialog.getByRole('checkbox').isChecked(), true);

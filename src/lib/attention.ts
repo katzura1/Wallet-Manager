@@ -66,7 +66,7 @@ export function getAttentionItems(
       title: `Anggaran ${b.name}`,
       detail: `${percent}% terpakai`,
       percent,
-      href: "/reports#anggaran",
+      href: "/budgets",
     }));
 
   return [...debts, ...bills, ...budgets].slice(0, max);

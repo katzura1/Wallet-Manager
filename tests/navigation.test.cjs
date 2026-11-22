@@ -78,8 +78,9 @@ test('desktop sidebar', async () => {
     await page.goto(url + '/categories');
     assert.equal(await current('Pengaturan'), 'page');
     await page.goto(url + '/reports#anggaran');
-    assert.equal(await current('Laporan'), 'page');
-    assert.equal(await current('Anggaran'), null);
+    await page.waitForURL(/\/budgets$/);
+    assert.equal(await current('Laporan'), null);
+    assert.equal(await current('Anggaran'), 'page');
     await context.close();
   } finally {
     await browser.close();

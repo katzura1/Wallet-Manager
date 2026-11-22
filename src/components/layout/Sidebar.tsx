@@ -19,7 +19,7 @@ const items: SidebarItem[] = [
   { to: "/transactions", label: "Transaksi", icon: ReceiptText, isActive: (p, q) => p === "/transactions" && q.get("tab") !== "recurring" },
   { to: "/transactions?tab=recurring", label: "Terjadwal", icon: RefreshCw, isActive: (p, q) => p === "/transactions" && q.get("tab") === "recurring" },
   { to: "/reports", label: "Laporan", icon: BarChart3, isActive: (p) => p === "/reports" },
-  { to: "/reports#anggaran", label: "Anggaran", icon: PiggyBank, isActive: () => false },
+  { to: "/budgets", label: "Anggaran", icon: PiggyBank, isActive: (p) => p === "/budgets" },
   { to: "/accounts", label: "Aset & akun", icon: WalletCards, isActive: (p) => p === "/accounts" },
   { to: "/debts", label: "Hutang & piutang", icon: HandCoins, isActive: (p) => p === "/debts" },
   { to: "/portfolio", label: "Portofolio", icon: CandlestickChart, isActive: (p) => p === "/portfolio" },

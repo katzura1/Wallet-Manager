@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { LockScreen } from "@/components/LockScreen";
 import { Button } from "@/components/ui";
 import Accounts from "@/pages/Accounts";
+import Budgets from "@/pages/Budgets";
 import Categories from "@/pages/Categories";
 import Dashboard from "@/pages/Dashboard";
 import Debts from "@/pages/Debts";
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="/debts" element={<Debts />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/accounts" element={<Accounts />} />
+            <Route path="/budgets" element={<Budgets />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/ledger" element={<Navigate to="/reports?tab=ledger" replace />} />
             <Route path="/settings" element={<Settings />} />

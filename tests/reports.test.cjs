@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 
-test('reports anchor, tabs and ledger', async () => {
+test('reports redirect, tabs and ledger', async () => {
   const browser = await chromium.launch({ headless: true, channel: 'chrome' });
   try {
     const context = await browser.newContext({ timezoneId: 'Asia/Jakarta', serviceWorkers: 'block', viewport: { width: 390, height: 800 } });
@@ -24,14 +24,9 @@ test('reports anchor, tabs and ledger', async () => {
     });
 
     await page.goto(url + '/reports#anggaran');
+    await page.waitForURL(/\/budgets$/);
     const region = page.getByRole('region', { name: 'Anggaran', exact: true });
     await region.waitFor();
-    await page.waitForFunction(() => {
-      const el = document.getElementById('anggaran');
-      if (!el) return false;
-      const r = el.getBoundingClientRect();
-      return r.top >= 0 && r.top < innerHeight;
-    });
     assert.ok(await region.getByRole('progressbar').count() > 0);
 
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -41,22 +36,18 @@ test('reports anchor, tabs and ledger', async () => {
       await page.getByRole('columnheader', { name, exact: true }).waitFor();
     }
 
-    // In-app navigation (desktop sidebar link) must also land on the section after load.
+    // Desktop sidebar link opens the dedicated budgets page.
     await page.goto(url + '/transactions');
     await page.getByRole('link', { name: 'Anggaran', exact: true }).click();
+    await page.waitForURL(/\/budgets$/);
     await page.getByRole('region', { name: 'Anggaran', exact: true }).waitFor();
-    await page.waitForTimeout(1500);
-    assert.ok(await page.evaluate(() => {
-      const r = document.getElementById('anggaran').getBoundingClientRect();
-      return r.top >= 0 && r.top < innerHeight;
-    }));
 
     await page.goto(url + '/reports');
     await page.getByRole('tab', { name: 'Buku besar', exact: true }).click();
     await page.waitForURL(/tab=ledger/);
     await page.getByRole('table').waitFor();
     await page.getByRole('tab', { name: 'Ringkasan', exact: true }).click();
-    await page.getByText('Anggaran Bulan Ini', { exact: true }).waitFor();
+    await page.getByRole('link', { name: /Anggaran · \d+% terpakai/ }).waitFor();
     assert.ok(!page.url().includes('tab=ledger'));
   } finally { await browser.close(); }
 });

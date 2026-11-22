@@ -386,7 +386,7 @@ export function EmptyState({ icon, title, description }: { icon: string; title: 
   );
 }
 
-export function PageHeader({ title, back, actions }: { title: string; back?: string; actions?: React.ReactNode }) {
+export function PageHeader({ title, back, actions }: { title: React.ReactNode; back?: string; actions?: React.ReactNode }) {
   return (
     <header className="flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2">
