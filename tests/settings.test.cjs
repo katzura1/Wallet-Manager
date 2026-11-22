@@ -17,11 +17,13 @@ test('settings on mobile: groups, theme toggle and categories navigation', async
     for (const name of ['Tampilan', 'Keamanan', 'Asisten AI', 'Backup', 'Zona bahaya']) {
       await page.getByRole('heading', { name, exact: true }).waitFor();
     }
-    const theme = page.getByRole('tablist', { name: 'Tema' });
+    await page.getByRole('button', { name: /^Tema/ }).click();
+    const theme = page.getByRole('dialog', { name: 'Tema' }).getByRole('tablist', { name: 'Tema' });
     await theme.getByRole('tab', { name: 'Gelap' }).click();
     await page.waitForFunction(() => document.documentElement.classList.contains('dark'));
     await theme.getByRole('tab', { name: 'Terang' }).click();
     await page.waitForFunction(() => !document.documentElement.classList.contains('dark'));
+    await page.getByRole('dialog', { name: 'Tema' }).getByRole('button', { name: 'Tutup' }).click();
     await page.getByRole('link', { name: /^Kategori/ }).click();
     await page.waitForURL('**/categories');
     await page.getByRole('heading', { name: 'Kategori', exact: true }).waitFor();

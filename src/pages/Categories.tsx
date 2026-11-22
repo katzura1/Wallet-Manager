@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWalletStore } from "@/stores/walletStore";
-import { Button, ConfirmDialog, IconTile, PageHeader, SegmentedControl } from "@/components/ui";
+import { ConfirmDialog, IconTile, PageHeader, SegmentedControl } from "@/components/ui";
 import { CategoryForm } from "@/components/forms/CategoryForm";
 import { deleteCategory } from "@/db/categories";
 import { seedMissingDefaultCategories } from "@/db/db";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { MoreHorizontal, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { Category } from "@/types";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 
@@ -18,6 +18,14 @@ export default function Categories() {
   const [deleteCatId, setDeleteCatId] = useState<number | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [restoreMsg, setRestoreMsg] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   async function handleRestoreDefault() {
     setRestoring(true);
@@ -50,17 +58,30 @@ export default function Categories() {
         title="Kategori"
         back="/settings"
         actions={
-          <Button variant="outline" onClick={handleRestoreDefault} disabled={restoring} className="min-h-11 gap-1.5">
-            <RefreshCw size={14} className={restoring ? "animate-spin" : ""} /> {restoring ? "Memulihkan…" : "Pulihkan Default"}
-          </Button>
+          <>
+            <button type="button" onClick={() => setCatFormOpen(true)} aria-label="Tambah kategori" className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:hidden">
+              <Plus size={20} aria-hidden="true" />
+            </button>
+            <div className="relative">
+              <button type="button" onClick={() => setMenuOpen((v) => !v)} aria-label="Menu kategori" aria-haspopup="menu" aria-expanded={menuOpen} className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+                <MoreHorizontal size={20} aria-hidden="true" />
+              </button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" aria-hidden="true" onClick={() => setMenuOpen(false)} />
+                  <div role="menu" className="absolute right-0 top-12 z-40 min-w-48 overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-xl">
+                    <button type="button" role="menuitem" disabled={restoring} onClick={() => { setMenuOpen(false); void handleRestoreDefault(); }} className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm font-medium hover:bg-[hsl(var(--surface-2))] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--ring))]">
+                      <RefreshCw size={14} className={restoring ? "animate-spin" : ""} aria-hidden="true" /> {restoring ? "Memulihkan…" : "Pulihkan default"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
         }
       />
 
       <p className="text-xs text-[hsl(var(--muted-foreground))]">{categories.length} kategori · {categories.filter((cat) => cat.isDefault).length} bawaan · {categories.filter((cat) => !cat.isDefault).length} buatan sendiri</p>
-
-      <Button className="min-h-11 w-full gap-1 lg:hidden" onClick={() => setCatFormOpen(true)}>
-        <Plus size={16} aria-hidden="true" />Tambah kategori
-      </Button>
 
       <SegmentedControl
         label="Jenis kategori"
@@ -79,20 +100,17 @@ export default function Categories() {
         {items.length === 0 && <p className="p-4 text-xs text-[hsl(var(--muted-foreground))]">Belum ada kategori {tabNames[activeTab]}. Pilih Tambah kategori untuk membuatnya.</p>}
         <ul className="divide-y divide-[hsl(var(--border))]">
           {items.map((cat) => (
-            <li key={cat.id} className="flex items-center gap-3 px-4 py-2.5">
-              <IconTile label={cat.name} color={cat.color} />
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <p className="break-words text-sm font-medium">{cat.name}</p>
-                {cat.isDefault && <span className="shrink-0 rounded-full bg-[hsl(var(--surface-2))] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Bawaan</span>}
-              </div>
-              <div className="flex shrink-0 items-center">
-                <button onClick={() => setEditCat(cat)} aria-label={`Edit ${cat.name}`} title="Edit kategori" className="flex h-11 w-11 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
-                  <Pencil size={15} />
-                </button>
-                {!cat.isDefault && <button onClick={() => setDeleteCatId(cat.id!)} aria-label={`Hapus ${cat.name}`} title="Hapus kategori" className="flex h-11 w-11 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+            <li key={cat.id} className="flex items-center">
+              <button type="button" onClick={() => setEditCat(cat)} aria-label={`Edit ${cat.name}`} className="flex min-h-[54px] min-w-0 flex-1 items-center gap-3 py-2 pl-4 pr-2 text-left hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--ring))]">
+                <IconTile label={cat.name} color={cat.color} />
+                <span className="min-w-0 flex-1 break-words text-sm font-semibold">{cat.name}</span>
+                {cat.isDefault && <span className="shrink-0 rounded-full bg-[hsl(var(--surface-2))] px-2 py-0.5 text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Bawaan</span>}
+              </button>
+              {!cat.isDefault ? (
+                <button onClick={() => setDeleteCatId(cat.id!)} aria-label={`Hapus ${cat.name}`} title="Hapus kategori" className="mr-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
                   <Trash2 size={15} />
-                </button>}
-              </div>
+                </button>
+              ) : <span className="w-3 shrink-0" aria-hidden="true" />}
             </li>
           ))}
         </ul>

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { Button, ConfirmDialog, EmptyState, IconTile, Modal, Spinner, PageHeader, ProgressBar, ListGroup, Sheet } from "@/components/ui";
+import { Button, ConfirmDialog, EmptyState, IconTile, Modal, Spinner, PageHeader, ListGroup, Sheet } from "@/components/ui";
 import { ReconcileAccountForm } from "@/components/forms/ReconcileAccountForm";
 import { AccountForm } from "@/components/forms/AccountForm";
 import { archiveAccount, deleteAccount, updateAccount } from "@/db/accounts";
-import { formatCurrency, formatDate, cn, ACCOUNT_TYPE_LABELS } from "@/lib/utils";
+import { formatCurrency, formatCompactCurrency, formatDate, cn, readBalanceHidden, ACCOUNT_TYPE_LABELS } from "@/lib/utils";
 import { getDebts } from "@/db/debts";
 import { getAssets } from "@/db/assets";
 import { getTransactions } from "@/db/transactions";
@@ -13,7 +13,7 @@ import { db } from "@/db/db";
 import { getPortfolioMetrics } from "@/lib/portfolioMetrics";
 import { getNetWorth } from "@/lib/netWorth";
 import type { Account, AssetPrice, Debt, Transaction } from "@/types";
-import { Archive, Trash2, Pencil, Settings, Plus, ChevronRight, Briefcase, HandCoins } from "lucide-react";
+import { Archive, Trash2, Pencil, Settings, Plus, ChevronRight } from "lucide-react";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 
 export default function Accounts() {
@@ -123,6 +123,15 @@ export default function Accounts() {
   const selected = accounts.find((a) => a.id === selectedId && (!a.isArchived || view === "archived"))
     ?? (view === "active" ? activeAccounts[0] : archivedAccounts[0]);
   const allocationBase = Math.max(netWorth.cash, 0) + netWorth.investments;
+  const hidden = readBalanceHidden();
+  const money = (value: number) => (hidden ? "•••" : formatCurrency(value, currency));
+  // Short "jt" form so breakdown values wrap instead of truncating on narrow screens.
+  const compactMoney = (value: number) => {
+    if (hidden) return "•••";
+    if (currency !== "IDR") return formatCompactCurrency(value, currency);
+    return `${value < 0 ? "−" : ""}Rp ${formatCompactCurrency(Math.abs(value), currency)}`;
+  };
+  const cashShare = allocationBase > 0 ? (Math.max(netWorth.cash, 0) / allocationBase) * 100 : 0;
 
   function selectAccount(account: Account) {
     setSelectedId(account.id ?? null);
@@ -135,6 +144,7 @@ export default function Accounts() {
         key={account.id}
         account={account}
         currency={currency}
+        hidden={hidden}
         busy={busyId === account.id}
         onReconcile={() => { setSheetOpen(false); setReconcileTarget(account); }}
         onEdit={() => { setSheetOpen(false); setEditTarget(account); }}
@@ -163,8 +173,7 @@ export default function Accounts() {
             <span className="block truncate text-sm font-medium">{account.name}</span>
             <span className="block text-xs text-[hsl(var(--muted-foreground))]">{ACCOUNT_TYPE_LABELS[account.type]}</span>
           </span>
-          <span className={cn("shrink-0 text-sm font-semibold tabular-nums", account.currentBalance < 0 && "text-danger")}>{formatCurrency(account.currentBalance, currency)}</span>
-          <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
+          <span className={cn("shrink-0 text-sm font-bold tabular-nums", account.currentBalance < 0 && "text-danger")}>{money(account.currentBalance)}</span>
         </button>
       ))}
     </ListGroup>
@@ -185,55 +194,44 @@ export default function Accounts() {
         }
       />
 
-      <section aria-label="Kekayaan bersih" className="rounded-[20px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Kekayaan bersih</p>
-        <p className={cn("mt-1 text-3xl font-semibold tracking-tight tabular-nums", netWorth.total < 0 && "text-danger")}>{formatCurrency(netWorth.total, currency)}</p>
-        <dl className="mt-4 grid grid-cols-3 gap-3 text-xs">
-          {[
-            { label: "Kas & bank", value: netWorth.cash },
-            { label: "Investasi", value: netWorth.investments },
-            { label: "Hutang bersih", value: netWorth.debtNet },
-          ].map((item) => (
-            <div key={item.label} className="min-w-0">
-              <dt className="text-[hsl(var(--muted-foreground))]">{item.label}</dt>
-              <dd className={cn("mt-0.5 truncate text-sm font-semibold tabular-nums", item.value < 0 && "text-danger")}>{formatCurrency(item.value, currency)}</dd>
-            </div>
-          ))}
-        </dl>
-        {allocationBase > 0 && (
-          <div className="mt-4 space-y-1.5">
-            <ProgressBar value={netWorth.investments} max={allocationBase} label="Alokasi investasi" />
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Kas {Math.round((Math.max(netWorth.cash, 0) / allocationBase) * 100)}% · Investasi {Math.round((netWorth.investments / allocationBase) * 100)}%</p>
+      <section aria-label="Kekayaan bersih" className="space-y-2.5 lg:rounded-[18px] lg:border lg:border-[hsl(var(--border))] lg:bg-[hsl(var(--card))] lg:px-5 lg:py-[18px]">
+        <div className="lg:grid lg:grid-cols-[1.3fr_1fr_1fr_1fr] lg:items-center lg:gap-5">
+          <div>
+            <p className="text-[13px] text-[hsl(var(--muted-foreground))]">Kekayaan bersih</p>
+            <p className={cn("mt-0.5 break-words text-[34px] font-extrabold leading-tight tracking-tight tabular-nums lg:text-[30px]", netWorth.total < 0 && "text-danger")}>{money(netWorth.total)}</p>
           </div>
-        )}
+          <dl className="hidden lg:contents">
+            <div>
+              <dt className="text-[13px] text-[hsl(var(--muted-foreground))]">Kas & bank</dt>
+              <dd className={cn("mt-0.5 text-lg font-bold tabular-nums", netWorth.cash < 0 && "text-danger")}>{compactMoney(netWorth.cash)}</dd>
+            </div>
+            <Link to="/portfolio" className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+              <dt className="text-[13px] text-[hsl(var(--muted-foreground))]">Investasi ›</dt>
+              <dd className="mt-0.5 text-lg font-bold tabular-nums">{compactMoney(netWorth.investments)}</dd>
+            </Link>
+            <Link to="/debts" className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+              <dt className="text-[13px] text-[hsl(var(--muted-foreground))]">Hutang bersih ›</dt>
+              <dd className={cn("mt-0.5 text-lg font-bold tabular-nums", netWorth.debtNet < 0 && "text-danger")}>{compactMoney(netWorth.debtNet)}</dd>
+            </Link>
+          </dl>
+        </div>
+        <div className="space-y-2.5 lg:hidden">
+          {allocationBase > 0 && (
+            <div role="img" aria-label="Alokasi kas dan investasi" className="flex h-2.5 gap-0.5 overflow-hidden rounded-[5px] bg-[hsl(var(--surface-3))]">
+              <span style={{ width: `${cashShare}%` }} className="bg-[hsl(var(--primary))]" />
+              <span style={{ width: `${100 - cashShare}%` }} className="bg-success" />
+            </div>
+          )}
+          <p className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs tabular-nums text-[hsl(var(--foreground))]">
+            <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-2 rounded-sm bg-[hsl(var(--primary))]" />Kas {compactMoney(netWorth.cash)}</span>
+            <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-2 rounded-sm bg-success" />Investasi {compactMoney(netWorth.investments)}</span>
+            <span>Hutang {compactMoney(netWorth.debtNet)}</span>
+          </p>
+        </div>
         {netWorth.unpricedAssetCount > 0 && (
-          <p className="mt-3 text-xs text-warning">{netWorth.unpricedAssetCount} aset belum ada harga</p>
+          <p className="text-xs text-warning">{netWorth.unpricedAssetCount} aset belum ada harga</p>
         )}
       </section>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Link to="/debts" className="flex min-h-[72px] items-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
-          <HandCoins size={20} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">Hutang & piutang</span>
-            <span className="block truncate text-xs tabular-nums text-[hsl(var(--muted-foreground))]">
-              <span className="text-danger">{formatCurrency(totalOwe, currency)}</span> hutang · <span className="text-success">{formatCurrency(totalOwed, currency)}</span> piutang
-            </span>
-          </span>
-          <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
-        </Link>
-        <Link to="/portfolio" className="flex min-h-[72px] items-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
-          <Briefcase size={20} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">Portofolio</span>
-            <span className="block truncate text-xs tabular-nums text-[hsl(var(--muted-foreground))]">
-              {formatCurrency(portfolio.totalValue, currency)}
-              {portfolio.totalGain !== null && <span className={portfolio.totalGain >= 0 ? "text-success" : "text-danger"}> · {portfolio.totalGain >= 0 ? "+" : ""}{formatCurrency(portfolio.totalGain, currency)}</span>}
-            </span>
-          </span>
-          <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
-        </Link>
-      </div>
 
       {feedback && (
         <div role="status" className={cn("rounded-xl border px-3 py-2 text-sm", feedback.type === "success" ? "border-success/40 bg-success/10 text-success" : "border-danger/40 bg-danger/10 text-danger")}>
@@ -254,7 +252,7 @@ export default function Accounts() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-start">
           <div className="min-w-0 space-y-3">
             <div className="flex items-center justify-between px-1">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Akun ({activeAccounts.length})</h2>
+              <h2 className="text-[15px] font-bold">Akun · {activeAccounts.length}</h2>
               <button type="button" onClick={() => setAddOpen(true)} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-medium text-[hsl(var(--primary))] lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
                 <Plus size={16} /> Tambah akun
               </button>
@@ -284,6 +282,25 @@ export default function Accounts() {
           </aside>
         </div>
       )}
+
+      <div className="grid grid-cols-2 gap-2.5 lg:hidden">
+        <Link to="/debts" className="flex min-h-[44px] flex-col gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+          <span className="text-[13px] font-bold">Hutang & piutang</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">Hutang</span>
+          <span className="break-words text-[15px] font-bold tabular-nums text-danger">{money(totalOwe)}</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">Piutang</span>
+          <span className="break-words text-[15px] font-bold tabular-nums text-success">{money(totalOwed)}</span>
+        </Link>
+        <Link to="/portfolio" className="flex min-h-[44px] flex-col gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+          <span className="text-[13px] font-bold">Portofolio</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">Nilai sekarang</span>
+          <span className="break-words text-[15px] font-bold tabular-nums">{money(portfolio.totalValue)}</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">Untung/rugi</span>
+          <span className={cn("break-words text-[15px] font-bold tabular-nums", portfolio.totalGain === null ? "text-[hsl(var(--muted-foreground))]" : portfolio.totalGain >= 0 ? "text-success" : "text-danger")}>
+            {portfolio.totalGain === null ? "—" : hidden ? "•••" : `${portfolio.totalGain >= 0 ? "+" : ""}${formatCurrency(portfolio.totalGain, currency)}`}
+          </span>
+        </Link>
+      </div>
 
       <Sheet open={sheetOpen && !!selected} onClose={() => setSheetOpen(false)} title={selected?.name ?? "Akun"}>
         {selected && renderDetail(selected, true)}
@@ -360,6 +377,7 @@ function Avatar({ account, large }: { account: Account; large?: boolean }) {
 function AccountDetail({
   account,
   currency,
+  hidden,
   inSheet,
   onEdit,
   onReconcile,
@@ -369,6 +387,7 @@ function AccountDetail({
 }: {
   account: Account;
   currency: string;
+  hidden: boolean;
   inSheet: boolean;
   onEdit: () => void;
   onReconcile: () => void;
@@ -384,7 +403,7 @@ function AccountDetail({
     return () => { cancelled = true; };
   }, [account.id, balance]);
 
-  const actionCls = "flex min-h-11 flex-1 items-center justify-center rounded-xl border border-[hsl(var(--border))] px-3 text-sm font-medium hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]";
+  const actionCls = "flex min-h-14 flex-1 items-center justify-center rounded-2xl border border-[hsl(var(--border))] px-3 text-sm font-medium hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]";
   const smallBtn = "inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[hsl(var(--border))] text-xs font-medium disabled:opacity-50 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]";
   return (
     <div className={cn("space-y-4", !inSheet && "rounded-[20px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5")}>
@@ -395,10 +414,10 @@ function AccountDetail({
           <p className="text-xs text-[hsl(var(--muted-foreground))]">{ACCOUNT_TYPE_LABELS[account.type]}{account.isArchived ? " · Diarsipkan" : ""}</p>
         </div>
       </div>
-      <p className={cn("text-3xl font-semibold tracking-tight tabular-nums", balance < 0 && "text-danger")}>{formatCurrency(balance, currency)}</p>
+      <p className={cn("text-3xl font-semibold tracking-tight tabular-nums", balance < 0 && "text-danger")}>{hidden ? "•••" : formatCurrency(balance, currency)}</p>
 
       {!account.isArchived && (
-        <div className="flex gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <Link to="/transactions?new=1" className={actionCls}>Catat</Link>
           <Link to="/transactions?new=1" className={actionCls}>Transfer</Link>
           <Link to={`/reports?tab=ledger&account=${account.id}`} className={actionCls}>Mutasi</Link>
@@ -432,7 +451,7 @@ function AccountDetail({
                     <span className="block truncate text-sm">{tx.note || (tx.type === "transfer" ? "Transfer" : tx.isAdjustment ? "Penyesuaian saldo" : "Transaksi")}</span>
                     <span className="block text-xs text-[hsl(var(--muted-foreground))]">{formatDate(tx.date, "dd MMM")}</span>
                   </span>
-                  <span className={cn("shrink-0 text-sm font-medium tabular-nums", outgoing ? "text-danger" : "text-success")}>{outgoing ? "-" : "+"}{formatCurrency(tx.amount, currency)}</span>
+                  <span className={cn("shrink-0 text-sm font-medium tabular-nums", outgoing ? "text-danger" : "text-success")}>{outgoing ? "-" : "+"}{hidden ? "•••" : formatCurrency(tx.amount, currency)}</span>
                 </li>
               );
             })}

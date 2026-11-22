@@ -16,11 +16,12 @@ test('dark theme from settings applies dark tokens and persists after reload', a
       background: getComputedStyle(document.documentElement).getPropertyValue('--background').trim(),
     }));
     await page.goto(url + '/settings');
-    await page.getByRole('tablist', { name: 'Tema' }).getByRole('tab', { name: 'Gelap' }).click();
+    await page.getByRole('button', { name: /^Tema/ }).click();
+    await page.getByRole('dialog', { name: 'Tema' }).getByRole('tab', { name: 'Gelap' }).click();
     await page.waitForFunction(() => document.documentElement.classList.contains('dark'));
     assert.deepEqual(await readState(), { dark: true, background: '220 35% 7%' });
     await page.reload();
-    await page.getByRole('tablist', { name: 'Tema' }).waitFor();
+    await page.getByRole('heading', { name: 'Pengaturan', exact: true }).waitFor();
     await page.waitForFunction(() => document.documentElement.classList.contains('dark'));
     assert.deepEqual(await readState(), { dark: true, background: '220 35% 7%' });
     await context.close();

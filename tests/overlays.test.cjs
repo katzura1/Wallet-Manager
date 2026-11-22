@@ -141,7 +141,7 @@ test('overlays mobile: Escape closes a Modal and returns focus to the opener', a
     await dialog.waitFor();
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'detached' });
-    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.textContent.trim()), 'Tambah kategori');
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('aria-label')), 'Tambah kategori');
     assert.equal(await page.evaluate(() => document.body.style.overflow), '');
     await context.close();
   } finally {
