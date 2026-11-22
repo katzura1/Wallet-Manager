@@ -85,19 +85,25 @@ export function AccountForm({ open, onClose, onSaved, existing }: AccountFormPro
                 key={c}
                 type="button"
                 onClick={() => setColor(c)}
-                className="w-7 h-7 rounded-full transition-transform"
-                style={{
-                  background: c,
-                  outline: color === c ? `3px solid ${c}` : "none",
-                  outlineOffset: "2px",
-                  transform: color === c ? "scale(1.2)" : undefined,
-                }}
-              />
+                aria-label={`Warna ${c}`}
+                aria-pressed={color === c}
+                className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
+              >
+                <span
+                  className="block h-7 w-7 rounded-full transition-transform"
+                  style={{
+                    background: c,
+                    outline: color === c ? `3px solid ${c}` : "none",
+                    outlineOffset: "2px",
+                    transform: color === c ? "scale(1.2)" : undefined,
+                  }}
+                />
+              </button>
             ))}
           </div>
         </div>
         {/* Preview */}
-        <div className="rounded-3xl p-4 flex items-center gap-3" style={{ background: color + "20", border: `1px solid ${color}40` }}>
+        <div className="flex items-center gap-3 rounded-2xl p-4" style={{ background: color + "20", border: `1px solid ${color}40` }}>
           <span className="text-2xl">{icon}</span>
           <div>
             <p className="font-semibold text-sm" style={{ color }}>
