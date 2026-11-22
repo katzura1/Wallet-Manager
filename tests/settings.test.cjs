@@ -1,0 +1,34 @@
+// Run with Vite on port 5174 and Playwright available via NODE_PATH.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { chromium } = require('playwright');
+
+const url = process.env.WALLET_TEST_URL || 'http://127.0.0.1:5174';
+
+test('settings on mobile: groups, theme toggle and categories navigation', async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  try {
+    const context = await browser.newContext({ timezoneId: 'Asia/Jakarta', serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    await page.goto(url + '/accounts');
+    await page.getByRole('link', { name: 'Pengaturan', exact: true }).first().click();
+    await page.waitForURL('**/settings');
+    for (const name of ['Tampilan', 'Keamanan', 'Asisten AI', 'Backup', 'Zona bahaya']) {
+      await page.getByRole('heading', { name, exact: true }).waitFor();
+    }
+    const theme = page.getByRole('tablist', { name: 'Tema' });
+    await theme.getByRole('tab', { name: 'Gelap' }).click();
+    await page.waitForFunction(() => document.documentElement.classList.contains('dark'));
+    await theme.getByRole('tab', { name: 'Terang' }).click();
+    await page.waitForFunction(() => !document.documentElement.classList.contains('dark'));
+    await page.getByRole('link', { name: /^Kategori/ }).click();
+    await page.waitForURL('**/categories');
+    await page.getByRole('heading', { name: 'Kategori', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'Kembali' }).click();
+    await page.waitForURL('**/settings');
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+});
