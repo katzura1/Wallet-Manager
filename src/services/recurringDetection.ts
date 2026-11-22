@@ -1,5 +1,6 @@
 import { db } from "@/db/db";
-import type { RecurringInterval, RecurringTransaction, Transaction } from "@/types";
+import type { RecurringInterval, Transaction } from "@/types";
+import { matchesExistingRecurring } from "@/lib/recurringMatch";
 
 const DETECTION_INTERVALS: Array<{
   interval: RecurringInterval;
@@ -77,22 +78,6 @@ function amountTolerance(amount: number) {
   return Math.max(5000, amount * 0.15);
 }
 
-function hasSimilarRecurring(recurringItems: RecurringTransaction[], tx: Transaction, interval: RecurringInterval, normalizedNote: string, amount: number) {
-  return recurringItems.some((item) => {
-    if (item.type !== tx.type) return false;
-    if (item.accountId !== tx.accountId) return false;
-    if ((item.categoryId ?? 0) !== (tx.categoryId ?? 0)) return false;
-    if (item.interval !== interval) return false;
-
-    const recurringNote = normalizeNote(item.note);
-    if (normalizedNote && recurringNote && recurringNote !== normalizedNote) {
-      return false;
-    }
-
-    return Math.abs(item.amount - amount) <= amountTolerance(amount);
-  });
-}
-
 export async function getRecurringDetectionSuggestions(limit = 3, referenceDate = new Date()): Promise<RecurringDetectionSuggestion[]> {
   const referenceKey = toDateKey(referenceDate);
   const lookbackFrom = toDateKey(addDays(referenceDate, -400));
@@ -141,7 +126,6 @@ export async function getRecurringDetectionSuggestions(limit = 3, referenceDate 
     const consistentAmounts = ordered.filter((item) => Math.abs(item.amount - medianAmount) <= amountTolerance(medianAmount));
     if (consistentAmounts.length < 3) continue;
 
-    const normalizedNote = normalizeNote(last.note);
     const matchedInterval = DETECTION_INTERVALS
       .map((rule) => ({
         ...rule,
@@ -159,7 +143,8 @@ export async function getRecurringDetectionSuggestions(limit = 3, referenceDate 
     if (daysSinceLast > matchedInterval.maxStalenessDays) continue;
 
     const averageAmount = amounts.reduce((sum, value) => sum + value, 0) / amounts.length;
-    if (hasSimilarRecurring(recurringItems, last, matchedInterval.interval, normalizedNote, averageAmount)) {
+    const candidate = { type: last.type, accountId: last.accountId, categoryId: last.categoryId, note: last.note, amount: averageAmount };
+    if (recurringItems.some((item) => matchesExistingRecurring(item, candidate))) {
       continue;
     }
 
