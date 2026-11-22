@@ -339,8 +339,8 @@ const tileSizes = {
 } as const;
 
 function initialsOf(label: string): string {
-  const words = label.trim().split(/\s+/).filter(Boolean);
   const letters = (w: string) => Array.from(w.replace(/[^\p{L}\p{N}]/gu, ""));
+  const words = label.trim().split(/\s+/).filter((w) => letters(w).length > 0);
   if (words.length === 0) return "?";
   if (words.length === 1) return letters(words[0]).slice(0, 2).join("").toUpperCase() || "?";
   const first = letters(words[0])[0] ?? "";

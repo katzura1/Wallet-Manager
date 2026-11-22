@@ -110,3 +110,13 @@ export const ACCOUNT_ICONS: Record<string, string> = {
   credit: "💳",
   investment: "📈",
 };
+
+export const BALANCE_HIDDEN_KEY = "balance_hidden";
+
+export function readBalanceHidden(): boolean {
+  try {
+    return localStorage.getItem(BALANCE_HIDDEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}

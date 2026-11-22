@@ -131,3 +131,42 @@ test('transactions: stored default account survives cold /transactions?new=1 dat
     await browser.close();
   }
 });
+
+test('transactions: editing a split transaction keeps its splits when going back to the main view', async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  try {
+    const context = await browser.newContext({ timezoneId: 'Asia/Jakarta', serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    await page.goto(url);
+    await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
+    await seed(page);
+    await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts');
+      const stamp = new Date().toISOString();
+      const shopId = await db.categories.add({ name: 'Belanja', type: 'expense', icon: '🛍️', color: '#654321', isDefault: false, createdAt: stamp });
+      const id = await db.transactions.add({ type: 'expense', amount: 100000, accountId: 1, date: new Date().toISOString().slice(0, 10), note: 'Split awal', createdAt: stamp, updatedAt: stamp });
+      await db.transactionSplits.bulkAdd([{ transactionId: id, categoryId: 1, amount: 60000, note: '' }, { transactionId: id, categoryId: shopId, amount: 40000, note: '' }]);
+    });
+    await page.goto(`${url}/transactions`);
+    await page.getByRole('button', { name: 'Lihat detail Split awal', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Detail transaksi' }).getByRole('button', { name: 'Edit', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Edit transaksi' });
+    await dialog.getByRole('button', { name: /Split · 2 kategori/ }).click();
+    await page.getByRole('dialog', { name: 'Bagi ke beberapa kategori' }).getByRole('button', { name: 'Kembali ke form' }).click();
+    await dialog.getByRole('button', { name: /Split · 2 kategori/ }).waitFor();
+    await dialog.getByPlaceholder('Tambah catatan...').fill('Split diubah');
+    await dialog.getByRole('button', { name: 'Simpan', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
+    const result = await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts');
+      const tx = (await db.transactions.toArray()).find((t) => t.note === 'Split diubah');
+      const splits = tx ? await db.transactionSplits.where('transactionId').equals(tx.id).toArray() : [];
+      return splits.map((s) => s.amount).sort();
+    });
+    assert.deepEqual(result, [40000, 60000]);
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+});

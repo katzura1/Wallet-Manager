@@ -7,7 +7,7 @@ import { describeTransactionDelete } from "@/lib/deleteDescription";
 import { TransactionForm } from "@/components/forms/TransactionForm";
 import { AITransactionForm } from "@/components/forms/AITransactionForm";
 import { TransactionCard } from "@/components/TransactionCard";
-import { formatCurrency, formatDate, ACCOUNT_TYPE_LABELS } from "@/lib/utils";
+import { formatCurrency, formatDate, ACCOUNT_TYPE_LABELS, readBalanceHidden, BALANCE_HIDDEN_KEY } from "@/lib/utils";
 import { deleteTransaction, getRecentSpendingAnomalies, getTransactions } from "@/db/transactions";
 import { getUpcomingRecurringTransactions, getRecurringDueInfo } from "@/db/recurring";
 import { predictBudgetStatus, getBudgetsForCategoriesWithInheritance } from "@/db/budgets";
@@ -59,7 +59,7 @@ export default function Dashboard() {
   const [defaultType, setDefaultType] = useState<Transaction["type"]>("expense");
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-  const [balanceHidden, setBalanceHidden] = useState(() => localStorage.getItem("balance_hidden") === "1");
+  const [balanceHidden, setBalanceHidden] = useState(readBalanceHidden);
   const [splitTxIds, setSplitTxIds] = useState<Set<number>>(new Set());
   const [aiOpen, setAiOpen] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -77,7 +77,7 @@ export default function Dashboard() {
 
   function toggleBalanceHidden() {
     setBalanceHidden((v) => {
-      localStorage.setItem("balance_hidden", v ? "0" : "1");
+      localStorage.setItem(BALANCE_HIDDEN_KEY, v ? "0" : "1");
       return !v;
     });
   }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpDown, Check, ChevronLeft, ChevronRight, MessageSquare, X } from "lucide-react";
 import { IconTile, Modal, Sheet, SegmentedControl } from "@/components/ui";
-import { cn, todayISO, formatNumberWithSeparator, formatCurrency } from "@/lib/utils";
+import { cn, todayISO, formatNumberWithSeparator, formatCurrency, readBalanceHidden } from "@/lib/utils";
 import { addTransaction, addTransfer, updateTransaction } from "@/db/transactions";
 import { db } from "@/db/db";
 import { useSettingsStore } from "@/stores/walletStore";
@@ -78,14 +78,6 @@ function writeTransactionDefaults(data: StoredTransactionDefaults) {
   localStorage.setItem(TX_DEFAULTS_KEY, JSON.stringify(data));
 }
 
-function safeReadHidden(): boolean {
-  try {
-    return localStorage.getItem("balance_hidden") === "1";
-  } catch {
-    return false;
-  }
-}
-
 export function TransactionForm({ open, onClose, onSaved, accounts, categories, existing, defaultType, hideBalances, onUseAI }: TransactionFormProps) {
   const { currency } = useSettingsStore();
   const [type, setType] = useState<TxType>(existing?.type ?? defaultType ?? "expense");
@@ -98,6 +90,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [splitMode, setSplitMode] = useState(false);
+  const [splitView, setSplitView] = useState(false);
   const [splits, setSplits] = useState<SplitRow[]>([{ categoryId: "", amount: "" }]);
   const [picker, setPicker] = useState<null | "from" | "to">(null);
 
@@ -140,6 +133,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
       setDate(existing.date);
       setNote(existing.note ?? "");
       setSplitMode(false);
+      setSplitView(false);
       setSplits([{ categoryId: "", amount: "" }]);
       setError("");
       return;
@@ -167,6 +161,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
     setDate(todayISO());
     setNote("");
     setSplitMode(false);
+    setSplitView(false);
     setSplits([{ categoryId: "", amount: "" }]);
     setError("");
   }, [open, existing, defaultType, accounts, categories]);
@@ -309,7 +304,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
   }
 
   const showTransferPreview = type === "transfer" && !existing && amountNum > 0 && !!fromAccount && !!toAccount;
-  const hidden = hideBalances ?? safeReadHidden();
+  const hidden = hideBalances ?? readBalanceHidden();
   const money = (value: number) => (hidden ? "•••" : formatCurrency(value, currency));
   const categoryById = (id: string) => categories.find((c) => String(c.id) === id);
   const remainder = amountNum - splitsTotal;
@@ -338,7 +333,8 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
   const rowCls = "flex min-h-[52px] items-center gap-3 px-4 text-left";
   const labelCls = "w-[72px] shrink-0 text-sm text-[hsl(var(--muted-foreground))]";
 
-  const footer = splitMode && canSplit ? (
+  const inSplitView = splitView && splitMode && canSplit;
+  const footer = inSplitView ? (
     <div className="flex flex-col gap-2">
       {remainder > 0.01 && amountNum > 0 && fillTarget && (
         <button
@@ -346,7 +342,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
           onClick={() => updateSplitRow(largestSplit, "amount", String(Number(splits[largestSplit].amount || 0) + remainder))}
           className="min-h-11 rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 text-sm font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
         >
-          Masukkan sisa {money(remainder)} ke {fillTarget.name}
+          Masukkan sisa {formatCurrency(remainder, currency)} ke {fillTarget.name}
         </button>
       )}
       <button type="submit" form="tx-form" disabled={loading} className="h-[54px] rounded-2xl bg-[hsl(var(--primary))] text-base font-bold text-[hsl(var(--primary-foreground))] shadow-sm hover:brightness-[1.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] disabled:opacity-50">
@@ -361,10 +357,10 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
         </button>
       )}
       <span className="hidden flex-1 lg:block" />
-      {canSplit && (
+      {canSplit && !splitMode && (
         <button
           type="button"
-          onClick={() => { setSplitMode(true); setError(""); }}
+          onClick={() => { setSplitMode(true); setSplitView(true); setError(""); }}
           className="h-[52px] rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 text-sm font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:h-11 lg:rounded-xl"
         >
           Split
@@ -410,20 +406,20 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
       <Modal
         open={open}
         onClose={onClose}
-        title={splitMode && canSplit ? "Bagi ke beberapa kategori" : existing ? "Edit transaksi" : "Catat transaksi"}
+        title={inSplitView ? "Bagi ke beberapa kategori" : existing ? "Edit transaksi" : "Catat transaksi"}
         closePosition="left"
         wide
         footer={footer}
-        headerAction={onUseAI && !existing && !splitMode ? (
+        headerAction={onUseAI && !existing && !inSplitView ? (
           <button type="button" onClick={onUseAI} className="flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-[hsl(var(--primary))]/10 px-3 text-[13px] font-bold text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:hidden">
             <MessageSquare size={16} aria-hidden="true" />Pakai AI
           </button>
         ) : undefined}
       >
         <form id="tx-form" onSubmit={handleSubmit} className="space-y-4">
-          {splitMode && canSplit ? (
+          {inSplitView ? (
             <>
-              <button type="button" onClick={() => { setSplitMode(false); setError(""); }} className="-ml-1 flex min-h-11 items-center gap-1 rounded-xl pr-3 text-sm font-semibold text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+              <button type="button" onClick={() => { setSplitView(false); setError(""); }} className="-ml-1 flex min-h-11 items-center gap-1 rounded-xl pr-3 text-sm font-semibold text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
                 <ChevronLeft size={18} aria-hidden="true" />Kembali ke form
               </button>
 
@@ -514,6 +510,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                 onChange={(t) => {
                   setType(t);
                   setSplitMode(false);
+                  setSplitView(false);
                   if (t === "transfer") {
                     const stored = resolveDefaultAccounts(readTransactionDefaults(), "transfer", accounts);
                     const from = accountId || stored.from;
@@ -534,7 +531,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                       type="text"
                       inputMode="numeric"
                       aria-label="Jumlah"
-                      data-autofocus
+                      data-autofocus={!existing || undefined}
                       placeholder="0"
                       value={amountText}
                       onChange={(e) => {
@@ -555,7 +552,15 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                     <h2 id="tx-category-label" className="text-[13px] font-bold text-[hsl(var(--foreground))] lg:text-xs lg:uppercase lg:tracking-wider lg:text-[hsl(var(--muted-foreground))]">Kategori</h2>
                     <Link to="/categories" onClick={onClose} className="flex min-h-11 items-center text-[13px] font-semibold text-[hsl(var(--primary))] hover:underline lg:hidden">Kelola</Link>
                   </div>
-                  {filteredCategories.length === 0 ? (
+                  {splitMode ? (
+                    <div className="flex items-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] pl-4 pr-2">
+                      <button type="button" onClick={() => setSplitView(true)} className="flex min-h-14 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+                        <span className="min-w-0 flex-1 truncate">Split · {splits.length} kategori</span>
+                        <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-[hsl(var(--muted-foreground))]" />
+                      </button>
+                      <button type="button" onClick={() => { setSplitMode(false); setError(""); }} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-danger hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">Hapus split</button>
+                    </div>
+                  ) : filteredCategories.length === 0 ? (
                     <p className="rounded-2xl border border-dashed border-[hsl(var(--border))] p-4 text-center text-sm text-[hsl(var(--muted-foreground))]">Belum ada kategori. Tambah lewat Kelola kategori.</p>
                   ) : (
                     <div role="radiogroup" aria-labelledby="tx-category-label" className="grid grid-cols-4 gap-2 lg:grid-cols-3 lg:content-start">

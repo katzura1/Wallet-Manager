@@ -13,7 +13,7 @@ import { format, subDays } from "date-fns";
 import { deleteTransaction } from "@/db/transactions";
 import { getRecurringTransactions, deleteRecurring, updateRecurring, getRecurringDueInfo, runRecurringNow, skipNextRecurring } from "@/db/recurring";
 import { db } from "@/db/db";
-import { formatCurrency, formatDate, todayISO } from "@/lib/utils";
+import { formatCurrency, formatDate, todayISO, readBalanceHidden } from "@/lib/utils";
 import { getRecurringDetectionSuggestions, type RecurringDetectionSuggestion } from "@/services/recurringDetection";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
 import { Plus, Search, Filter, Pencil, Trash2, Pause, Play } from "lucide-react";
@@ -843,7 +843,7 @@ export default function Transactions() {
         description={(() => {
           const target = transactions.find((t) => t.id === deleteTxId);
           let hidden = false;
-          try { hidden = localStorage.getItem("balance_hidden") === "1"; } catch { /* storage unavailable */ }
+          hidden = readBalanceHidden();
           return target ? describeTransactionDelete(target, { accounts, categories, currency, hidden }) : "Transaksi ini akan dihapus.";
         })()}
         confirmLabel="Hapus"
