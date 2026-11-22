@@ -360,7 +360,7 @@ export default function Reports() {
           {/* Cash Flow Bar Chart — monthly only */}
           {mode === "monthly" && <Card className={sectionCard}>
             <CardHeader className="px-4 pt-4 pb-2">
-              <CardTitle>Arus Kas 6 Bulan</CardTitle>
+              <CardTitle>Arus kas 6 bulan</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-1">
               {chartData.length > 0 ? (
@@ -384,7 +384,7 @@ export default function Reports() {
           {mode === "monthly" && balanceHistory.length > 0 && balanceHistory.some((d) => d.balance !== 0) && (
             <Card className={sectionCard}>
               <CardHeader className="px-4 pt-4 pb-2">
-                <CardTitle>Riwayat Total Saldo</CardTitle>
+                <CardTitle>Riwayat total saldo</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-2">
                 <ResponsiveContainer width="100%" height={180}>

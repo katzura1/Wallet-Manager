@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useSettingsStore } from "@/stores/walletStore";
 import { Button, ConfirmDialog, PageHeader, SegmentedControl, ListGroup, ListRow, Sheet, Switch } from "@/components/ui";
 import { createBackupData, exportJSON, exportCSV, importJSON } from "@/lib/backup";
@@ -53,7 +54,11 @@ export default function Settings() {
   function handlePinDel() { setPinInput((v) => v.slice(0, -1)); }
   const [importMode, setImportMode] = useState<"replace" | "merge">("merge");
   const [importing, setImporting] = useState(false);
-  const [openSheet, setOpenSheet] = useState<SheetKey | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [openSheet, setOpenSheet] = useState<SheetKey | null>(() => (searchParams.get("open") === "backup" ? "local" : null));
+  useEffect(() => {
+    if (searchParams.get("open") !== null) setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [importMsg, setImportMsg] = useState("");
   const [clearConfirm, setClearConfirm] = useState(false);
   const [aiKey, setAiKey] = useState(() => localStorage.getItem("deepseek_api_key") ?? "");
@@ -526,7 +531,7 @@ export default function Settings() {
         open={clearConfirm}
         title="Hapus semua data?"
         description="Semua akun dan transaksi akan dihapus permanen. Pastikan sudah backup terlebih dahulu."
-        confirmLabel="Ya, Hapus Semua"
+        confirmLabel="Ya, hapus semua"
         onConfirm={handleClearAll}
         onClose={() => setClearConfirm(false)}
       />

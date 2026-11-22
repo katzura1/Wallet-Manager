@@ -53,7 +53,7 @@ export function TransactionCard({
 
   // Desktop-only row actions: hidden until the row is hovered or focused, but always in the DOM.
   const actions = (
-    <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+    <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
       <button type="button" onClick={onEdit} aria-label={`Edit ${displayLabel}`} title={tx.isAdjustment ? "Cocokkan kembali di Akun" : tx.debtId ? "Kelola di Utang/Piutang" : "Edit"} className={`flex h-11 w-11 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))] hover:text-[hsl(var(--foreground))] ${focusRing}`}>
         <Pencil size={15} />
       </button>

@@ -91,7 +91,7 @@ export default function Budgets() {
     );
     const note = (
       <>
-        {isInherited && <span className="rounded-full bg-[hsl(var(--surface-2))] px-2 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">Inherited</span>}
+        {isInherited && <span className="rounded-full bg-[hsl(var(--surface-2))] px-2 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">Dari bulan lalu</span>}
         {budget && prediction && !over && prediction.predictedExhaustInDays !== null && prediction.predictedExhaustInDays <= 15 && (
           <span className="text-[10px] text-warning">~{prediction.predictedExhaustInDays === 0 ? "habis" : `${prediction.predictedExhaustInDays}d`}</span>
         )}
@@ -143,7 +143,7 @@ export default function Budgets() {
     <div className="space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-7">
       <PageHeader
         title={<>Anggaran<span className="hidden lg:inline"> {m.monthName}</span></>}
-        back="/reports"
+        back={`/reports?month=${key}`}
         actions={
           <>
             <p className="hidden text-[13px] text-[hsl(var(--muted-foreground))] lg:block">{repeatStatus}</p>
@@ -154,7 +154,11 @@ export default function Budgets() {
       <div className="flex justify-center lg:justify-start"><MonthSwitcher label={m.label} shortLabel={m.shortLabel} onPrev={m.prev} onNext={m.next} /></div>
 
       <section aria-label="Anggaran" className="space-y-4">
-        {loaded && categories.length > 0 && !hasRows ? (
+        {!loaded ? (
+          <p role="status" className="text-xs text-[hsl(var(--muted-foreground))]">Memuat anggaran…</p>
+        ) : categories.length === 0 ? (
+          <EmptyState icon="🎯" title="Belum ada kategori" description="Buat kategori dulu, lalu atur batas pengeluarannya." />
+        ) : !hasRows ? (
           <EmptyState icon="🎯" title="Belum ada anggaran" description="Atur batas pengeluaran per kategori untuk bulan ini." />
         ) : (
           <>

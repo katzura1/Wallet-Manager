@@ -27,6 +27,7 @@ test('reports redirect, tabs and ledger', async () => {
     await page.waitForURL(/\/budgets$/);
     const region = page.getByRole('region', { name: 'Anggaran', exact: true });
     await region.waitFor();
+    await region.getByText('Budget 1', { exact: true }).first().waitFor();
     assert.ok(await region.getByRole('progressbar').count() > 0);
 
     await page.setViewportSize({ width: 1280, height: 800 });

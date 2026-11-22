@@ -9,7 +9,6 @@ import { syncAllPrices, searchCoins, anyPriceStale, getUsdIdr, type CoinSearchRe
 import { db } from "@/db/db";
 import { Plus, Search, Eye, EyeOff, Clock, ChevronDown, ChevronUp, Pencil, Trash2, RefreshCw, X } from "lucide-react";
 import type { Asset, AssetPrice, AssetType, PortfolioHistory } from "@/types";
-import { usePageAction } from "@/components/layout/appLayoutContext";
 import { getPortfolioMetrics } from "@/lib/portfolioMetrics";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -404,7 +403,7 @@ function AssetForm({ open, onClose, onSaved, existing, hidden }: AssetFormProps)
             {valuePreview !== undefined && (
               <div className="flex flex-col gap-0.5">
                 <span className="text-xs text-[hsl(var(--muted-foreground))]">Nilai sekarang</span>
-                <span className={cn("text-base font-bold tabular-nums", valuePreview >= costBasisPreview ? "text-success" : "text-danger")}>{mask(valuePreview)}</span>
+                <span className={cn("text-base font-bold tabular-nums", hidden ? "" : valuePreview >= costBasisPreview ? "text-success" : "text-danger")}>{mask(valuePreview)}</span>
               </div>
             )}
             {type !== "deposito" && type !== "mutual_fund" && <span className="col-span-2 text-xs text-[hsl(var(--muted-foreground))]">Nilai sekarang diisi otomatis setelah harga disinkronkan.</span>}
@@ -817,7 +816,6 @@ export default function Portfolio() {
   const [usdIdrRate, setUsdIdrRate] = useState<number>(16200);
   const [historyZoomed, setHistoryZoomed] = useState(false);
 
-  usePageAction({ label: "Tambah aset", onClick: () => setAddOpen(true) });
 
   function togglePortfolioHidden() {
     setPortfolioHidden((v) => {
@@ -1031,6 +1029,7 @@ export default function Portfolio() {
               {lastSyncedTime && <span className="tabular-nums lg:hidden">{lastSyncedTime}</span>}
               <span className="hidden lg:inline">{syncing ? "Memperbarui…" : "Perbarui harga"}</span>
             </button>
+            <button type="button" onClick={() => setAddOpen(true)} className="hidden h-11 items-center gap-1.5 whitespace-nowrap rounded-[14px] bg-[hsl(var(--primary))] px-4 text-sm font-semibold text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:inline-flex"><Plus size={16} aria-hidden="true" /> Tambah aset</button>
             <button type="button" onClick={() => setAddOpen(true)} aria-label="Tambah aset" className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:hidden">
               <Plus size={20} aria-hidden="true" />
             </button>

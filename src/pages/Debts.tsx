@@ -8,7 +8,6 @@ import { cn, formatCurrency, formatDate, readBalanceHidden, todayISO } from "@/l
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { Debt, DebtPayment, Transaction } from "@/types";
 import { useWalletStore, useSettingsStore } from "@/stores/walletStore";
-import { usePageAction } from "@/components/layout/appLayoutContext";
 
 function useMoney() {
   const { currency } = useSettingsStore();
@@ -182,7 +181,7 @@ function PayDebtModal({ open, onClose, onSaved, debt }: PayDebtModalProps) {
     e.preventDefault();
     const amountNum = Number(amount);
     if (!amountNum || amountNum <= 0) { setError("Jumlah harus lebih dari 0"); return; }
-    if (amountNum > debt.remaining) { setError(`Maksimal ${formatCurrency(debt.remaining, currency)}`); return; }
+    if (amountNum > debt.remaining) { setError(`Maksimal ${money(debt.remaining)}`); return; }
     setLoading(true);
     try {
       await payDebt(debt.id!, amountNum, date, note, accountId ? Number(accountId) : undefined);
@@ -293,7 +292,6 @@ interface PaymentsHistoryProps {
 }
 
 function PaymentsHistory({ open, onClose, debt, onPaymentChanged, onEditDebt, onDeleteDebt }: PaymentsHistoryProps) {
-  const { currency } = useSettingsStore();
   const money = useMoney();
   const { accounts } = useWalletStore();
   const [payments, setPayments] = useState<DebtPayment[]>([]);
@@ -401,7 +399,7 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged, onEditDebt, on
                     {p.accountId && (() => { const acc = accounts.find(a => a.id === p.accountId); return acc ? <div className="text-[hsl(var(--muted-foreground))] text-xs">{acc.name}</div> : null; })()}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <span className="font-semibold text-success text-xs tabular-nums">{money(p.amount)}</span>
+                    <span className={`font-semibold text-xs tabular-nums ${readBalanceHidden() ? "" : "text-success"}`}>{money(p.amount)}</span>
                     <button aria-label="Edit pembayaran" onClick={() => startEdit(p)} className="flex h-11 w-11 items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"><Pencil size={16} aria-hidden="true" /></button>
                     <button aria-label="Hapus pembayaran" onClick={() => setDeletePaymentTarget(p)} className="flex h-11 w-11 items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-danger"><Trash2 size={16} aria-hidden="true" /></button>
                   </div>
@@ -419,7 +417,7 @@ function PaymentsHistory({ open, onClose, debt, onPaymentChanged, onEditDebt, on
     <ConfirmDialog
       open={deletePaymentTarget !== null}
       title="Hapus pembayaran ini?"
-      description={deletePaymentTarget ? `Pembayaran ${formatCurrency(deletePaymentTarget.amount, currency)} pada ${formatDate(deletePaymentTarget.date)} akan dihapus.` : ""}
+      description={deletePaymentTarget ? `Pembayaran ${money(deletePaymentTarget.amount)} pada ${formatDate(deletePaymentTarget.date)} akan dihapus.` : ""}
       confirmLabel="Hapus"
       onConfirm={() => deletePaymentTarget && handleDelete(deletePaymentTarget)}
       onClose={() => setDeletePaymentTarget(null)}
@@ -456,11 +454,11 @@ function DebtCard({ debt, accountName, onPay, onHistory }: DebtCardProps) {
   return (
     <article className="space-y-2.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3.5 lg:space-y-3 lg:p-4">
       <div className="flex items-center gap-3">
-        <IconTile label={debt.name} color={owe ? "hsl(var(--danger))" : "hsl(var(--success))"} />
+        <IconTile label={debt.name} color={readBalanceHidden() ? undefined : owe ? "hsl(var(--danger))" : "hsl(var(--success))"} />
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[15px] font-bold text-[hsl(var(--foreground))]">{debt.name}</h3>
           {meta && <p className="hidden truncate text-xs text-[hsl(var(--muted-foreground))] lg:block">{meta}</p>}
-          {due && <p className={`truncate text-xs ${due.cls}`}>{due.text}</p>}
+          {due && <p className={`break-words text-xs ${due.cls}`}>{due.text}</p>}
           {debt.isSettled && <span className="mt-0.5 inline-block rounded-full bg-[hsl(var(--surface-2))] px-2 py-0.5 text-xs font-medium text-success">Lunas</span>}
         </div>
         <div className="flex shrink-0 flex-col items-end tabular-nums lg:hidden">
@@ -522,7 +520,6 @@ export default function Debts() {
   const [deleteTarget, setDeleteTarget] = useState<Debt | null>(null);
   const [orphans, setOrphans] = useState<Transaction[]>([]);
   const [orphanConfirm, setOrphanConfirm] = useState(false);
-  const { currency } = useSettingsStore();
 
   const load = useCallback(() => {
     return useWalletStore.getState().refreshAll().then(async () => { setOrphans(await getOrphanDebtTransactions()); return getDebts(true); }).then((all) => {
@@ -556,7 +553,6 @@ export default function Debts() {
   const totalOwed = openOwed.reduce((s, d) => s + d.remaining, 0);
   const net = totalOwed - totalOwe;
 
-  usePageAction({ label: "Tambah hutang/piutang", onClick: () => setAddOpen(true) });
 
   function renderColumn(kind: "owe" | "owed", list: Debt[]) {
     const owe = kind === "owe";
@@ -578,8 +574,8 @@ export default function Debts() {
   }
 
   const summary: { label: string; value: string; sub: string; tone: string }[] = [
-    { label: "Hutang saya", value: money(totalOwe), sub: `${openOwe.length} belum lunas`, tone: "text-danger" },
-    { label: "Piutang saya", value: money(totalOwed), sub: `${openOwed.length} belum lunas`, tone: "text-success" },
+    { label: "Hutang saya", value: money(totalOwe), sub: `${openOwe.length} belum lunas`, tone: readBalanceHidden() ? "" : "text-danger" },
+    { label: "Piutang saya", value: money(totalOwed), sub: `${openOwed.length} belum lunas`, tone: readBalanceHidden() ? "" : "text-success" },
     { label: "Bersih", value: money(net), sub: "masuk ke kekayaan bersih", tone: "text-[hsl(var(--foreground))]" },
   ];
 
@@ -589,6 +585,8 @@ export default function Debts() {
         title="Hutang & piutang"
         back="/accounts"
         actions={
+          <>
+          <button type="button" onClick={() => setAddOpen(true)} className="hidden h-11 items-center gap-1.5 whitespace-nowrap rounded-[14px] bg-[hsl(var(--primary))] px-4 text-sm font-semibold text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:inline-flex"><Plus size={16} aria-hidden="true" /> Catat hutang / piutang</button>
           <button
             type="button"
             aria-label="Tambah hutang/piutang"
@@ -597,6 +595,7 @@ export default function Debts() {
           >
             <Plus size={20} strokeWidth={2.2} aria-hidden="true" />
           </button>
+          </>
         }
       />
 
@@ -625,11 +624,11 @@ export default function Debts() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: "owe", label: "Hutang saya", sub: money(totalOwe), subClassName: "text-danger" },
-            { value: "owed", label: "Piutang saya", sub: money(totalOwed), subClassName: "text-success" },
+            { value: "owe", label: "Hutang saya", sub: money(totalOwe), subClassName: readBalanceHidden() ? "" : "text-danger" },
+            { value: "owed", label: "Piutang saya", sub: money(totalOwed), subClassName: readBalanceHidden() ? "" : "text-success" },
           ]}
         />
-        <p className="mt-2 px-1 text-xs tabular-nums text-[hsl(var(--muted-foreground))]">Bersih <span className={`font-semibold ${net >= 0 ? "text-success" : "text-danger"}`}>{money(net)}</span></p>
+        <p className="mt-2 px-1 text-xs tabular-nums text-[hsl(var(--muted-foreground))]">Bersih <span className={`font-semibold ${readBalanceHidden() ? "" : net >= 0 ? "text-success" : "text-danger"}`}>{money(net)}</span></p>
       </div>
 
       {debts.length === 0 ? (
@@ -666,7 +665,7 @@ export default function Debts() {
       <ConfirmDialog
         open={orphanConfirm}
         title="Hapus transaksi yatim?"
-        description={`${orphans.length} transaksi tanpa hutang terkait akan dihapus: ${orphans.map((t) => `${formatDate(t.date)} · ${formatCurrency(t.amount, currency)}`).join(", ")}.`}
+        description={`${orphans.length} transaksi tanpa hutang terkait akan dihapus: ${orphans.map((t) => `${formatDate(t.date)} · ${money(t.amount)}`).join(", ")}.`}
         confirmLabel="Hapus"
         onConfirm={handleCleanOrphans}
         onClose={() => setOrphanConfirm(false)}

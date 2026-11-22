@@ -21,7 +21,7 @@ export function TransactionDetail({ transaction: tx, accountName, toAccountName,
   const isSplit = splits.length > 0;
   const name = tx.note || (isSplit ? "Split Kategori" : category?.name) || accountName;
   const tileLabel = tx.isAdjustment ? "Penyesuaian saldo" : isSplit ? "Split Kategori" : category?.name ?? TYPE_LABEL[tx.type];
-  const amountColor = tx.type === "income" ? "text-success" : tx.type === "transfer" ? "text-[hsl(var(--muted-foreground))]" : "text-[hsl(var(--foreground))]";
+  const amountColor = hidden ? "text-[hsl(var(--foreground))]" : tx.type === "income" ? "text-success" : tx.type === "transfer" ? "text-[hsl(var(--muted-foreground))]" : "text-[hsl(var(--foreground))]";
   const money = (n: number) => (hidden ? "•••" : formatCurrency(n, currency));
   const kind = tx.isAdjustment ? "Penyesuaian saldo" : tx.debtId ? "Utang/Piutang" : TYPE_LABEL[tx.type];
   return (

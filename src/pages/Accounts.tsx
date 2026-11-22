@@ -14,7 +14,6 @@ import { getPortfolioMetrics } from "@/lib/portfolioMetrics";
 import { getNetWorth } from "@/lib/netWorth";
 import type { Account, AssetPrice, Debt, Transaction } from "@/types";
 import { Archive, Trash2, Pencil, Settings, Plus, ChevronRight } from "lucide-react";
-import { usePageAction } from "@/components/layout/appLayoutContext";
 
 export default function Accounts() {
   const { accounts, loadAccounts } = useWalletStore();
@@ -78,7 +77,6 @@ export default function Accounts() {
   const totalOwe = openDebts.filter((d) => d.type === "owe").reduce((sum, d) => sum + d.remaining, 0);
   const totalOwed = openDebts.filter((d) => d.type === "owed").reduce((sum, d) => sum + d.remaining, 0);
 
-  usePageAction({ label: "Tambah akun", onClick: () => setAddOpen(true) });
 
   async function handleToggleArchive(acc: Account) {
     setBusyId(acc.id ?? null);
@@ -173,7 +171,7 @@ export default function Accounts() {
             <span className="block truncate text-sm font-medium">{account.name}</span>
             <span className="block text-xs text-[hsl(var(--muted-foreground))]">{ACCOUNT_TYPE_LABELS[account.type]}</span>
           </span>
-          <span className={cn("shrink-0 text-sm font-bold tabular-nums", account.currentBalance < 0 && "text-danger")}>{money(account.currentBalance)}</span>
+          <span className={cn("shrink-0 text-sm font-bold tabular-nums", !hidden && account.currentBalance < 0 && "text-danger")}>{money(account.currentBalance)}</span>
         </button>
       ))}
     </ListGroup>
@@ -184,6 +182,8 @@ export default function Accounts() {
       <PageHeader
         title="Aset"
         actions={
+          <>
+            <button type="button" onClick={() => setAddOpen(true)} className="hidden h-11 items-center gap-1.5 whitespace-nowrap rounded-[14px] bg-[hsl(var(--primary))] px-4 text-sm font-semibold text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:inline-flex"><Plus size={16} aria-hidden="true" /> Akun baru</button>
           <Link
             to="/settings"
             aria-label="Pengaturan"
@@ -191,6 +191,7 @@ export default function Accounts() {
           >
             <Settings size={20} />
           </Link>
+          </>
         }
       />
 
@@ -198,12 +199,12 @@ export default function Accounts() {
         <div className="lg:grid lg:grid-cols-[1.3fr_1fr_1fr_1fr] lg:items-center lg:gap-5">
           <div>
             <p className="text-[13px] text-[hsl(var(--muted-foreground))]">Kekayaan bersih</p>
-            <p className={cn("mt-0.5 break-words text-[34px] font-extrabold leading-tight tracking-tight tabular-nums lg:text-[30px]", netWorth.total < 0 && "text-danger")}>{money(netWorth.total)}</p>
+            <p className={cn("mt-0.5 break-words text-[34px] font-extrabold leading-tight tracking-tight tabular-nums lg:text-[30px]", !hidden && netWorth.total < 0 && "text-danger")}>{money(netWorth.total)}</p>
           </div>
           <dl className="hidden lg:contents">
             <div>
               <dt className="text-[13px] text-[hsl(var(--muted-foreground))]">Kas & bank</dt>
-              <dd className={cn("mt-0.5 text-lg font-bold tabular-nums", netWorth.cash < 0 && "text-danger")}>{compactMoney(netWorth.cash)}</dd>
+              <dd className={cn("mt-0.5 text-lg font-bold tabular-nums", !hidden && netWorth.cash < 0 && "text-danger")}>{compactMoney(netWorth.cash)}</dd>
             </div>
             <Link to="/portfolio" className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
               <dt className="text-[13px] text-[hsl(var(--muted-foreground))]">Investasi ›</dt>
@@ -211,7 +212,7 @@ export default function Accounts() {
             </Link>
             <Link to="/debts" className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
               <dt className="text-[13px] text-[hsl(var(--muted-foreground))]">Hutang bersih ›</dt>
-              <dd className={cn("mt-0.5 text-lg font-bold tabular-nums", netWorth.debtNet < 0 && "text-danger")}>{compactMoney(netWorth.debtNet)}</dd>
+              <dd className={cn("mt-0.5 text-lg font-bold tabular-nums", !hidden && netWorth.debtNet < 0 && "text-danger")}>{compactMoney(netWorth.debtNet)}</dd>
             </Link>
           </dl>
         </div>
@@ -287,16 +288,16 @@ export default function Accounts() {
         <Link to="/debts" className="flex min-h-[44px] flex-col gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
           <span className="text-[13px] font-bold">Hutang & piutang</span>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">Hutang</span>
-          <span className="break-words text-[15px] font-bold tabular-nums text-danger">{money(totalOwe)}</span>
+          <span className={cn("break-words text-[15px] font-bold tabular-nums", hidden ? "" : "text-danger")}>{money(totalOwe)}</span>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">Piutang</span>
-          <span className="break-words text-[15px] font-bold tabular-nums text-success">{money(totalOwed)}</span>
+          <span className={cn("break-words text-[15px] font-bold tabular-nums", hidden ? "" : "text-success")}>{money(totalOwed)}</span>
         </Link>
         <Link to="/portfolio" className="flex min-h-[44px] flex-col gap-1.5 rounded-[18px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
           <span className="text-[13px] font-bold">Portofolio</span>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">Nilai sekarang</span>
           <span className="break-words text-[15px] font-bold tabular-nums">{money(portfolio.totalValue)}</span>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">Untung/rugi</span>
-          <span className={cn("break-words text-[15px] font-bold tabular-nums", portfolio.totalGain === null ? "text-[hsl(var(--muted-foreground))]" : portfolio.totalGain >= 0 ? "text-success" : "text-danger")}>
+          <span className={cn("break-words text-[15px] font-bold tabular-nums", portfolio.totalGain === null || hidden ? "text-[hsl(var(--muted-foreground))]" : portfolio.totalGain >= 0 ? "text-success" : "text-danger")}>
             {portfolio.totalGain === null ? "—" : hidden ? "•••" : `${portfolio.totalGain >= 0 ? "+" : ""}${formatCurrency(portfolio.totalGain, currency)}`}
           </span>
         </Link>
@@ -414,7 +415,7 @@ function AccountDetail({
           <p className="text-xs text-[hsl(var(--muted-foreground))]">{ACCOUNT_TYPE_LABELS[account.type]}{account.isArchived ? " · Diarsipkan" : ""}</p>
         </div>
       </div>
-      <p className={cn("text-3xl font-semibold tracking-tight tabular-nums", balance < 0 && "text-danger")}>{hidden ? "•••" : formatCurrency(balance, currency)}</p>
+      <p className={cn("text-3xl font-semibold tracking-tight tabular-nums", !hidden && balance < 0 && "text-danger")}>{hidden ? "•••" : formatCurrency(balance, currency)}</p>
 
       {!account.isArchived && (
         <div className="grid grid-cols-3 gap-2">
@@ -451,7 +452,7 @@ function AccountDetail({
                     <span className="block truncate text-sm">{tx.note || (tx.type === "transfer" ? "Transfer" : tx.isAdjustment ? "Penyesuaian saldo" : "Transaksi")}</span>
                     <span className="block text-xs text-[hsl(var(--muted-foreground))]">{formatDate(tx.date, "dd MMM")}</span>
                   </span>
-                  <span className={cn("shrink-0 text-sm font-medium tabular-nums", outgoing ? "text-danger" : "text-success")}>{outgoing ? "-" : "+"}{hidden ? "•••" : formatCurrency(tx.amount, currency)}</span>
+                  <span className={cn("shrink-0 text-sm font-medium tabular-nums", hidden ? "" : outgoing ? "text-danger" : "text-success")}>{outgoing ? "-" : "+"}{hidden ? "•••" : formatCurrency(tx.amount, currency)}</span>
                 </li>
               );
             })}

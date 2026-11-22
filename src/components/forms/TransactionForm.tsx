@@ -550,7 +550,7 @@ export function TransactionForm({ open, onClose, onSaved, accounts, categories, 
                 <section aria-labelledby="tx-category-label" className="flex flex-col gap-2 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:gap-2.5">
                   <div className="flex items-center justify-between">
                     <h2 id="tx-category-label" className="text-[13px] font-bold text-[hsl(var(--foreground))] lg:text-xs lg:uppercase lg:tracking-wider lg:text-[hsl(var(--muted-foreground))]">Kategori</h2>
-                    <Link to="/categories" onClick={onClose} className="flex min-h-11 items-center text-[13px] font-semibold text-[hsl(var(--primary))] hover:underline lg:hidden">Kelola</Link>
+                    {!amount.trim() && !note.trim() && <Link to="/categories" onClick={onClose} className="flex min-h-11 items-center text-[13px] font-semibold text-[hsl(var(--primary))] hover:underline lg:hidden">Kelola</Link>}
                   </div>
                   {splitMode ? (
                     <div className="flex items-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] pl-4 pr-2">

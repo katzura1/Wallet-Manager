@@ -17,7 +17,6 @@ import { formatCurrency, formatDate, todayISO, readBalanceHidden } from "@/lib/u
 import { getRecurringDetectionSuggestions, type RecurringDetectionSuggestion } from "@/services/recurringDetection";
 import type { Transaction, RecurringTransaction, TransactionSplit } from "@/types";
 import { Plus, Search, Filter, ChevronLeft, MoreHorizontal, Sparkles, ClipboardList } from "lucide-react";
-import { usePageAction } from "@/components/layout/appLayoutContext";
 
 const PAGE_SIZE = 100;
 
@@ -376,18 +375,6 @@ export default function Transactions() {
     });
   }
 
-  usePageAction({
-    label: activeTab === "recurring" ? "Tambah jadwal" : "Tambah transaksi",
-    onClick: () => {
-      if (activeTab === "recurring") {
-        setRecurringDraft(null);
-        setRecurringFormOpen(true);
-      } else {
-        setAddOpen(true);
-      }
-    },
-  });
-
   const activeRecurringCount = recurring.filter((r) => r.isActive).length;
   const monthLabel = formatDate(todayISO(), "MMMM yyyy");
   const selectedTx = selectedId !== null ? transactions.find((t) => t.id === selectedId) ?? null : null;
@@ -462,6 +449,7 @@ export default function Transactions() {
             <button type="button" onClick={() => handleTabChange("all")} aria-pressed={false} className={pillCls(false)}>Riwayat</button>
             <button type="button" onClick={() => handleTabChange("recurring")} aria-pressed={true} className={pillCls(true)}>Terjadwal · {activeRecurringCount}</button>
           </div>
+          <button type="button" onClick={addSchedule} className="hidden h-11 items-center gap-1.5 whitespace-nowrap rounded-[14px] bg-[hsl(var(--primary))] px-4 text-sm font-semibold text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:inline-flex"><Plus size={16} aria-hidden="true" /> Tambah jadwal</button>
           <button type="button" onClick={addSchedule} aria-label="Tambah jadwal" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:hidden">
             <Plus size={20} aria-hidden="true" />
           </button>
@@ -875,8 +863,7 @@ export default function Transactions() {
         title="Hapus transaksi ini?"
         description={(() => {
           const target = transactions.find((t) => t.id === deleteTxId);
-          let hidden = false;
-          hidden = readBalanceHidden();
+          const hidden = readBalanceHidden();
           return target ? describeTransactionDelete(target, { accounts, categories, currency, hidden }) : "Transaksi ini akan dihapus.";
         })()}
         confirmLabel="Hapus"

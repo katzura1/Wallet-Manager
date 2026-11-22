@@ -60,6 +60,7 @@ export default function Dashboard() {
   const [defaultType, setDefaultType] = useState<Transaction["type"]>("expense");
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [balanceHidden, setBalanceHidden] = useState(readBalanceHidden);
   const [splitMap, setSplitMap] = useState<Record<number, TransactionSplit[]>>({});
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -256,14 +257,20 @@ export default function Dashboard() {
     level?: "warning" | "danger";
     href: string;
   };
-  const baseAttention = getAttentionItems({
+  const attentionInput = {
     today: format(now, "yyyy-MM-dd"),
     bills: recurringItems
       .filter((item) => item.isActive && item.type === "expense" && item.id !== undefined)
       .map((item) => ({ id: item.id!, name: item.note || categories.find((c) => c.id === item.categoryId)?.name || "Tagihan", amount: item.amount, nextDate: item.nextDate })),
     budgets: budgetUsage,
     debts,
-  });
+  };
+  // Reserve one slot for the most severe budget alert so debts/bills can never push it off Home.
+  const allAttention = getAttentionItems(attentionInput, 100);
+  const topBudgetItem = allAttention.find((item) => item.kind === "budget");
+  const baseAttention = topBudgetItem
+    ? [...allAttention.filter((item) => item.kind !== "budget").slice(0, 2), topBudgetItem]
+    : allAttention.slice(0, 3);
   const attentionItems: HomeAttention[] = baseAttention.map((item) => {
     if (item.kind !== "budget") return item;
     const alert = budgetAlerts.find((entry) => `budget-${entry.categoryId}` === item.key);
@@ -298,11 +305,17 @@ export default function Dashboard() {
   }
 
   async function handleDelete(id: number) {
-    await deleteTransaction(id);
-    setSelectedId(null);
-    await refreshAll();
-    await loadDashboardData();
-    setDeleteTargetId(null);
+    try {
+      await deleteTransaction(id);
+      setSelectedId(null);
+      await refreshAll();
+      await loadDashboardData();
+      setDeleteError(null);
+    } catch {
+      setDeleteError("Gagal menghapus transaksi. Coba lagi.");
+    } finally {
+      setDeleteTargetId(null);
+    }
   }
 
   function openTransaction(type: Transaction["type"]) {
@@ -409,6 +422,42 @@ export default function Dashboard() {
     { label: "Kekayaan bersih", value: money(netWorth.total), tone: "", note: netWorth.unpricedAssetCount > 0 ? `${netWorth.unpricedAssetCount} aset belum ada harga` : "kas + investasi − hutang" },
   ];
 
+  const header = (
+      <header className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] text-[hsl(var(--muted-foreground))]">{dateLabel}</p>
+          <h1 className="text-xl font-bold tracking-tight lg:text-2xl lg:font-extrabold">Ringkasan kamu</h1>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {hasAccounts && <button type="button" onClick={toggleBalanceHidden} aria-label={balanceHidden ? "Tampilkan nominal dashboard" : "Sembunyikan nominal dashboard"} aria-pressed={balanceHidden} className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]">
+            {balanceHidden ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>}
+          <div ref={heroMenuRef} className="relative">
+            <button
+              type="button"
+              aria-label="Menu dashboard"
+              aria-haspopup="menu"
+              aria-expanded={heroMenuOpen}
+              onClick={() => setHeroMenuOpen((value) => !value)}
+              className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--surface-2))]"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+            {heroMenuOpen && (
+              <div role="menu" aria-label="Menu dashboard" onKeyDown={onMenuKeyDown} className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-60 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 text-[hsl(var(--foreground))] shadow-lg">
+                {(hasAccounts ? menuActions : menuActions.filter((a) => a.label === "Chat AI")).map(({ label, icon: Icon, onClick }) => (
+                  <button key={label} type="button" role="menuitem" onClick={onClick} className={menuItemCls}><Icon size={16} aria-hidden="true" /> {label}</button>
+                ))}
+                <div role="separator" className="my-1 h-px bg-[hsl(var(--border))]" />
+                <Link to="/accounts" role="menuitem" onClick={() => setHeroMenuOpen(false)} className={menuItemCls}><CreditCard size={16} aria-hidden="true" /> Akun</Link>
+                <Link to="/settings" role="menuitem" onClick={() => setHeroMenuOpen(false)} className={menuItemCls}><Settings size={16} aria-hidden="true" /> Pengaturan</Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+  );
+
   if (!hasAccounts) {
     const steps = [
       { n: "1", title: "Tambah akun", desc: "Bank, e-wallet, atau tunai", status: "Mulai", to: "/accounts", on: true },
@@ -416,7 +465,9 @@ export default function Dashboard() {
       { n: "3", title: "Pasang PIN", desc: "Kunci saat aplikasi dibuka", status: "Nanti", to: "/settings", on: false },
     ];
     return (
-      <div className="mx-auto w-full max-w-md space-y-6 px-6 pt-10 pb-4 lg:pt-16">
+      <div className="px-4 pt-5 pb-4 lg:px-0 lg:pt-6">
+      {header}
+      <div className="mx-auto w-full max-w-md space-y-6 px-2 pt-8 lg:pt-12">
         <div aria-hidden="true" className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"><Wallet size={30} /></div>
         <div className="space-y-2">
           <h1 className="text-[28px] font-extrabold leading-tight tracking-tight">Mulai kelola keuanganmu</h1>
@@ -438,8 +489,9 @@ export default function Dashboard() {
         </ol>
         <div className="flex flex-col gap-2.5 pt-2">
           <Link to="/accounts" className="flex h-[54px] items-center justify-center rounded-2xl bg-[hsl(var(--primary))] text-base font-bold text-[hsl(var(--primary-foreground))]">Tambah akun pertama</Link>
-          <Link to="/settings" className="flex h-12 items-center justify-center rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[15px] font-semibold">Pulihkan dari backup</Link>
+          <Link to="/settings?open=backup" className="flex h-12 items-center justify-center rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[15px] font-semibold">Pulihkan dari backup</Link>
         </div>
+      </div>
       </div>
     );
   }
@@ -448,39 +500,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 px-4 pt-5 pb-4 lg:space-y-5 lg:px-0 lg:pt-6 [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-[hsl(var(--primary))]">
-      <header className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[13px] text-[hsl(var(--muted-foreground))]">{dateLabel}</p>
-          <h1 className="text-xl font-bold tracking-tight lg:text-2xl lg:font-extrabold">Ringkasan kamu</h1>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={toggleBalanceHidden} aria-label={balanceHidden ? "Tampilkan nominal dashboard" : "Sembunyikan nominal dashboard"} aria-pressed={balanceHidden} className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]">
-            {balanceHidden ? <EyeOff size={18} /> : <Eye size={18} />}
-          </button>
-          <div ref={heroMenuRef} className="relative">
-            <button
-              type="button"
-              aria-label="Menu dashboard"
-              aria-haspopup="menu"
-              aria-expanded={heroMenuOpen}
-              onClick={() => setHeroMenuOpen((value) => !value)}
-              className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--surface-2))]"
-            >
-              <MoreHorizontal size={18} />
-            </button>
-            {heroMenuOpen && (
-              <div role="menu" aria-label="Menu dashboard" onKeyDown={onMenuKeyDown} className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-60 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 text-[hsl(var(--foreground))] shadow-lg">
-                {menuActions.map(({ label, icon: Icon, onClick }) => (
-                  <button key={label} type="button" role="menuitem" onClick={onClick} className={menuItemCls}><Icon size={16} aria-hidden="true" /> {label}</button>
-                ))}
-                <div role="separator" className="my-1 h-px bg-[hsl(var(--border))]" />
-                <Link to="/accounts" role="menuitem" onClick={() => setHeroMenuOpen(false)} className={menuItemCls}><CreditCard size={16} aria-hidden="true" /> Akun</Link>
-                <Link to="/settings" role="menuitem" onClick={() => setHeroMenuOpen(false)} className={menuItemCls}><Settings size={16} aria-hidden="true" /> Pengaturan</Link>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      {header}
+
+      {deleteError && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{deleteError}</p>}
 
       {/* Mobile: balance + cash flow */}
       <section aria-label="Total saldo" className="space-y-4 lg:hidden">
@@ -584,7 +606,7 @@ export default function Dashboard() {
                         <td className="px-4 py-2.5 text-[hsl(var(--muted-foreground))]">{getAccountName(tx.accountId)}{tx.toAccountId ? ` → ${getAccountName(tx.toAccountId)}` : ""}</td>
                         <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${maskedTone(tx.type === "income" ? "text-success" : tx.type === "transfer" ? "text-[hsl(var(--muted-foreground))]" : "")}`}>{balanceHidden ? "" : tx.type === "income" ? "+" : tx.type === "expense" ? "-" : ""}{money(tx.amount)}</td>
                         <td className="px-2 py-1 text-right">
-                          <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                          <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                             <button type="button" aria-label={`Edit ${tx.note || getCategoryName(tx.categoryId) || "transaksi"}`} onClick={() => editRecent(tx)} className="flex h-11 w-11 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-2))]"><Pencil size={16} /></button>
                             <button type="button" aria-label={`Hapus ${tx.note || getCategoryName(tx.categoryId) || "transaksi"}`} onClick={() => deleteRecent(tx)} className="flex h-11 w-11 items-center justify-center rounded-xl text-danger hover:bg-danger/10"><Trash2 size={16} /></button>
                           </div>

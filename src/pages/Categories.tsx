@@ -6,7 +6,6 @@ import { deleteCategory } from "@/db/categories";
 import { seedMissingDefaultCategories } from "@/db/db";
 import { MoreHorizontal, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { Category } from "@/types";
-import { usePageAction } from "@/components/layout/appLayoutContext";
 
 type Tab = "expense" | "income" | "both";
 
@@ -50,7 +49,6 @@ export default function Categories() {
   const items = lists[activeTab];
   const tabNames: Record<Tab, string> = { expense: "pengeluaran", income: "pemasukan", both: "keduanya" };
 
-  usePageAction({ label: "Tambah kategori", onClick: () => setCatFormOpen(true) });
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 pt-5 pb-4 lg:px-0 lg:pt-7">
@@ -59,6 +57,7 @@ export default function Categories() {
         back="/settings"
         actions={
           <>
+            <button type="button" onClick={() => setCatFormOpen(true)} className="hidden h-11 items-center gap-1.5 whitespace-nowrap rounded-[14px] bg-[hsl(var(--primary))] px-4 text-sm font-semibold text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:inline-flex"><Plus size={16} aria-hidden="true" /> Tambah kategori</button>
             <button type="button" onClick={() => setCatFormOpen(true)} aria-label="Tambah kategori" className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:hidden">
               <Plus size={20} aria-hidden="true" />
             </button>
