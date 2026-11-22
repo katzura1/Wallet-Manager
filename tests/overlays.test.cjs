@@ -90,3 +90,61 @@ test('overlays mobile: confirm dialog sits above the bottom nav', async () => {
     await browser.close();
   }
 });
+
+test('overlays mobile: nested close order leaves body scroll unlocked', async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  try {
+    const context = await browser.newContext({ timezoneId: 'Asia/Jakarta', serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    await page.goto(url);
+    await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
+    await seed(page);
+    await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts');
+      const stamp = new Date().toISOString();
+      const debtId = await db.debts.add({ name: 'Andi', type: 'owe', amount: 1000000, remaining: 800000, date: stamp.slice(0, 10), note: '', accountId: 1, isSettled: false, createdAt: stamp, updatedAt: stamp });
+      await db.debtPayments.add({ debtId, amount: 200000, date: stamp.slice(0, 10), note: '', createdAt: stamp });
+    });
+    await page.goto(`${url}/debts`);
+    await page.getByRole('button', { name: 'Riwayat', exact: true }).first().click();
+    const sheet = page.getByRole('dialog', { name: /Riwayat/ });
+    await sheet.getByRole('button', { name: 'Hapus pembayaran', exact: true }).click();
+    const confirm = page.getByRole('alertdialog');
+    await confirm.waitFor();
+    assert.equal(await page.evaluate(() => document.body.style.overflow), 'hidden');
+    // Closing the parent sheet unmounts the confirm above it; the lock must still be released.
+    await page.evaluate(() => document.querySelector('[role="dialog"] button[aria-label="Tutup"]').click());
+    await sheet.waitFor({ state: 'detached' });
+    await confirm.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.body.style.overflow), '');
+    assert.notEqual(await page.evaluate(() => getComputedStyle(document.body).overflow), 'hidden', 'page must be scrollable again');
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+});
+
+test('overlays mobile: Escape closes a Modal and returns focus to the opener', async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  try {
+    const context = await browser.newContext({ timezoneId: 'Asia/Jakarta', serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    await page.goto(url);
+    await page.getByRole('heading', { name: 'Mulai kelola keuanganmu', exact: true }).waitFor();
+    await seed(page);
+    await page.goto(`${url}/categories`);
+    const opener = page.getByRole('button', { name: 'Tambah kategori', exact: true });
+    await opener.click();
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.textContent.trim()), 'Tambah kategori');
+    assert.equal(await page.evaluate(() => document.body.style.overflow), '');
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+});

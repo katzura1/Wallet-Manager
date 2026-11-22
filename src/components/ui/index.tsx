@@ -126,20 +126,78 @@ interface ModalProps {
   noScroll?: boolean;
 }
 
+let lockCount = 0;
+let lockedOverflow = "";
+function lockScroll() {
+  if (lockCount === 0) {
+    lockedOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  lockCount += 1;
+}
+function unlockScroll() {
+  lockCount = Math.max(0, lockCount - 1);
+  if (lockCount === 0) document.body.style.overflow = lockedOverflow;
+}
+
+const overlayStack: object[] = [];
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Shared by Sheet and Modal: scroll lock, initial focus, Escape, Tab trap, focus restore. */
+function useOverlayBehavior(open: boolean, onClose: () => void, panelRef: React.RefObject<HTMLElement | null>, closeRef: React.RefObject<HTMLElement | null>) {
+  const onCloseRef = React.useRef(onClose);
+  React.useEffect(() => { onCloseRef.current = onClose; });
+  React.useEffect(() => {
+    if (!open) return;
+    const token = {};
+    overlayStack.push(token);
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    lockScroll();
+    closeRef.current?.focus();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (overlayStack[overlayStack.length - 1] !== token) return;
+      if (document.querySelector('[role="alertdialog"]')) return;
+      if (event.key === "Escape") {
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (!panelRef.current?.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      const index = overlayStack.indexOf(token);
+      if (index >= 0) overlayStack.splice(index, 1);
+      unlockScroll();
+      previouslyFocused?.focus?.();
+    };
+  }, [open, panelRef, closeRef]);
+}
+
 function GrabHandle() {
   return <div aria-hidden="true" className="flex justify-center pt-2.5 lg:hidden"><span className="h-1 w-10 rounded-full bg-[hsl(var(--surface-3))]" /></div>;
 }
 
 export function Modal({ open, onClose, title, children, noScroll }: ModalProps) {
   const titleId = React.useId();
-
-  React.useEffect(() => {
-    if (open) {
-      const previous = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = previous; };
-    }
-  }, [open]);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const closeRef = React.useRef<HTMLButtonElement>(null);
+  useOverlayBehavior(open, onClose, panelRef, closeRef);
 
   if (!open) return null;
   // Rendered into document.body so no ancestor stacking context can place the bottom nav above it.
@@ -147,6 +205,7 @@ export function Modal({ open, onClose, title, children, noScroll }: ModalProps) 
     <div className="fixed inset-0 z-[60] flex items-end justify-center lg:items-center lg:p-4" data-modal-open="true">
       <div className="absolute inset-0 bg-black/45" aria-hidden="true" onClick={onClose} />
       <div
+        ref={panelRef}
         className={cn(
           "relative z-10 flex w-full flex-col overflow-hidden rounded-t-3xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl overscroll-contain lg:max-w-lg lg:rounded-3xl",
           noScroll ? "h-[90dvh] lg:h-auto lg:max-h-[90dvh]" : "max-h-[90dvh]",
@@ -158,7 +217,7 @@ export function Modal({ open, onClose, title, children, noScroll }: ModalProps) 
         <GrabHandle />
         <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] px-5 pb-3 pt-2 lg:pt-4">
           <h2 id={titleId} className="min-w-0 truncate text-lg font-semibold leading-tight">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Tutup dialog" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
+          <button ref={closeRef} type="button" onClick={onClose} aria-label="Tutup dialog" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--surface-2))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]">
             <X size={18} aria-hidden="true" />
           </button>
         </div>
@@ -191,8 +250,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel, cancelLa
   React.useEffect(() => {
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    lockScroll();
     cancelRef.current?.focus();
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") { onCloseRef.current(); return; }
@@ -207,7 +265,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel, cancelLa
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       previouslyFocused?.focus?.();
     };
   }, [open]);
@@ -280,7 +338,7 @@ export function IconTile({ label, color, size = "md", className }: { label: stri
     <span
       aria-hidden="true"
       className={cn("inline-flex shrink-0 select-none items-center justify-center font-bold leading-none", tileSizes[size], className)}
-      style={{ background: `color-mix(in srgb, ${tint} 14%, transparent)`, color: tint }}
+      style={{ background: `color-mix(in srgb, ${tint} 14%, transparent)`, color: `color-mix(in srgb, ${tint} 70%, hsl(var(--foreground)))` }}
     >
       {initialsOf(label)}
     </span>
@@ -468,45 +526,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
   const titleId = React.useId();
   const panelRef = React.useRef<HTMLDivElement>(null);
   const closeRef = React.useRef<HTMLButtonElement>(null);
-  const onCloseRef = React.useRef(onClose);
-  React.useEffect(() => { onCloseRef.current = onClose; });
-
-  React.useEffect(() => {
-    if (!open) return;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    closeRef.current?.focus();
-    document.body.style.overflow = "hidden";
-    function handleKeyDown(event: KeyboardEvent) {
-      if (document.querySelector('[role="alertdialog"]')) return;
-      if (event.key === "Escape") {
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const focusable = panelRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-      if (!focusable?.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      if (!panelRef.current?.contains(active)) {
-        event.preventDefault();
-        first.focus();
-      } else if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-      previouslyFocused?.focus?.();
-    };
-  }, [open]);
+  useOverlayBehavior(open, onClose, panelRef, closeRef);
 
   if (!open) return null;
   return createPortal(
