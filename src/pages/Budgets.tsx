@@ -1,11 +1,10 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Target } from "lucide-react";
 import { useSettingsStore, useWalletStore } from "@/stores/walletStore";
-import { Button, EmptyState, IconTile, PageHeader, ProgressBar, Switch } from "@/components/ui";
+import { Button, EmptyState, IconTile, PageHeader, ProgressBar } from "@/components/ui";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { BudgetForm } from "@/components/forms/BudgetForm";
 import { getCategoryExpenseData } from "@/db/transactions";
-import { setBudget } from "@/db/budgets";
 import { buildBudgetRows, loadMonthBudgets, type BudgetRow, type MonthBudgets } from "@/lib/budgetRows";
 import { useMonth } from "@/lib/useMonth";
 import { formatCurrency } from "@/lib/utils";
@@ -17,7 +16,7 @@ const pctClass: Record<Tone, string> = { primary: "text-[hsl(var(--foreground))]
 export default function Budgets() {
   const { categories, refreshAll } = useWalletStore();
   const { currency } = useSettingsStore();
-  const m = useMonth();
+  const m = useMonth({ syncParam: true });
   const [data, setData] = useState<MonthBudgets>({ budgets: [], inheritedIds: new Set() });
   const [actuals, setActuals] = useState<Record<number, number>>({});
   const [loaded, setLoaded] = useState(false);
@@ -68,14 +67,11 @@ export default function Budgets() {
   const daysLeft = isCurrent ? daysInMonth - today.getDate() : null;
   const usageText = `${totalPct}% terpakai${daysLeft !== null ? ` · ${daysLeft} hari lagi` : ""}`;
 
-  // "Ulangi tiap bulan" mirrors the per-budget recurring flag across this month's explicit budgets.
+  // Read-only status: how many of this month's explicit budgets repeat. Edit via "Atur anggaran <kategori>".
   const explicit = data.budgets.filter((b) => !data.inheritedIds.has(b.id ?? 0));
-  const repeatOn = explicit.every((b) => b.recurring !== false);
+  const repeatCount = explicit.filter((b) => b.recurring !== false).length;
   const nextMonthName = new Date(year, month, 1).toLocaleString("id-ID", { month: "long" });
-  async function toggleRepeat(value: boolean) {
-    await Promise.all(explicit.map((b) => setBudget(b.categoryId, key, b.amount, value)));
-    reload();
-  }
+  const repeatStatus = `Ulangi tiap bulan · ${repeatCount} dari ${explicit.length} anggaran`;
 
   const hasRows = rows.length > 0;
 
@@ -150,10 +146,7 @@ export default function Budgets() {
         back="/reports"
         actions={
           <>
-            <div className="hidden items-center gap-2 lg:flex">
-              <span className="text-[13px] text-[hsl(var(--muted-foreground))]">Ulangi tiap bulan</span>
-              <Switch label="Ulangi anggaran tiap bulan" checked={repeatOn} onChange={(v) => void toggleRepeat(v)} disabled={explicit.length === 0} />
-            </div>
+            <p className="hidden text-[13px] text-[hsl(var(--muted-foreground))] lg:block">{repeatStatus}</p>
             <Button className="h-11" onClick={() => openForm()}>+ Atur</Button>
           </>
         }
@@ -161,7 +154,7 @@ export default function Budgets() {
       <div className="flex justify-center lg:justify-start"><MonthSwitcher label={m.label} shortLabel={m.shortLabel} onPrev={m.prev} onNext={m.next} /></div>
 
       <section aria-label="Anggaran" className="space-y-4">
-        {loaded && !hasRows ? (
+        {loaded && categories.length > 0 && !hasRows ? (
           <EmptyState icon="🎯" title="Belum ada anggaran" description="Atur batas pengeluaran per kategori untuk bulan ini." />
         ) : (
           <>
@@ -187,12 +180,9 @@ export default function Budgets() {
               </dl>
             </section>
 
-            <div className="flex items-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-1 pl-4 pr-2 lg:hidden">
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">Ulangi tiap bulan</span>
-                <span className="block text-xs text-[hsl(var(--muted-foreground))]">Anggaran otomatis dibawa ke {nextMonthName}</span>
-              </span>
-              <Switch label="Ulangi anggaran tiap bulan" checked={repeatOn} onChange={(v) => void toggleRepeat(v)} disabled={explicit.length === 0} />
+            <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3 lg:hidden">
+              <p className="text-sm font-semibold">{repeatStatus}</p>
+              {repeatCount > 0 && <p className="text-xs text-[hsl(var(--muted-foreground))]">Anggaran yang berulang otomatis dibawa ke {nextMonthName}</p>}
             </div>
 
             <section aria-label="Anggaran per kategori" className={listCard}>

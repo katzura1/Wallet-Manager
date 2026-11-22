@@ -503,7 +503,7 @@ export default function Reports() {
                         {showAllCategories ? <ChevronUp size={14} /> : <ChevronDown size={14} />}{showAllCategories ? "Ringkas" : "Semua"}
                       </button>
                     )}
-                    {mode === "monthly" && <Link to="/budgets" className={linkButton}>Anggaran</Link>}
+                    {mode === "monthly" && <Link to={`/budgets?month=${monthState.key}`} className={linkButton}>Anggaran</Link>}
                   </div>
                 </div>
               </CardHeader>
@@ -576,7 +576,7 @@ export default function Reports() {
           )}
 
           {budgetPct !== null && (
-            <Link to="/budgets" className={`${sectionCard} flex min-h-11 items-center gap-3 border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]`}>
+            <Link to={`/budgets?month=${monthState.key}`} className={`${sectionCard} flex min-h-11 items-center gap-3 border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3 hover:bg-[hsl(var(--surface-2))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]`}>
               <span className="min-w-0 flex-1 text-sm font-semibold">Anggaran · {budgetPct}% terpakai</span>
               <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
             </Link>

@@ -267,7 +267,7 @@ export function LedgerContent() {
           <Card className="space-y-3 overflow-hidden rounded-[18px] p-0">
             <div className="flex flex-col gap-1 px-4 pt-3 sm:flex-row sm:items-start sm:justify-between">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                {dateFrom || "Awal"} sampai {dateTo || "Hari ini"} • {ledger.rows.length} transaksi
+                {dateFrom ? formatDate(dateFrom, "d MMM yyyy") : "Awal"} sampai {dateTo ? formatDate(dateTo, "d MMM yyyy") : "Hari ini"} • {ledger.rows.length} transaksi
               </p>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Saldo berjalan dihitung setelah setiap mutasi.</p>
             </div>

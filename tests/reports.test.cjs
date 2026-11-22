@@ -42,6 +42,14 @@ test('reports redirect, tabs and ledger', async () => {
     await page.waitForURL(/\/budgets$/);
     await page.getByRole('region', { name: 'Anggaran', exact: true }).waitFor();
 
+    // Month carries from Reports to Budgets.
+    await page.goto(url + '/reports');
+    // Next month: the October budget is recurring, so November still shows the link card.
+    await page.getByRole('button', { name: 'Bulan berikutnya', exact: true }).click();
+    await page.getByRole('link', { name: /Anggaran · \d+% terpakai/ }).click();
+    await page.waitForURL(/\/budgets\?month=2026-11$/);
+    await page.getByRole('heading', { level: 1 }).filter({ hasText: 'November' }).waitFor();
+
     await page.goto(url + '/reports');
     await page.getByRole('tab', { name: 'Buku besar', exact: true }).click();
     await page.waitForURL(/tab=ledger/);
