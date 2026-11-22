@@ -8,7 +8,7 @@ import { Pencil, RefreshCw, Trash2 } from "lucide-react";
 import type { Category } from "@/types";
 import { usePageAction } from "@/components/layout/appLayoutContext";
 
-type Tab = "expense" | "income";
+type Tab = "expense" | "income" | "both";
 
 export default function Categories() {
   const { categories, refreshAll } = useWalletStore();
@@ -33,12 +33,14 @@ export default function Categories() {
     }
   }
 
-  // Categories of type "both" appear in both lists.
   const lists: Record<Tab, Category[]> = {
-    expense: categories.filter((c) => c.type === "expense" || c.type === "both"),
-    income: categories.filter((c) => c.type === "income" || c.type === "both"),
+    expense: categories.filter((c) => c.type === "expense"),
+    income: categories.filter((c) => c.type === "income"),
+    both: categories.filter((c) => c.type === "both"),
   };
-  const items = lists[tab];
+  const activeTab: Tab = tab === "both" && lists.both.length === 0 ? "expense" : tab;
+  const items = lists[activeTab];
+  const tabNames: Record<Tab, string> = { expense: "pengeluaran", income: "pemasukan", both: "keduanya" };
 
   usePageAction({ label: "Tambah kategori", onClick: () => setCatFormOpen(true) });
 
@@ -54,20 +56,23 @@ export default function Categories() {
         }
       />
 
+      <p className="text-xs text-[hsl(var(--muted-foreground))]">{categories.length} kategori · {categories.filter((cat) => cat.isDefault).length} bawaan · {categories.filter((cat) => !cat.isDefault).length} buatan sendiri</p>
+
       <SegmentedControl
         label="Jenis kategori"
-        value={tab}
+        value={activeTab}
         onChange={setTab}
         options={[
           { value: "expense", label: `Pengeluaran · ${lists.expense.length}` },
           { value: "income", label: `Pemasukan · ${lists.income.length}` },
+          ...(lists.both.length > 0 ? [{ value: "both" as Tab, label: `Keduanya · ${lists.both.length}` }] : []),
         ]}
       />
 
       {restoreMsg && <p role="status" className="text-xs text-[hsl(var(--muted-foreground))]">{restoreMsg}</p>}
 
-      <section aria-label={tab === "expense" ? "Kategori pengeluaran" : "Kategori pemasukan"} className="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
-        {items.length === 0 && <p className="p-4 text-xs text-[hsl(var(--muted-foreground))]">Belum ada kategori {tab === "expense" ? "pengeluaran" : "pemasukan"}. Pilih Tambah kategori untuk membuatnya.</p>}
+      <section aria-label={`Kategori ${tabNames[activeTab]}`} className="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
+        {items.length === 0 && <p className="p-4 text-xs text-[hsl(var(--muted-foreground))]">Belum ada kategori {tabNames[activeTab]}. Pilih Tambah kategori untuk membuatnya.</p>}
         <ul className="divide-y divide-[hsl(var(--border))]">
           {items.map((cat) => (
             <li key={cat.id} className="flex items-center gap-3 px-4 py-2.5">
@@ -88,7 +93,7 @@ export default function Categories() {
           ))}
         </ul>
       </section>
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">Kategori Keduanya muncul di pemasukan dan pengeluaran. Kategori bawaan bisa diedit; hanya kategori buatan sendiri yang bisa dihapus.</p>
+      <p className="text-xs text-[hsl(var(--muted-foreground))]">Kategori Keduanya dapat dipakai untuk pemasukan dan pengeluaran. Kategori bawaan bisa diedit; hanya kategori buatan sendiri yang bisa dihapus.</p>
 
       <CategoryForm
         open={catFormOpen || editCat !== null}

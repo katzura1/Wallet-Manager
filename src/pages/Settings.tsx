@@ -389,7 +389,8 @@ export default function Settings() {
                 <Switch
                   label="Backup otomatis"
                   checked={cloudSettings.enabled}
-                  onChange={(v) => { if (cloudAuth.isConfigured) saveCloudConfig({ ...cloudSettings, enabled: v }); }}
+                  disabled={!cloudAuth.isConfigured}
+                  onChange={(v) => saveCloudConfig({ ...cloudSettings, enabled: v })}
                 />
               }
             />
@@ -445,8 +446,8 @@ export default function Settings() {
                 <Download size={15} /> Export CSV
               </Button>
             </div>
-            <ListRow label="Pulihkan dari file JSON" sub={importing ? "Mengimport..." : "Gabungkan atau ganti data dari file backup."} onClick={() => setImportOpen(true)} />
-            {importMsg && <p role="status" className="px-4 py-3 text-center text-xs">{importMsg}</p>}
+            <ListRow label="Pulihkan dari file JSON" sub={importing ? "Mengimport..." : "Gabungkan atau ganti data dari file backup."} onClick={() => { setImportMsg(""); setImportOpen(true); }} />
+            {importMsg && !importOpen && <p role="status" className="px-4 py-3 text-center text-xs">{importMsg}</p>}
           </ListGroup>
 
           <ListGroup title="Zona bahaya">
@@ -466,6 +467,7 @@ export default function Settings() {
             </div>
             <input type="file" aria-label="Import JSON" accept=".json" disabled={importing} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={handleImport} />
           </label>
+          {importMsg && <p role={importMsg.startsWith("❌") ? "alert" : "status"} className="text-center text-xs">{importMsg}</p>}
         </div>
       </Sheet>
 
@@ -475,6 +477,7 @@ export default function Settings() {
             Pilih mode restore untuk <span className="font-medium text-[hsl(var(--foreground))]">{restoreTarget?.name}</span>.
           </p>
           <RestoreModeChoice name="cloud-mode" value={cloudImportMode} onChange={setCloudImportMode} />
+          {cloudMsg && <p role={cloudMsg.startsWith("❌") ? "alert" : "status"} className="text-center text-xs">{cloudMsg}</p>}
           <div className="flex gap-2">
             <Button variant="outline" className="min-h-11 flex-1" onClick={() => setRestoreTarget(null)}>
               Batal

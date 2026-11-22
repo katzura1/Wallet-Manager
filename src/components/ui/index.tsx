@@ -246,16 +246,18 @@ export function SegmentedControl<T extends string>({ label, value, options, onCh
   );
 }
 
-export function Switch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+export function Switch({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
         "group flex h-11 min-w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
+        disabled && "opacity-50",
       )}
     >
       <span className={cn("relative h-7 w-12 rounded-full transition-colors", checked ? "bg-[hsl(var(--primary))]" : "bg-[hsl(var(--surface-3))]")}>
